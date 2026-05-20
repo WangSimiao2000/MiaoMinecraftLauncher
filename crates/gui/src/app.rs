@@ -627,6 +627,90 @@ impl MiaoApp {
             });
         });
     }
+
+    fn download_java_for_instance(&mut self, idx: usize) {
+        let inst = &self.instances[idx];
+        let meta_path = self
+            .config
+            .versions_dir()
+            .join(&inst.minecraft_version)
+            .join(format!("{}.json", &inst.minecraft_version));
+
+        if !meta_path.exists() {
+            self.status = "Version meta not found.".to_string();
+            return;
+        }
+
+        let meta_content = match std::fs::read_to_string(&meta_path) {
+            Ok(c) => c,
+            Err(_) => {
+                self.status = "Cannot read version meta.".to_string();
+                return;
+            }
+        };
+
+        let meta: miao_core::version::meta::VersionMeta = match serde_json::from_str(&meta_content)
+        {
+            Ok(m) => m,
+            Err(_) => {
+                self.status = "Cannot parse version meta.".to_string();
+                return;
+            }
+        };
+
+        let required = meta.required_java_major();
+        let java_installations = miao_core::java::detect_system_java();
+        if miao_core::java::find_compatible_java(&java_installations, required).is_some() {
+            self.status = format!("Java {} already available.", required);
+            return;
+        }
+
+        {
+            let mut s = self.async_state.lock().unwrap();
+            if s.installing {
+                self.status = "Already installing...".to_string();
+                return;
+            }
+            s.installing = true;
+            s.install_status = Some(format!("Downloading Java {}...", required));
+        }
+
+        self.status = format!("Downloading Java {}...", required);
+        let state = self.async_state.clone();
+        let java_dir = self.config.data_dir.join("java");
+
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let http = reqwest::Client::new();
+                let result =
+                    match miao_core::java::download::fetch_latest_asset(&http, required).await {
+                        Ok(asset) => {
+                            miao_core::java::download::download_and_extract_java(
+                                &http, &asset, &java_dir,
+                            )
+                            .await
+                        }
+                        Err(e) => Err(e),
+                    };
+
+                let mut s = state.lock().unwrap();
+                s.installing = false;
+                match result {
+                    Ok(path) => {
+                        s.install_status = Some(format!(
+                            "✓ Java {} installed at {}",
+                            required,
+                            path.display()
+                        ));
+                    }
+                    Err(e) => {
+                        s.install_status = Some(format!("✗ Java download failed: {}", e));
+                    }
+                }
+            });
+        });
+    }
 }
 
 impl MiaoApp {
@@ -670,8 +754,41 @@ impl MiaoApp {
                     self.launch_instance(idx);
                 }
 
-                if self.selected_instance.is_some() {
-                    ui.separator();
+                if let Some(idx) = self.selected_instance {
+                    if ui.button("🗑 Delete").clicked() {
+                        let name = self.instances[idx].name.clone();
+                        if let Err(e) = miao_core::instance::delete_instance(
+                            &self.config.instances_dir(),
+                            &name,
+                        ) {
+                            self.status = format!("✗ Delete failed: {}", e);
+                        } else {
+                            self.status = format!("✓ Deleted '{}'", name);
+                            self.instances =
+                                miao_core::instance::list_instances(&self.config.instances_dir())
+                                    .unwrap_or_default();
+                            self.selected_instance = None;
+                        }
+                    }
+
+                    if ui.button("📂 Open Folder").clicked() {
+                        let inst = &self.instances[idx];
+                        let dir = miao_core::instance::Instance::instance_dir(
+                            &self.config.instances_dir(),
+                            &inst.name,
+                        );
+                        let _ = miao_core::instance::open_folder(&dir);
+                    }
+
+                    if ui.button("☕ Download Java").clicked() {
+                        self.download_java_for_instance(idx);
+                    }
+                }
+            });
+
+            if let Some(idx) = self.selected_instance {
+                ui.separator();
+                ui.horizontal(|ui| {
                     egui::ComboBox::from_label("Mod Loader")
                         .selected_text(LOADER_NAMES[self.selected_loader])
                         .show_ui(ui, |ui| {
@@ -680,9 +797,7 @@ impl MiaoApp {
                             }
                         });
 
-                    if ui.button("Install Loader").clicked()
-                        && let Some(idx) = self.selected_instance
-                    {
+                    if ui.button("Install Loader").clicked() {
                         let inst = &self.instances[idx];
                         self.install_loader(
                             inst.name.clone(),
@@ -690,9 +805,102 @@ impl MiaoApp {
                             self.selected_loader,
                         );
                     }
-                }
-            });
+                });
+
+                self.render_instance_resources(ui, idx);
+            }
         }
+    }
+
+    fn render_instance_resources(&mut self, ui: &mut egui::Ui, idx: usize) {
+        let inst = &self.instances[idx];
+        let instance_dir =
+            miao_core::instance::Instance::instance_dir(&self.config.instances_dir(), &inst.name);
+
+        ui.separator();
+        egui::CollapsingHeader::new("Mods").show(ui, |ui| {
+            let mods_dir = miao_core::instance::Instance::mods_dir(&instance_dir);
+            let mods = miao_core::modmanager::scan_mods_dir(&mods_dir);
+            if mods.is_empty() {
+                ui.label("No mods installed.");
+            } else {
+                for mut m in mods {
+                    ui.horizontal(|ui| {
+                        let status = if m.enabled { "✓" } else { "✗" };
+                        if ui.button(status).clicked() {
+                            let _ = m.toggle();
+                        }
+                        ui.label(&m.name);
+                        if ui.small_button("🗑").clicked() {
+                            let _ = m.delete();
+                        }
+                    });
+                }
+            }
+            if ui.button("Open mods folder").clicked() {
+                let _ = miao_core::instance::open_folder(&mods_dir);
+            }
+        });
+
+        egui::CollapsingHeader::new("Resource Packs").show(ui, |ui| {
+            let dir = miao_core::instance::Instance::resourcepacks_dir(&instance_dir);
+            let packs = miao_core::resource::scan_resourcepacks(&dir);
+            if packs.is_empty() {
+                ui.label("No resource packs.");
+            } else {
+                for p in &packs {
+                    ui.horizontal(|ui| {
+                        ui.label(&p.name);
+                        if ui.small_button("🗑").clicked() {
+                            let _ = p.delete();
+                        }
+                    });
+                }
+            }
+            if ui.button("Open folder").clicked() {
+                let _ = miao_core::instance::open_folder(&dir);
+            }
+        });
+
+        egui::CollapsingHeader::new("Shaders").show(ui, |ui| {
+            let dir = miao_core::instance::Instance::shaderpacks_dir(&instance_dir);
+            let shaders = miao_core::resource::scan_shaderpacks(&dir);
+            if shaders.is_empty() {
+                ui.label("No shader packs.");
+            } else {
+                for s in &shaders {
+                    ui.horizontal(|ui| {
+                        ui.label(&s.name);
+                        if ui.small_button("🗑").clicked() {
+                            let _ = s.delete();
+                        }
+                    });
+                }
+            }
+            if ui.button("Open folder").clicked() {
+                let _ = miao_core::instance::open_folder(&dir);
+            }
+        });
+
+        egui::CollapsingHeader::new("Worlds").show(ui, |ui| {
+            let saves = miao_core::instance::list_saves(&instance_dir);
+            if saves.is_empty() {
+                ui.label("No worlds.");
+            } else {
+                for s in &saves {
+                    ui.horizontal(|ui| {
+                        ui.label(&s.name);
+                        if ui.small_button("🗑").clicked() {
+                            let _ = s.delete();
+                        }
+                    });
+                }
+            }
+            let saves_dir = miao_core::instance::Instance::saves_dir(&instance_dir);
+            if ui.button("Open folder").clicked() {
+                let _ = miao_core::instance::open_folder(&saves_dir);
+            }
+        });
     }
 
     fn render_versions(&mut self, ui: &mut egui::Ui, state: &AsyncState) {
