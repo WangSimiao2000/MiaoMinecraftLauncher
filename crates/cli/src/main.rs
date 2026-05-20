@@ -48,6 +48,11 @@ enum Commands {
         /// Instance name
         instance: String,
     },
+    /// Delete an instance
+    Delete {
+        /// Instance name
+        instance: String,
+    },
     /// Add an offline account
     Account {
         /// Username for offline account
@@ -55,6 +60,56 @@ enum Commands {
     },
     /// Detect installed Java versions
     Java,
+    /// Download required Java for an instance from Adoptium
+    DownloadJava {
+        /// Instance name
+        instance: String,
+    },
+    /// Manage mods for an instance (list/toggle/delete)
+    Mods {
+        /// Instance name
+        instance: String,
+        /// Toggle a mod by name (enable/disable)
+        #[arg(short, long)]
+        toggle: Option<String>,
+        /// Delete a mod by name
+        #[arg(short, long)]
+        delete: Option<String>,
+    },
+    /// Manage resource packs for an instance (list/delete)
+    Resources {
+        /// Instance name
+        instance: String,
+        /// Delete a resource pack by name
+        #[arg(short, long)]
+        delete: Option<String>,
+    },
+    /// Manage shader packs for an instance (list/delete)
+    Shaders {
+        /// Instance name
+        instance: String,
+        /// Delete a shader pack by name
+        #[arg(short, long)]
+        delete: Option<String>,
+    },
+    /// Manage save worlds for an instance (list/delete)
+    Saves {
+        /// Instance name
+        instance: String,
+        /// Delete a world by name
+        #[arg(short, long)]
+        delete: Option<String>,
+    },
+    /// Open instance folder in file manager
+    Open {
+        /// Instance name
+        instance: String,
+    },
+    /// Show compatible mod loaders for a MC version
+    Loaders {
+        /// Minecraft version (e.g. 1.20.4)
+        version: String,
+    },
     /// Upgrade the mod loader version for an instance (same loader type only)
     UpgradeLoader {
         /// Instance name
@@ -91,8 +146,24 @@ async fn main() -> anyhow::Result<()> {
             .await?
         }
         Commands::Launch { instance } => cmd_launch(&config, &instance).await?,
+        Commands::Delete { instance } => cmd_delete(&config, &instance)?,
         Commands::Account { username } => cmd_account(&config, &username)?,
         Commands::Java => cmd_java(),
+        Commands::DownloadJava { instance } => cmd_download_java(&config, &instance).await?,
+        Commands::Mods {
+            instance,
+            toggle,
+            delete,
+        } => cmd_mods(&config, &instance, toggle.as_deref(), delete.as_deref())?,
+        Commands::Resources { instance, delete } => {
+            cmd_resources(&config, &instance, delete.as_deref())?
+        }
+        Commands::Shaders { instance, delete } => {
+            cmd_shaders(&config, &instance, delete.as_deref())?
+        }
+        Commands::Saves { instance, delete } => cmd_saves(&config, &instance, delete.as_deref())?,
+        Commands::Open { instance } => cmd_open(&config, &instance)?,
+        Commands::Loaders { version } => cmd_loaders(&config, &version).await?,
         Commands::UpgradeLoader { instance, version } => {
             cmd_upgrade_loader(&config, &instance, version.as_deref()).await?
         }
@@ -426,6 +497,238 @@ fn cmd_account(config: &LauncherConfig, username: &str) -> anyhow::Result<()> {
     }
     config.save()?;
     println!("✓ Account saved.");
+    Ok(())
+}
+
+fn cmd_delete(config: &LauncherConfig, instance_name: &str) -> anyhow::Result<()> {
+    instance::delete_instance(&config.instances_dir(), instance_name)?;
+    println!("✓ Deleted instance '{}'", instance_name);
+    Ok(())
+}
+
+async fn cmd_download_java(config: &LauncherConfig, instance_name: &str) -> anyhow::Result<()> {
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    let inst = Instance::load_from(&instance_dir)?;
+
+    let meta_path = config
+        .versions_dir()
+        .join(&inst.minecraft_version)
+        .join(format!("{}.json", &inst.minecraft_version));
+
+    if !meta_path.exists() {
+        anyhow::bail!("Version metadata not found for {}", inst.minecraft_version);
+    }
+
+    let meta_content = std::fs::read_to_string(&meta_path)?;
+    let meta: miao_core::version::meta::VersionMeta = serde_json::from_str(&meta_content)?;
+    let required = meta.required_java_major();
+
+    let java_installations = java::detect_system_java();
+    if java::find_compatible_java(&java_installations, required).is_some() {
+        println!("✓ Java {} already available.", required);
+        return Ok(());
+    }
+
+    println!(
+        "Java {} required but not found. Downloading from Adoptium...",
+        required
+    );
+
+    let http = reqwest::Client::new();
+    let asset = miao_core::java::download::fetch_latest_asset(&http, required).await?;
+    let total_mb = asset.binary.package.size as f64 / 1_000_000.0;
+    println!("Downloading {} ({:.1} MB)...", asset.release_name, total_mb);
+
+    let java_dir = config.data_dir.join("java");
+    let java_bin = miao_core::java::download::download_and_extract_java_with_progress(
+        &http,
+        &asset,
+        &java_dir,
+        |phase| {
+            use miao_core::java::download::DownloadPhase;
+            match phase {
+                DownloadPhase::Downloading { downloaded, total } => {
+                    eprint!(
+                        "\r  {:.1}/{:.1} MB",
+                        downloaded as f64 / 1_000_000.0,
+                        total as f64 / 1_000_000.0
+                    );
+                }
+                DownloadPhase::Extracting => {
+                    eprintln!("\r  Extracting...          ");
+                }
+            }
+        },
+    )
+    .await?;
+
+    println!("\n✓ Java {} installed at {}", required, java_bin.display());
+    Ok(())
+}
+
+fn cmd_mods(
+    config: &LauncherConfig,
+    instance_name: &str,
+    toggle: Option<&str>,
+    delete: Option<&str>,
+) -> anyhow::Result<()> {
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    let mods_dir = Instance::mods_dir(&instance_dir);
+    let mut mods = miao_core::modmanager::scan_mods_dir(&mods_dir);
+
+    if let Some(name) = toggle {
+        let m = mods
+            .iter_mut()
+            .find(|m| m.name == name)
+            .ok_or_else(|| anyhow::anyhow!("Mod '{}' not found", name))?;
+        m.toggle()?;
+        let state = if m.enabled { "enabled" } else { "disabled" };
+        println!("✓ {} {}", name, state);
+        return Ok(());
+    }
+
+    if let Some(name) = delete {
+        let m = mods
+            .iter()
+            .find(|m| m.name == name)
+            .ok_or_else(|| anyhow::anyhow!("Mod '{}' not found", name))?;
+        m.delete()?;
+        println!("✓ Deleted mod '{}'", name);
+        return Ok(());
+    }
+
+    if mods.is_empty() {
+        println!("No mods installed in '{}'.", instance_name);
+    } else {
+        println!("{:<6} NAME", "STATE");
+        println!("{}", "-".repeat(40));
+        for m in &mods {
+            let state = if m.enabled { "  ✓" } else { "  ✗" };
+            println!("{:<6} {}", state, m.name);
+        }
+    }
+    Ok(())
+}
+
+fn cmd_resources(
+    config: &LauncherConfig,
+    instance_name: &str,
+    delete: Option<&str>,
+) -> anyhow::Result<()> {
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    let dir = Instance::resourcepacks_dir(&instance_dir);
+    let packs = miao_core::resource::scan_resourcepacks(&dir);
+
+    if let Some(name) = delete {
+        let p = packs
+            .iter()
+            .find(|p| p.name == name)
+            .ok_or_else(|| anyhow::anyhow!("Resource pack '{}' not found", name))?;
+        p.delete()?;
+        println!("✓ Deleted resource pack '{}'", name);
+        return Ok(());
+    }
+
+    if packs.is_empty() {
+        println!("No resource packs in '{}'.", instance_name);
+    } else {
+        for p in &packs {
+            println!("  {}", p.name);
+        }
+    }
+    Ok(())
+}
+
+fn cmd_shaders(
+    config: &LauncherConfig,
+    instance_name: &str,
+    delete: Option<&str>,
+) -> anyhow::Result<()> {
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    let dir = Instance::shaderpacks_dir(&instance_dir);
+    let shaders = miao_core::resource::scan_shaderpacks(&dir);
+
+    if let Some(name) = delete {
+        let s = shaders
+            .iter()
+            .find(|s| s.name == name)
+            .ok_or_else(|| anyhow::anyhow!("Shader pack '{}' not found", name))?;
+        s.delete()?;
+        println!("✓ Deleted shader pack '{}'", name);
+        return Ok(());
+    }
+
+    if shaders.is_empty() {
+        println!("No shader packs in '{}'.", instance_name);
+    } else {
+        for s in &shaders {
+            println!("  {}", s.name);
+        }
+    }
+    Ok(())
+}
+
+fn cmd_saves(
+    config: &LauncherConfig,
+    instance_name: &str,
+    delete: Option<&str>,
+) -> anyhow::Result<()> {
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    let saves = instance::list_saves(&instance_dir);
+
+    if let Some(name) = delete {
+        let s = saves
+            .iter()
+            .find(|s| s.name == name)
+            .ok_or_else(|| anyhow::anyhow!("World '{}' not found", name))?;
+        s.delete()?;
+        println!("✓ Deleted world '{}'", name);
+        return Ok(());
+    }
+
+    if saves.is_empty() {
+        println!("No worlds in '{}'.", instance_name);
+    } else {
+        for s in &saves {
+            println!("  {}", s.name);
+        }
+    }
+    Ok(())
+}
+
+fn cmd_open(config: &LauncherConfig, instance_name: &str) -> anyhow::Result<()> {
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    instance::open_folder(&instance_dir)?;
+    println!("Opened: {}", instance_dir.display());
+    Ok(())
+}
+
+async fn cmd_loaders(_config: &LauncherConfig, mc_version: &str) -> anyhow::Result<()> {
+    let http = reqwest::Client::new();
+    println!("Fetching loader compatibility for {}...", mc_version);
+
+    let versions = miao_core::modloader::fetch_all_loader_versions(&http, mc_version).await?;
+
+    if versions.is_empty() {
+        println!("No mod loaders available for {}.", mc_version);
+        return Ok(());
+    }
+
+    for lt in &miao_core::modloader::ModLoaderType::ALL {
+        if let Some(loader_versions) = versions.get(lt) {
+            let stable_count = loader_versions.iter().filter(|v| v.stable).count();
+            let latest = &loader_versions[0].version;
+            println!(
+                "  {} — {} versions ({} stable), latest: {}",
+                lt,
+                loader_versions.len(),
+                stable_count,
+                latest
+            );
+        } else {
+            println!("  {} — not available", lt);
+        }
+    }
     Ok(())
 }
 
