@@ -62,14 +62,24 @@ pub async fn import_mrpack(
         serde_json::from_str(&content)?
     };
 
-    let name = instance_name.unwrap_or(&index.name);
+    let base_name = instance_name.unwrap_or(&index.name);
     let mc_version = index
         .dependencies
         .get("minecraft")
         .ok_or_else(|| anyhow::anyhow!("No minecraft version in mrpack dependencies"))?
         .clone();
 
-    let instance_dir = Instance::instance_dir(&config.instances_dir(), name);
+    let name = {
+        let mut candidate = base_name.to_string();
+        let mut counter = 2u32;
+        while Instance::instance_dir(&config.instances_dir(), &candidate).exists() {
+            candidate = format!("{}-{}", base_name, counter);
+            counter += 1;
+        }
+        candidate
+    };
+
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), &name);
     std::fs::create_dir_all(&instance_dir)?;
 
     let mut tasks: Vec<DownloadTask> = Vec::new();
@@ -122,7 +132,7 @@ pub async fn import_mrpack(
         }
     }
 
-    let mut inst = Instance::new(name, &mc_version);
+    let mut inst = Instance::new(&name, &mc_version);
 
     if let Some(fabric_ver) = index.dependencies.get("fabric-loader") {
         inst.mod_loader = Some(crate::instance::ModLoaderConfig {

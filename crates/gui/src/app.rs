@@ -35,7 +35,6 @@ enum Dialog {
     Accounts,
     Settings,
     ModSearch,
-    Import,
 }
 
 pub struct MiaoApp {
@@ -56,7 +55,6 @@ pub struct MiaoApp {
     mod_search_versions: Vec<miao_core::modrinth::api::ProjectVersion>,
     mod_search_selected: usize,
     mod_searching: bool,
-    import_path_input: String,
 }
 
 impl MiaoApp {
@@ -113,7 +111,6 @@ impl MiaoApp {
             mod_search_versions: Vec::new(),
             mod_search_selected: 0,
             mod_searching: false,
-            import_path_input: String::new(),
         }
     }
 }
@@ -183,6 +180,9 @@ impl eframe::App for MiaoApp {
                         self.new_instance_loader = 0;
                         self.new_instance_loader_version_idx = 0;
                     }
+                    if ui.button("Import").clicked() {
+                        self.import_with_dialog();
+                    }
                 });
                 ui.separator();
 
@@ -215,7 +215,6 @@ impl eframe::App for MiaoApp {
             Dialog::Accounts => self.render_accounts_dialog(ctx, &state),
             Dialog::Settings => self.render_settings_dialog(ctx),
             Dialog::ModSearch => self.render_mod_search_dialog(ctx),
-            Dialog::Import => self.render_import_dialog(ctx),
             Dialog::None => {}
         }
     }
@@ -284,11 +283,7 @@ impl MiaoApp {
                 self.mod_search_versions.clear();
             }
             if ui.button("📦 Export .mrpack").clicked() {
-                self.export_instance(idx);
-            }
-            if ui.button("📥 Import .mrpack").clicked() {
-                self.active_dialog = Dialog::Import;
-                self.import_path_input.clear();
+                self.export_instance_with_dialog(idx);
             }
         });
 
@@ -1196,13 +1191,21 @@ impl MiaoApp {
         });
     }
 
-    fn export_instance(&mut self, idx: usize) {
+    fn export_instance_with_dialog(&mut self, idx: usize) {
         let inst = self.instances[idx].clone();
         let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
         let state = self.async_state.clone();
 
+        let folder = rfd::FileDialog::new()
+            .set_title("Export .mrpack — select output folder")
+            .pick_folder();
+
+        let Some(output_path) = folder else {
+            return;
+        };
+
+        self.status = format!("Exporting '{}'...", inst.name);
         std::thread::spawn(move || {
-            let output_path = std::env::current_dir().unwrap_or_default();
             match miao_core::modrinth::mrpack::export_mrpack(&instance_dir, &inst, &output_path) {
                 Ok(path) => {
                     let mut s = state.lock().unwrap();
@@ -1216,48 +1219,23 @@ impl MiaoApp {
         });
     }
 
-    fn render_import_dialog(&mut self, ctx: &egui::Context) {
-        let mut open = true;
-        let mut do_import = false;
+    fn import_with_dialog(&mut self) {
+        let file = rfd::FileDialog::new()
+            .set_title("Import .mrpack")
+            .add_filter("Modrinth Modpack", &["mrpack"])
+            .pick_file();
 
-        egui::Window::new("Import .mrpack")
-            .open(&mut open)
-            .resizable(false)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Path:");
-                    ui.text_edit_singleline(&mut self.import_path_input);
-                });
-                if ui.button("Import").clicked() && !self.import_path_input.is_empty() {
-                    do_import = true;
-                }
-            });
-
-        if !open {
-            self.active_dialog = Dialog::None;
-        }
-
-        if do_import {
-            self.do_import(ctx);
-            self.active_dialog = Dialog::None;
-        }
-    }
-
-    fn do_import(&mut self, ctx: &egui::Context) {
-        let path = self.import_path_input.clone();
-        let mrpack_path = std::path::PathBuf::from(&path);
-        if !mrpack_path.exists() {
-            self.status = format!("File not found: {}", path);
+        let Some(mrpack_path) = file else {
             return;
-        }
+        };
+
         let config = self.config.clone();
         let state = self.async_state.clone();
-        let ctx = ctx.clone();
 
         {
             let mut s = state.lock().unwrap();
             s.installing = true;
-            s.install_status = Some(format!("Importing {}...", path));
+            s.install_status = Some(format!("Importing {}...", mrpack_path.display()));
         }
 
         std::thread::spawn(move || {
@@ -1284,7 +1262,6 @@ impl MiaoApp {
                         s.install_status = Some(format!("✗ Import failed: {}", e));
                     }
                 }
-                ctx.request_repaint();
             });
         });
     }
