@@ -1,0 +1,66 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/cli",
+    "crates/tui",
+    "crates/gui",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+authors = ["WangSimiao2000"]
+repository = "https://github.com/WangSimiao2000/MiaoMinecraftLauncher"
+description = "A feature-rich Minecraft launcher for Linux with TUI and GUI support"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "stream"] }
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+# Error handling
+anyhow = "1"
+thiserror = "2"
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# File system
+dirs = "6"
+tokio-util = { version = "0.7", features = ["io"] }
+# SHA/Hash verification
+sha1 = "0.10"
+sha2 = "0.10"
+# UUID for player profiles
+uuid = { version = "1", features = ["v3", "v4", "serde"] }
+# Date time
+chrono = { version = "0.4", features = ["serde"] }
+# Zip extraction (for game assets)
+zip = "2"
+# Async trait
+async-trait = "0.1"
+# Futures utilities
+futures = "0.3"
+# URL handling
+url = "2"
+# Indicatif progress bars (shared between TUI/CLI)
+indicatif = "0.17"
+
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# GUI
+eframe = "0.30"
+egui = "0.30"
+
+# OAuth2
+oauth2 = "5"
+
+# Internal crates
+miao-core = { path = "crates/core" }
