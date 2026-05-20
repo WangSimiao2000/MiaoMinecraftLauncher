@@ -6,15 +6,20 @@ pub mod quilt;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-/// Fetch all available loader versions for a given Minecraft version.
-/// Returns a map of loader type to available versions.
 pub async fn fetch_all_loader_versions(
     http: &reqwest::Client,
     minecraft_version: &str,
 ) -> Result<std::collections::HashMap<ModLoaderType, Vec<ModLoaderVersion>>> {
+    let (fabric_result, quilt_result, neoforge_result, forge_result) = tokio::join!(
+        fabric::fetch_loader_versions(http, minecraft_version),
+        quilt::fetch_loader_versions(http, minecraft_version),
+        neoforge::fetch_versions(http, minecraft_version),
+        forge::fetch_recommended_version(http, minecraft_version),
+    );
+
     let mut result = std::collections::HashMap::new();
 
-    if let Ok(fabric_versions) = fabric::fetch_loader_versions(http, minecraft_version).await {
+    if let Ok(fabric_versions) = fabric_result {
         let versions: Vec<ModLoaderVersion> = fabric_versions
             .into_iter()
             .map(|v| ModLoaderVersion {
@@ -29,7 +34,7 @@ pub async fn fetch_all_loader_versions(
         }
     }
 
-    if let Ok(quilt_versions) = quilt::fetch_loader_versions(http, minecraft_version).await {
+    if let Ok(quilt_versions) = quilt_result {
         let versions: Vec<ModLoaderVersion> = quilt_versions
             .into_iter()
             .map(|v| ModLoaderVersion {
@@ -44,7 +49,7 @@ pub async fn fetch_all_loader_versions(
         }
     }
 
-    if let Ok(neoforge_versions) = neoforge::fetch_versions(http, minecraft_version).await {
+    if let Ok(neoforge_versions) = neoforge_result {
         let versions: Vec<ModLoaderVersion> = neoforge_versions
             .into_iter()
             .map(|v| ModLoaderVersion {
@@ -59,9 +64,7 @@ pub async fn fetch_all_loader_versions(
         }
     }
 
-    if let Ok(Some(forge_version)) =
-        forge::fetch_recommended_version(http, minecraft_version).await
-    {
+    if let Ok(Some(forge_version)) = forge_result {
         let versions = vec![ModLoaderVersion {
             loader_type: ModLoaderType::Forge,
             version: forge_version,
@@ -74,12 +77,75 @@ pub async fn fetch_all_loader_versions(
     Ok(result)
 }
 
+pub async fn install_loader(
+    http: &reqwest::Client,
+    loader_type: &ModLoaderType,
+    mc_version: &str,
+    loader_version: &str,
+    config: &crate::config::LauncherConfig,
+) -> Result<crate::instance::ModLoaderConfig> {
+    use crate::download::manager::DownloadManager;
+
+    let tasks = match loader_type {
+        ModLoaderType::Fabric => {
+            let profile = fabric::fetch_profile(http, mc_version, loader_version).await?;
+            fabric::collect_fabric_library_downloads(&profile, config)
+        }
+        ModLoaderType::Quilt => {
+            let profile = quilt::fetch_profile(http, mc_version, loader_version).await?;
+            quilt::collect_library_downloads(&profile, config)
+        }
+        ModLoaderType::NeoForge => {
+            let profile = neoforge::fetch_profile(http, loader_version).await?;
+            neoforge::collect_library_downloads(&profile, config)
+        }
+        ModLoaderType::Forge => {
+            let profile =
+                forge::fetch_install_profile(http, mc_version, loader_version).await?;
+            forge::collect_library_downloads(&profile, config)
+        }
+    };
+
+    let dm = DownloadManager::new(
+        config.download_mirror.clone(),
+        config.max_concurrent_downloads,
+    );
+    dm.download_all(tasks).await?;
+
+    Ok(crate::instance::ModLoaderConfig {
+        loader_type: loader_type.clone(),
+        version: loader_version.to_string(),
+    })
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ModLoaderType {
     Forge,
     NeoForge,
     Fabric,
     Quilt,
+}
+
+impl ModLoaderType {
+    pub const ALL: [ModLoaderType; 4] = [
+        ModLoaderType::Fabric,
+        ModLoaderType::Quilt,
+        ModLoaderType::NeoForge,
+        ModLoaderType::Forge,
+    ];
+
+    pub fn from_index(idx: usize) -> Option<Self> {
+        Self::ALL.get(idx).cloned()
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Fabric => "fabric",
+            Self::Quilt => "quilt",
+            Self::NeoForge => "neoforge",
+            Self::Forge => "forge",
+        }
+    }
 }
 
 impl std::fmt::Display for ModLoaderType {
