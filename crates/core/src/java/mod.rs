@@ -18,11 +18,7 @@ impl JavaInstallation {
 }
 
 pub fn detect_system_java() -> Vec<JavaInstallation> {
-    detect_java_in_paths(&[
-        "/usr/lib/jvm",
-        "/usr/local/lib/jvm",
-        "/usr/java",
-    ])
+    detect_java_in_paths(&["/usr/lib/jvm", "/usr/local/lib/jvm", "/usr/java"])
 }
 
 pub fn detect_java_in_paths(search_paths: &[&str]) -> Vec<JavaInstallation> {
@@ -56,8 +52,7 @@ pub fn probe_java(java_bin: &PathBuf) -> Result<JavaInstallation> {
         .output()?;
 
     let version_output = String::from_utf8_lossy(&output.stderr);
-    let version = parse_java_version(&version_output)
-        .unwrap_or_else(|| "unknown".to_string());
+    let version = parse_java_version(&version_output).unwrap_or_else(|| "unknown".to_string());
     let major = parse_major_version(&version);
 
     Ok(JavaInstallation {

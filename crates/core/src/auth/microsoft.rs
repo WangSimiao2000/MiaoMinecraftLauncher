@@ -8,8 +8,7 @@ const MICROSOFT_DEVICE_CODE_URL: &str =
     "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode";
 const XBOX_AUTH_URL: &str = "https://user.auth.xboxlive.com/user/authenticate";
 const XSTS_AUTH_URL: &str = "https://xsts.auth.xboxlive.com/xsts/authorize";
-const MINECRAFT_AUTH_URL: &str =
-    "https://api.minecraftservices.com/authentication/login_with_xbox";
+const MINECRAFT_AUTH_URL: &str = "https://api.minecraftservices.com/authentication/login_with_xbox";
 const MINECRAFT_PROFILE_URL: &str = "https://api.minecraftservices.com/minecraft/profile";
 
 #[derive(Debug, Deserialize)]
@@ -157,7 +156,12 @@ impl MicrosoftAuth {
             ("device_code", device_code),
         ];
 
-        let resp = self.http.post(MICROSOFT_TOKEN_URL).form(&params).send().await?;
+        let resp = self
+            .http
+            .post(MICROSOFT_TOKEN_URL)
+            .form(&params)
+            .send()
+            .await?;
         let text = resp.text().await?;
 
         if let Ok(token) = serde_json::from_str::<TokenResponse>(&text) {
@@ -215,11 +219,8 @@ impl MicrosoftAuth {
             .await
             .context("Failed to refresh Microsoft token")?;
 
-        self.authenticate_with_microsoft_token(
-            &resp.access_token,
-            resp.refresh_token.as_deref(),
-        )
-        .await
+        self.authenticate_with_microsoft_token(&resp.access_token, resp.refresh_token.as_deref())
+            .await
     }
 
     async fn xbox_authenticate(&self, ms_token: &str) -> Result<String> {
@@ -437,10 +438,7 @@ mod tests {
     #[test]
     fn parse_mojang_uuid_with_dashes() {
         let uuid = parse_mojang_uuid("abcdef01-2345-6789-0abc-def012345678").unwrap();
-        assert_eq!(
-            uuid.to_string(),
-            "abcdef01-2345-6789-0abc-def012345678"
-        );
+        assert_eq!(uuid.to_string(), "abcdef01-2345-6789-0abc-def012345678");
     }
 
     #[test]

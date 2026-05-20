@@ -1,8 +1,8 @@
 use anyhow::Result;
 
 use crate::config::{DownloadMirror, LauncherConfig};
-use crate::download::mirror::transform_url;
 use crate::download::DownloadTask;
+use crate::download::mirror::transform_url;
 
 use super::meta::VersionMeta;
 

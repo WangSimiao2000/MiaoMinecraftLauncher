@@ -1,9 +1,9 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph, Tabs},
-    Frame,
 };
 
 use crate::app::{App, Tab};
@@ -30,10 +30,18 @@ fn render_tabs(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
         .collect();
 
     let tabs = Tabs::new(titles)
-        .block(Block::default().borders(Borders::ALL).title(" MiaoMC Launcher "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" MiaoMC Launcher "),
+        )
         .select(app.current_tab)
         .style(Style::default().fg(Color::White))
-        .highlight_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
+        .highlight_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        );
 
     frame.render_widget(tabs, area);
 }
@@ -60,7 +68,11 @@ fn render_instances(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
                     .as_ref()
                     .map(|l| format!(" [{}]", l.loader_type))
                     .unwrap_or_default();
-                let prefix = if i == app.selected_index { "▶ " } else { "  " };
+                let prefix = if i == app.selected_index {
+                    "▶ "
+                } else {
+                    "  "
+                };
                 ListItem::new(format!(
                     "{}{} - MC {}{}",
                     prefix, inst.name, inst.minecraft_version, loader
@@ -97,8 +109,7 @@ fn render_accounts(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             .collect()
     };
 
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(" Accounts "));
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title(" Accounts "));
 
     frame.render_widget(list, area);
 }
@@ -113,14 +124,21 @@ fn render_versions(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             .iter()
             .enumerate()
             .map(|(i, ver)| {
-                let prefix = if i == app.selected_index { "▶ " } else { "  " };
+                let prefix = if i == app.selected_index {
+                    "▶ "
+                } else {
+                    "  "
+                };
                 ListItem::new(format!("{}{:<16} {}", prefix, ver.id, ver.release_time))
             })
             .collect()
     };
 
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(" Available Versions (Enter=install) "));
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Available Versions (Enter=install) "),
+    );
 
     frame.render_widget(list, area);
 }
@@ -134,12 +152,17 @@ fn render_settings(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
         if app.config.java_paths.is_empty() {
             "auto-detect".to_string()
         } else {
-            app.config.java_paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
+            app.config
+                .java_paths
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
         }
     );
 
-    let paragraph = Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).title(" Settings "));
+    let paragraph =
+        Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(" Settings "));
     frame.render_widget(paragraph, area);
 }
 

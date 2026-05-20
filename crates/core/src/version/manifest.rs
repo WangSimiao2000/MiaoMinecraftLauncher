@@ -7,7 +7,8 @@ use super::{VersionInfo, VersionType};
 
 const MOJANG_VERSION_MANIFEST: &str =
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
-const BMCLAPI_VERSION_MANIFEST: &str = "https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json";
+const BMCLAPI_VERSION_MANIFEST: &str =
+    "https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json";
 
 #[derive(Debug, Deserialize)]
 struct RawManifest {

@@ -1,6 +1,6 @@
 use anyhow::Result;
-use miao_core::auth::offline::create_offline_account;
 use miao_core::auth::AuthMethod;
+use miao_core::auth::offline::create_offline_account;
 use miao_core::config::LauncherConfig;
 use miao_core::instance::{self, Instance};
 use miao_core::version::VersionInfo;
@@ -55,7 +55,8 @@ impl App {
             selected_index: 0,
             instances,
             versions: Vec::new(),
-            status_message: "[q]uit [Tab]switch [j/k]nav [Enter]select [a]ccount [r]efresh".to_string(),
+            status_message: "[q]uit [Tab]switch [j/k]nav [Enter]select [a]ccount [r]efresh"
+                .to_string(),
             input_mode: InputMode::Normal,
             input_buffer: String::new(),
             loading: false,
@@ -102,8 +103,10 @@ impl App {
         match self.active_tab() {
             Tab::Instances => {
                 if let Some(inst) = self.instances.get(self.selected_index) {
-                    self.status_message =
-                        format!("Launch '{}' (MC {})? Press 'l' to launch.", inst.name, inst.minecraft_version);
+                    self.status_message = format!(
+                        "Launch '{}' (MC {})? Press 'l' to launch.",
+                        inst.name, inst.minecraft_version
+                    );
                 }
             }
             Tab::Versions => {

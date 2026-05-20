@@ -4,9 +4,9 @@ mod ui;
 use anyhow::Result;
 use app::InputMode;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
+    event::{self, Event, KeyCode, KeyEventKind},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::prelude::*;
 use std::io::stdout;
@@ -32,11 +32,9 @@ async fn main() -> Result<()> {
 async fn fetch_versions_async(app: &mut app::App) {
     app.loading = true;
     let http = reqwest::Client::new();
-    if let Ok(versions) = miao_core::version::manifest::fetch_version_manifest(
-        &http,
-        &app.config.download_mirror,
-    )
-    .await
+    if let Ok(versions) =
+        miao_core::version::manifest::fetch_version_manifest(&http, &app.config.download_mirror)
+            .await
     {
         let releases: Vec<_> = versions
             .into_iter()
@@ -66,7 +64,9 @@ async fn run_app(
                 match key.code {
                     KeyCode::Enter => app.confirm_input(),
                     KeyCode::Esc => app.go_back(),
-                    KeyCode::Backspace => { app.input_buffer.pop(); }
+                    KeyCode::Backspace => {
+                        app.input_buffer.pop();
+                    }
                     KeyCode::Char(c) => app.input_buffer.push(c),
                     _ => {}
                 }

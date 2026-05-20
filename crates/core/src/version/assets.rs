@@ -4,8 +4,8 @@ use anyhow::Result;
 use serde::Deserialize;
 
 use crate::config::{DownloadMirror, LauncherConfig};
-use crate::download::mirror::transform_url;
 use crate::download::DownloadTask;
+use crate::download::mirror::transform_url;
 
 const MOJANG_RESOURCES_BASE: &str = "https://resources.download.minecraft.net";
 
@@ -20,9 +20,7 @@ pub struct AssetObject {
     pub size: u64,
 }
 
-pub async fn fetch_asset_index(
-    index_path: &std::path::Path,
-) -> Result<AssetIndexFile> {
+pub async fn fetch_asset_index(index_path: &std::path::Path) -> Result<AssetIndexFile> {
     let content = tokio::fs::read_to_string(index_path).await?;
     let index: AssetIndexFile = serde_json::from_str(&content)?;
     Ok(index)
@@ -80,8 +78,14 @@ mod tests {
             task.url,
             "https://resources.download.minecraft.net/ab/abcdef1234567890abcdef1234567890abcdef12"
         );
-        assert!(task.dest.ends_with("objects/ab/abcdef1234567890abcdef1234567890abcdef12"));
-        assert_eq!(task.sha1.as_deref(), Some("abcdef1234567890abcdef1234567890abcdef12"));
+        assert!(
+            task.dest
+                .ends_with("objects/ab/abcdef1234567890abcdef1234567890abcdef12")
+        );
+        assert_eq!(
+            task.sha1.as_deref(),
+            Some("abcdef1234567890abcdef1234567890abcdef12")
+        );
         assert_eq!(task.size, Some(12345));
     }
 

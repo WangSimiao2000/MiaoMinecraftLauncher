@@ -124,9 +124,18 @@ mod tests {
             ..Default::default()
         };
 
-        assert_eq!(config.instances_dir(), PathBuf::from("/tmp/test-miao/instances"));
-        assert_eq!(config.versions_dir(), PathBuf::from("/tmp/test-miao/versions"));
-        assert_eq!(config.libraries_dir(), PathBuf::from("/tmp/test-miao/libraries"));
+        assert_eq!(
+            config.instances_dir(),
+            PathBuf::from("/tmp/test-miao/instances")
+        );
+        assert_eq!(
+            config.versions_dir(),
+            PathBuf::from("/tmp/test-miao/versions")
+        );
+        assert_eq!(
+            config.libraries_dir(),
+            PathBuf::from("/tmp/test-miao/libraries")
+        );
         assert_eq!(config.assets_dir(), PathBuf::from("/tmp/test-miao/assets"));
     }
 
@@ -168,6 +177,8 @@ mod tests {
         let mirror = DownloadMirror::Custom("https://my-mirror.com".to_string());
         let json = serde_json::to_string(&mirror).unwrap();
         let deserialized: DownloadMirror = serde_json::from_str(&json).unwrap();
-        assert!(matches!(deserialized, DownloadMirror::Custom(url) if url == "https://my-mirror.com"));
+        assert!(
+            matches!(deserialized, DownloadMirror::Custom(url) if url == "https://my-mirror.com")
+        );
     }
 }

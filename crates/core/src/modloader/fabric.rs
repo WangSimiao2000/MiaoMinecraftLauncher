@@ -34,10 +34,7 @@ pub async fn fetch_loader_versions(
     http: &reqwest::Client,
     minecraft_version: &str,
 ) -> Result<Vec<FabricLoaderVersion>> {
-    let url = format!(
-        "{}/versions/loader/{}",
-        FABRIC_META_URL, minecraft_version
-    );
+    let url = format!("{}/versions/loader/{}", FABRIC_META_URL, minecraft_version);
     let versions: Vec<FabricLoaderVersion> = http
         .get(&url)
         .send()
@@ -128,10 +125,7 @@ mod tests {
     #[test]
     fn fabric_library_to_path_nested() {
         let result = fabric_library_to_path("org.ow2.asm:asm:9.6");
-        assert_eq!(
-            result,
-            Some("org/ow2/asm/asm/9.6/asm-9.6.jar".to_string())
-        );
+        assert_eq!(result, Some("org/ow2/asm/asm/9.6/asm-9.6.jar".to_string()));
     }
 
     #[test]
@@ -209,7 +203,10 @@ mod tests {
 
         let p: FabricProfile = serde_json::from_str(json).unwrap();
         assert_eq!(p.id, "fabric-loader-0.15.6-1.20.4");
-        assert_eq!(p.main_class, "net.fabricmc.loader.impl.launch.knot.KnotClient");
+        assert_eq!(
+            p.main_class,
+            "net.fabricmc.loader.impl.launch.knot.KnotClient"
+        );
         assert_eq!(p.libraries.len(), 1);
     }
 }

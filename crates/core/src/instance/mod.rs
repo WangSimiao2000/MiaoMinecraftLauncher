@@ -196,7 +196,13 @@ mod tests {
                 version: "0.15.6".to_string(),
             })
         );
-        assert_eq!(inst.resolution, Some(Resolution { width: 1920, height: 1080 }));
+        assert_eq!(
+            inst.resolution,
+            Some(Resolution {
+                width: 1920,
+                height: 1080
+            })
+        );
     }
 
     #[test]
@@ -204,7 +210,10 @@ mod tests {
         let base = PathBuf::from("/home/user/.local/share/miao/instances");
         let dir = Instance::instance_dir(&base, "my-world");
 
-        assert_eq!(dir, PathBuf::from("/home/user/.local/share/miao/instances/my-world"));
+        assert_eq!(
+            dir,
+            PathBuf::from("/home/user/.local/share/miao/instances/my-world")
+        );
         assert!(Instance::mods_dir(&dir).ends_with("mods"));
         assert!(Instance::resourcepacks_dir(&dir).ends_with("resourcepacks"));
         assert!(Instance::shaderpacks_dir(&dir).ends_with("shaderpacks"));
@@ -265,8 +274,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path().to_path_buf();
 
-        Instance::new("world-1", "1.20.4").save_to(&base.join("world-1")).unwrap();
-        Instance::new("world-2", "1.19.4").save_to(&base.join("world-2")).unwrap();
+        Instance::new("world-1", "1.20.4")
+            .save_to(&base.join("world-1"))
+            .unwrap();
+        Instance::new("world-2", "1.19.4")
+            .save_to(&base.join("world-2"))
+            .unwrap();
 
         let result = list_instances(&base).unwrap();
         assert_eq!(result.len(), 2);
@@ -278,7 +291,9 @@ mod tests {
         let base = dir.path().to_path_buf();
         let instance_dir = base.join("to-delete");
 
-        Instance::new("to-delete", "1.20.4").save_to(&instance_dir).unwrap();
+        Instance::new("to-delete", "1.20.4")
+            .save_to(&instance_dir)
+            .unwrap();
         Instance::create_directories(&instance_dir).unwrap();
         assert!(instance_dir.exists());
 

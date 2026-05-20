@@ -1,15 +1,19 @@
 use clap::{Parser, Subcommand};
-use miao_core::auth::offline::create_offline_account;
 use miao_core::auth::AuthMethod;
+use miao_core::auth::offline::create_offline_account;
 use miao_core::config::LauncherConfig;
 use miao_core::download::manager::DownloadManager;
 use miao_core::instance::{self, Instance};
 use miao_core::java;
-use miao_core::launch::{build_launch_command, LaunchOptions};
-use miao_core::version::{install, manifest, VersionType};
+use miao_core::launch::{LaunchOptions, build_launch_command};
+use miao_core::version::{VersionType, install, manifest};
 
 #[derive(Parser)]
-#[command(name = "miao", version, about = "MiaoMinecraftLauncher - A feature-rich Minecraft launcher for Linux")]
+#[command(
+    name = "miao",
+    version,
+    about = "MiaoMinecraftLauncher - A feature-rich Minecraft launcher for Linux"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -49,9 +53,7 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     let cli = Cli::parse();
     let config = LauncherConfig::load().unwrap_or_default();
@@ -59,7 +61,9 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::List => cmd_list(&config)?,
         Commands::Versions { snapshots } => cmd_versions(&config, snapshots).await?,
-        Commands::Install { version, name } => cmd_install(&config, &version, name.as_deref()).await?,
+        Commands::Install { version, name } => {
+            cmd_install(&config, &version, name.as_deref()).await?
+        }
         Commands::Launch { instance } => cmd_launch(&config, &instance).await?,
         Commands::Account { username } => cmd_account(&config, &username)?,
         Commands::Java => cmd_java(),
@@ -84,7 +88,10 @@ fn cmd_list(config: &LauncherConfig) -> anyhow::Result<()> {
             .as_ref()
             .map(|l| format!("{} {}", l.loader_type, l.version))
             .unwrap_or_else(|| "Vanilla".to_string());
-        println!("{:<20} {:<12} {}", inst.name, inst.minecraft_version, loader);
+        println!(
+            "{:<20} {:<12} {}",
+            inst.name, inst.minecraft_version, loader
+        );
     }
 
     Ok(())
@@ -98,7 +105,11 @@ async fn cmd_versions(config: &LauncherConfig, show_snapshots: bool) -> anyhow::
     let filtered: Vec<_> = if show_snapshots {
         versions.iter().take(30).collect()
     } else {
-        versions.iter().filter(|v| v.is_release()).take(20).collect()
+        versions
+            .iter()
+            .filter(|v| v.is_release())
+            .take(20)
+            .collect()
     };
 
     println!("{:<16} {:<10} RELEASE DATE", "VERSION", "TYPE");
@@ -133,24 +144,36 @@ async fn cmd_install(
         .ok_or_else(|| anyhow::anyhow!("Version '{}' not found", version))?;
 
     println!("Downloading version metadata for {}...", version);
-    let meta = install::fetch_version_meta(&http, &version_info.url, &config.download_mirror).await?;
+    let meta =
+        install::fetch_version_meta(&http, &version_info.url, &config.download_mirror).await?;
 
     println!("Collecting download tasks...");
     let tasks = install::all_download_tasks(&meta, config, &config.download_mirror);
 
-    let asset_index_task = install::collect_asset_index_download(&meta, config, &config.download_mirror);
+    let asset_index_task =
+        install::collect_asset_index_download(&meta, config, &config.download_mirror);
     let asset_index_path = asset_index_task.dest.clone();
 
     println!("Downloading {} files...", tasks.len());
-    let dm = DownloadManager::new(config.download_mirror.clone(), config.max_concurrent_downloads);
+    let dm = DownloadManager::new(
+        config.download_mirror.clone(),
+        config.max_concurrent_downloads,
+    );
     dm.download_all(tasks).await?;
 
     if asset_index_path.exists() {
         println!("Downloading assets...");
         let asset_index = miao_core::version::assets::fetch_asset_index(&asset_index_path).await?;
-        let asset_tasks = miao_core::version::assets::collect_asset_downloads(&asset_index, config, &config.download_mirror);
+        let asset_tasks = miao_core::version::assets::collect_asset_downloads(
+            &asset_index,
+            config,
+            &config.download_mirror,
+        );
         println!("Downloading {} asset files...", asset_tasks.len());
-        let dm2 = DownloadManager::new(config.download_mirror.clone(), config.max_concurrent_downloads);
+        let dm2 = DownloadManager::new(
+            config.download_mirror.clone(),
+            config.max_concurrent_downloads,
+        );
         dm2.download_all(asset_tasks).await?;
     }
 
@@ -160,7 +183,10 @@ async fn cmd_install(
     inst.save_to(&instance_dir)?;
     Instance::create_directories(&instance_dir)?;
 
-    println!("✓ Instance '{}' installed successfully! (MC {})", instance_name, version);
+    println!(
+        "✓ Instance '{}' installed successfully! (MC {})",
+        instance_name, version
+    );
     println!("  Run: miao launch {}", instance_name);
 
     Ok(())
@@ -198,8 +224,7 @@ async fn cmd_launch(config: &LauncherConfig, instance_name: &str) -> anyhow::Res
         .java_path
         .clone()
         .or_else(|| {
-            java::find_compatible_java(&java_installations, required_java)
-                .map(|j| j.path.clone())
+            java::find_compatible_java(&java_installations, required_java).map(|j| j.path.clone())
         })
         .ok_or_else(|| {
             anyhow::anyhow!(
@@ -209,7 +234,12 @@ async fn cmd_launch(config: &LauncherConfig, instance_name: &str) -> anyhow::Res
             )
         })?;
 
-    println!("Launching {} (MC {}) with Java {}...", inst.name, inst.minecraft_version, java_path.display());
+    println!(
+        "Launching {} (MC {}) with Java {}...",
+        inst.name,
+        inst.minecraft_version,
+        java_path.display()
+    );
 
     let options = LaunchOptions {
         game_dir: instance_dir.clone(),
@@ -233,7 +263,10 @@ async fn cmd_launch(config: &LauncherConfig, instance_name: &str) -> anyhow::Res
 fn cmd_account(config: &LauncherConfig, username: &str) -> anyhow::Result<()> {
     let mut config = config.clone();
     let account = create_offline_account(username);
-    println!("Created offline account: {} (UUID: {})", account.username, account.uuid);
+    println!(
+        "Created offline account: {} (UUID: {})",
+        account.username, account.uuid
+    );
 
     config.accounts.push(AuthMethod::Offline(account));
     if config.active_account_index.is_none() {
@@ -256,6 +289,11 @@ fn cmd_java() {
     println!("{:<8} {:<15} PATH", "MAJOR", "VERSION");
     println!("{}", "-".repeat(60));
     for j in &installations {
-        println!("{:<8} {:<15} {}", j.major_version, j.version, j.path.display());
+        println!(
+            "{:<8} {:<15} {}",
+            j.major_version,
+            j.version,
+            j.path.display()
+        );
     }
 }

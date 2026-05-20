@@ -31,7 +31,10 @@ pub struct ModLoaderVersion {
 
 impl ModLoaderVersion {
     pub fn id(&self) -> String {
-        format!("{}-{}-{}", self.loader_type, self.minecraft_version, self.version)
+        format!(
+            "{}-{}-{}",
+            self.loader_type, self.minecraft_version, self.version
+        )
     }
 }
 

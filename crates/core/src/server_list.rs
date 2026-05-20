@@ -127,7 +127,10 @@ mod tests {
         list.add(ServerEntry::new("Local", "localhost"));
 
         assert_eq!(list.servers.len(), 2);
-        assert_eq!(list.find_by_name("Hypixel").unwrap().address, "mc.hypixel.net");
+        assert_eq!(
+            list.find_by_name("Hypixel").unwrap().address,
+            "mc.hypixel.net"
+        );
         assert!(list.find_by_name("NotExist").is_none());
     }
 

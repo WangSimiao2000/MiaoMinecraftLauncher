@@ -1,6 +1,6 @@
 use eframe::egui;
-use miao_core::auth::offline::create_offline_account;
 use miao_core::auth::AuthMethod;
+use miao_core::auth::offline::create_offline_account;
 use miao_core::config::LauncherConfig;
 use miao_core::instance::{self, Instance};
 use miao_core::version::VersionInfo;
@@ -166,7 +166,11 @@ impl MiaoApp {
             for (i, acc) in self.config.accounts.iter().enumerate() {
                 let active = self.config.active_account_index == Some(i);
                 let marker = if active { "★" } else { " " };
-                let acc_type = if acc.is_microsoft() { "Microsoft" } else { "Offline" };
+                let acc_type = if acc.is_microsoft() {
+                    "Microsoft"
+                } else {
+                    "Offline"
+                };
                 ui.label(format!(" {} [{}] {}", marker, acc_type, acc.username()));
             }
         }
@@ -198,7 +202,10 @@ impl MiaoApp {
         ui.heading("Settings");
         ui.separator();
 
-        ui.label(format!("Data directory: {}", self.config.data_dir.display()));
+        ui.label(format!(
+            "Data directory: {}",
+            self.config.data_dir.display()
+        ));
         ui.label(format!(
             "Download mirror: {:?}",
             self.config.download_mirror
