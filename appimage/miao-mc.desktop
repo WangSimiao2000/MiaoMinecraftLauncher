@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=MiaoMC
+Exec=miao-gui
+Icon=miao-mc
+Type=Application
+Categories=Game;
+Comment=A lightweight Minecraft launcher for Linux

@@ -142,6 +142,96 @@ pub async fn download_mod_file(
     Ok(dest)
 }
 
+#[derive(Debug, Clone)]
+pub struct InstalledMod {
+    pub name: String,
+    pub filename: String,
+    pub is_dependency: bool,
+}
+
+pub async fn install_mod_with_dependencies(
+    project_id: &str,
+    mc_version: &str,
+    loader: &str,
+    mods_dir: &std::path::Path,
+) -> Result<Vec<InstalledMod>> {
+    let mut installed: Vec<InstalledMod> = Vec::new();
+    let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+    install_recursive(
+        project_id,
+        mc_version,
+        loader,
+        mods_dir,
+        &mut installed,
+        &mut visited,
+        false,
+    )
+    .await?;
+    Ok(installed)
+}
+
+#[async_recursion::async_recursion]
+async fn install_recursive(
+    project_id: &str,
+    mc_version: &str,
+    loader: &str,
+    mods_dir: &std::path::Path,
+    installed: &mut Vec<InstalledMod>,
+    visited: &mut std::collections::HashSet<String>,
+    is_dependency: bool,
+) -> Result<()> {
+    if visited.contains(project_id) {
+        return Ok(());
+    }
+    visited.insert(project_id.to_string());
+
+    let versions = get_project_versions(project_id, Some(mc_version), Some(loader)).await?;
+    let version = match versions.first() {
+        Some(v) => v,
+        None => return Ok(()),
+    };
+
+    let file = match version
+        .files
+        .iter()
+        .find(|f| f.primary)
+        .or(version.files.first())
+    {
+        Some(f) => f,
+        None => return Ok(()),
+    };
+
+    let dest = mods_dir.join(&file.filename);
+    if !dest.exists() {
+        download_mod_file(file, mods_dir).await?;
+    }
+
+    installed.push(InstalledMod {
+        name: version.name.clone(),
+        filename: file.filename.clone(),
+        is_dependency,
+    });
+
+    for dep in &version.dependencies {
+        if dep.dependency_type == "required"
+            && let Some(ref dep_project_id) = dep.project_id
+        {
+            install_recursive(
+                dep_project_id,
+                mc_version,
+                loader,
+                mods_dir,
+                installed,
+                visited,
+                true,
+            )
+            .await?;
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

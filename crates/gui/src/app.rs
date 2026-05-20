@@ -26,6 +26,9 @@ struct AsyncState {
     loading_loader_versions: bool,
     mod_search_hits: Option<Vec<miao_core::modrinth::api::SearchHit>>,
     mod_versions: Option<Vec<miao_core::modrinth::api::ProjectVersion>>,
+    progress_total: usize,
+    progress_completed: usize,
+    progress_label: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,6 +58,7 @@ pub struct MiaoApp {
     mod_search_versions: Vec<miao_core::modrinth::api::ProjectVersion>,
     mod_search_selected: usize,
     mod_searching: bool,
+    ctx: egui::Context,
 }
 
 impl MiaoApp {
@@ -111,12 +115,23 @@ impl MiaoApp {
             mod_search_versions: Vec::new(),
             mod_search_selected: 0,
             mod_searching: false,
+            ctx: cc.egui_ctx.clone(),
         }
     }
 }
 
 impl eframe::App for MiaoApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let fresh = instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
+        if fresh.len() != self.instances.len() {
+            self.instances = fresh;
+            if let Some(idx) = self.selected_instance
+                && idx >= self.instances.len()
+            {
+                self.selected_instance = None;
+            }
+        }
+
         let state = self.async_state.lock().unwrap().clone();
 
         if let Some(ref s) = state.install_status {
@@ -164,7 +179,16 @@ impl eframe::App for MiaoApp {
         });
 
         egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
-            ui.label(&self.status);
+            if state.installing && state.progress_total > 0 {
+                let fraction = state.progress_completed as f32 / state.progress_total.max(1) as f32;
+                let text = format!(
+                    "{} ({}/{})",
+                    state.progress_label, state.progress_completed, state.progress_total
+                );
+                ui.add(egui::ProgressBar::new(fraction).text(text));
+            } else {
+                ui.label(&self.status);
+            }
         });
 
         egui::SidePanel::left("instance_list")
@@ -379,7 +403,7 @@ impl MiaoApp {
                 for s in &saves {
                     ui.horizontal(|ui| {
                         ui.label(&s.name);
-                        if ui.small_button("🗑").clicked() {
+                        if ui.small_button("Del").clicked() {
                             let _ = s.delete();
                         }
                     });
@@ -388,6 +412,34 @@ impl MiaoApp {
             let saves_dir = Instance::saves_dir(&instance_dir);
             if ui.small_button("Open folder").clicked() {
                 let _ = instance::open_folder(&saves_dir);
+            }
+        });
+
+        egui::CollapsingHeader::new("Game Log").show(ui, |ui| {
+            let log_path = instance_dir.join("logs").join("latest.log");
+            if log_path.exists() {
+                if ui.button("Open log file").clicked() {
+                    let _ = open::that(&log_path);
+                }
+                ui.separator();
+                let content = std::fs::read_to_string(&log_path).unwrap_or_default();
+                let tail: String = content
+                    .lines()
+                    .rev()
+                    .take(50)
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .rev()
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                egui::ScrollArea::vertical()
+                    .max_height(200.0)
+                    .stick_to_bottom(true)
+                    .show(ui, |ui| {
+                        ui.monospace(&tail);
+                    });
+            } else {
+                ui.label("No log yet. Launch the game first.");
             }
         });
     }
@@ -858,6 +910,7 @@ impl MiaoApp {
         self.status = format!("Creating '{}'...", name);
         let state = self.async_state.clone();
         let config = self.config.clone();
+        let ctx = self.ctx.clone();
 
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
@@ -867,14 +920,19 @@ impl MiaoApp {
                     &name,
                     loader.as_ref().map(|(lt, lv)| (lt.as_str(), lv.as_str())),
                     &config,
+                    state.clone(),
+                    ctx.clone(),
                 )
                 .await;
                 let mut s = state.lock().unwrap();
                 s.installing = false;
+                s.progress_total = 0;
+                s.progress_completed = 0;
                 match result {
                     Ok(_) => s.install_status = Some(format!("✓ '{}' created!", name)),
                     Err(e) => s.install_status = Some(format!("✗ Failed: {}", e)),
                 }
+                ctx.request_repaint();
             });
         });
     }
@@ -1143,42 +1201,45 @@ impl MiaoApp {
         });
     }
 
-    fn install_mod_version(&mut self, ctx: &egui::Context, ver_idx: usize) {
-        let Some(version) = self.mod_search_versions.get(ver_idx) else {
+    fn install_mod_version(&mut self, _ctx: &egui::Context, _ver_idx: usize) {
+        let Some(hit) = self.mod_search_results.get(self.mod_search_selected) else {
             return;
         };
         let Some(inst_idx) = self.selected_instance else {
             return;
         };
         let inst = &self.instances[inst_idx];
-        let file = match version
-            .files
-            .iter()
-            .find(|f| f.primary)
-            .or(version.files.first())
-        {
-            Some(f) => f.clone(),
-            None => {
-                self.status = "No files in version.".to_string();
-                return;
-            }
-        };
         let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
         let mods_dir = Instance::mods_dir(&instance_dir);
+        let mc_version = inst.minecraft_version.clone();
+        let loader = inst
+            .mod_loader
+            .as_ref()
+            .map(|l| l.loader_type.as_str().to_string())
+            .unwrap_or_else(|| "fabric".to_string());
+        let project_slug = hit.slug.clone();
         let state = self.async_state.clone();
-        let ctx = ctx.clone();
-        let version_name = version.name.clone();
+        let ctx = self.ctx.clone();
 
+        self.status = format!("Installing {} + dependencies...", hit.title);
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
-                match miao_core::modrinth::api::download_mod_file(&file, &mods_dir).await {
-                    Ok(dest) => {
+                match miao_core::modrinth::api::install_mod_with_dependencies(
+                    &project_slug,
+                    &mc_version,
+                    &loader,
+                    &mods_dir,
+                )
+                .await
+                {
+                    Ok(results) => {
+                        let names: Vec<_> = results.iter().map(|m| m.filename.clone()).collect();
                         let mut s = state.lock().unwrap();
                         s.install_status = Some(format!(
-                            "✓ Installed {} ({})",
-                            version_name,
-                            dest.file_name().unwrap_or_default().to_string_lossy()
+                            "✓ Installed {} mod(s): {}",
+                            results.len(),
+                            names.join(", ")
                         ));
                     }
                     Err(e) => {
@@ -1195,17 +1256,27 @@ impl MiaoApp {
         let inst = self.instances[idx].clone();
         let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
         let state = self.async_state.clone();
+        let ctx = self.ctx.clone();
 
-        let folder = rfd::FileDialog::new()
-            .set_title("Export .mrpack — select output folder")
-            .pick_folder();
-
-        let Some(output_path) = folder else {
-            return;
-        };
-
-        self.status = format!("Exporting '{}'...", inst.name);
+        self.status = "Selecting export folder...".to_string();
         std::thread::spawn(move || {
+            let folder = rfd::FileDialog::new()
+                .set_title("Export .mrpack — select output folder")
+                .pick_folder();
+
+            let Some(output_path) = folder else {
+                let mut s = state.lock().unwrap();
+                s.install_status = Some("Export cancelled.".to_string());
+                ctx.request_repaint();
+                return;
+            };
+
+            {
+                let mut s = state.lock().unwrap();
+                s.install_status = Some(format!("Exporting '{}'...", inst.name));
+            }
+            ctx.request_repaint();
+
             match miao_core::modrinth::mrpack::export_mrpack(&instance_dir, &inst, &output_path) {
                 Ok(path) => {
                     let mut s = state.lock().unwrap();
@@ -1216,29 +1287,36 @@ impl MiaoApp {
                     s.install_status = Some(format!("✗ Export failed: {}", e));
                 }
             }
+            ctx.request_repaint();
         });
     }
 
     fn import_with_dialog(&mut self) {
-        let file = rfd::FileDialog::new()
-            .set_title("Import .mrpack")
-            .add_filter("Modrinth Modpack", &["mrpack"])
-            .pick_file();
-
-        let Some(mrpack_path) = file else {
-            return;
-        };
-
-        let config = self.config.clone();
         let state = self.async_state.clone();
+        let config = self.config.clone();
+        let ctx = self.ctx.clone();
 
-        {
-            let mut s = state.lock().unwrap();
-            s.installing = true;
-            s.install_status = Some(format!("Importing {}...", mrpack_path.display()));
-        }
-
+        self.status = "Selecting .mrpack file...".to_string();
         std::thread::spawn(move || {
+            let file = rfd::FileDialog::new()
+                .set_title("Import .mrpack")
+                .add_filter("Modrinth Modpack", &["mrpack"])
+                .pick_file();
+
+            let Some(mrpack_path) = file else {
+                let mut s = state.lock().unwrap();
+                s.install_status = Some("Import cancelled.".to_string());
+                ctx.request_repaint();
+                return;
+            };
+
+            {
+                let mut s = state.lock().unwrap();
+                s.installing = true;
+                s.install_status = Some(format!("Importing {}...", mrpack_path.display()));
+            }
+            ctx.request_repaint();
+
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
                 match miao_core::modrinth::mrpack::import_mrpack(&mrpack_path, &config, None).await
@@ -1262,6 +1340,7 @@ impl MiaoApp {
                         s.install_status = Some(format!("✗ Import failed: {}", e));
                     }
                 }
+                ctx.request_repaint();
             });
         });
     }
@@ -1282,6 +1361,8 @@ async fn do_create_instance(
     instance_name: &str,
     loader: Option<(&str, &str)>,
     config: &LauncherConfig,
+    state: Arc<Mutex<AsyncState>>,
+    ctx: egui::Context,
 ) -> anyhow::Result<()> {
     use miao_core::modloader::ModLoaderType;
 
@@ -1294,10 +1375,27 @@ async fn do_create_instance(
 
     let tasks =
         miao_core::version::install::all_download_tasks(&meta, config, &config.download_mirror);
+
+    {
+        let mut s = state.lock().unwrap();
+        s.progress_total = tasks.len();
+        s.progress_completed = 0;
+        s.progress_label = "Downloading libraries".to_string();
+    }
+    ctx.request_repaint();
+
+    let state_cb = state.clone();
+    let ctx_cb = ctx.clone();
     let dm = DownloadManager::new(
         config.download_mirror.clone(),
         config.max_concurrent_downloads,
-    );
+    )
+    .with_progress_callback(std::sync::Arc::new(move |p| {
+        let mut s = state_cb.lock().unwrap();
+        s.progress_completed = p.completed_files;
+        s.progress_total = p.total_files;
+        ctx_cb.request_repaint();
+    }));
     dm.download_all(tasks).await?;
 
     let asset_index_path = config
@@ -1312,11 +1410,35 @@ async fn do_create_instance(
             config,
             &config.download_mirror,
         );
+
+        {
+            let mut s = state.lock().unwrap();
+            s.progress_total = asset_tasks.len();
+            s.progress_completed = 0;
+            s.progress_label = "Downloading assets".to_string();
+        }
+        ctx.request_repaint();
+
+        let state_cb2 = state.clone();
+        let ctx_cb2 = ctx.clone();
         let dm2 = DownloadManager::new(
             config.download_mirror.clone(),
             config.max_concurrent_downloads,
-        );
+        )
+        .with_progress_callback(std::sync::Arc::new(move |p| {
+            let mut s = state_cb2.lock().unwrap();
+            s.progress_completed = p.completed_files;
+            s.progress_total = p.total_files;
+            ctx_cb2.request_repaint();
+        }));
         dm2.download_all(asset_tasks).await?;
+    }
+
+    {
+        let mut s = state.lock().unwrap();
+        s.progress_total = 0;
+        s.progress_completed = 0;
+        s.progress_label.clear();
     }
 
     let mut inst = Instance::new(instance_name, &ver.id);

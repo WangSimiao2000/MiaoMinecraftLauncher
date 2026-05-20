@@ -794,34 +794,28 @@ async fn cmd_mod_install(
         .unwrap_or("fabric");
 
     println!(
-        "Searching versions for '{}' (MC {}, {})...",
+        "Installing '{}' (MC {}, {})...",
         project, inst.minecraft_version, loader
     );
 
-    let versions = miao_core::modrinth::api::get_project_versions(
+    let mods_dir = Instance::mods_dir(&instance_dir);
+    let results = miao_core::modrinth::api::install_mod_with_dependencies(
         project,
-        Some(&inst.minecraft_version),
-        Some(loader),
+        &inst.minecraft_version,
+        loader,
+        &mods_dir,
     )
     .await?;
 
-    let version = versions
-        .first()
-        .ok_or_else(|| anyhow::anyhow!("No compatible version found for {}", project))?;
-
-    let file = version
-        .files
-        .iter()
-        .find(|f| f.primary)
-        .or(version.files.first())
-        .ok_or_else(|| anyhow::anyhow!("No files in version"))?;
-
-    println!("Installing {} ({})...", version.name, file.filename);
-
-    let mods_dir = Instance::mods_dir(&instance_dir);
-    let dest = miao_core::modrinth::api::download_mod_file(file, &mods_dir).await?;
-
-    println!("✓ Installed at {}", dest.display());
+    if results.is_empty() {
+        println!("No compatible version found for '{}'.", project);
+    } else {
+        for m in &results {
+            let tag = if m.is_dependency { " (dep)" } else { "" };
+            println!("  ✓ {}{}", m.filename, tag);
+        }
+        println!("Installed {} mod(s).", results.len());
+    }
     Ok(())
 }
 
