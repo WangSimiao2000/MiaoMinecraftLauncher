@@ -145,10 +145,7 @@ fn render_create_wizard(frame: &mut Frame, app: &App, area: ratatui::layout::Rec
                     "      "
                 };
                 let suffix = if !available { " (unavailable)" } else { "" };
-                items.push(ListItem::new(format!(
-                    "  │ {}{}{}",
-                    prefix, name, suffix
-                )));
+                items.push(ListItem::new(format!("  │ {}{}{}", prefix, name, suffix)));
             }
 
             if app.create_loader_cursor > 0 {

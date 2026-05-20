@@ -452,11 +452,7 @@ impl MiaoApp {
                                     &format!("{} (unavailable)", name)
                                 };
                                 ui.add_enabled_ui(*available, |ui| {
-                                    ui.selectable_value(
-                                        &mut self.new_instance_loader,
-                                        *idx,
-                                        label,
-                                    );
+                                    ui.selectable_value(&mut self.new_instance_loader, *idx, label);
                                 });
                             }
                         });

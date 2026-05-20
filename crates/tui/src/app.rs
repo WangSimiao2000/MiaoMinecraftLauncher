@@ -469,7 +469,10 @@ impl App {
     }
 
     pub fn create_version_confirm(&mut self) {
-        let mc_version = self.versions.get(self.create_version_cursor).map(|v| v.id.clone());
+        let mc_version = self
+            .versions
+            .get(self.create_version_cursor)
+            .map(|v| v.id.clone());
         if let Some(mc_version) = mc_version {
             self.fetch_loader_versions_for_version(&mc_version);
         }
@@ -561,7 +564,9 @@ impl App {
             if let Err(e) = do_create_instance_with_version(
                 &ver,
                 &instance_name,
-                loader_type.as_ref().map(|(lt, lv)| (lt.as_str(), lv.as_str())),
+                loader_type
+                    .as_ref()
+                    .map(|(lt, lv)| (lt.as_str(), lv.as_str())),
                 &config,
                 &tx,
             )
@@ -590,7 +595,10 @@ impl App {
 
     pub fn create_loader_next(&mut self) {
         let available = self.get_available_loaders();
-        let current_idx = available.iter().position(|(idx, _, _)| *idx == self.create_loader_cursor).unwrap_or(0);
+        let current_idx = available
+            .iter()
+            .position(|(idx, _, _)| *idx == self.create_loader_cursor)
+            .unwrap_or(0);
         let next_idx = (current_idx + 1) % available.len();
         self.create_loader_cursor = available[next_idx].0;
         self.loader_version_cursor = 0;
@@ -598,8 +606,15 @@ impl App {
 
     pub fn create_loader_prev(&mut self) {
         let available = self.get_available_loaders();
-        let current_idx = available.iter().position(|(idx, _, _)| *idx == self.create_loader_cursor).unwrap_or(0);
-        let prev_idx = if current_idx == 0 { available.len() - 1 } else { current_idx - 1 };
+        let current_idx = available
+            .iter()
+            .position(|(idx, _, _)| *idx == self.create_loader_cursor)
+            .unwrap_or(0);
+        let prev_idx = if current_idx == 0 {
+            available.len() - 1
+        } else {
+            current_idx - 1
+        };
         self.create_loader_cursor = available[prev_idx].0;
         self.loader_version_cursor = 0;
     }

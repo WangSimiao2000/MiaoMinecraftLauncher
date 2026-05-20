@@ -20,7 +20,9 @@ async fn fetch_manifest_official_mirror() {
     let mock = MockHttpClient::new();
     mock.mock_response("piston-meta.mojang.com", MANIFEST_JSON);
 
-    let versions = fetch_version_manifest(&mock, &DownloadMirror::Official).await.unwrap();
+    let versions = fetch_version_manifest(&mock, &DownloadMirror::Official)
+        .await
+        .unwrap();
     assert_eq!(versions.len(), 5);
     assert_eq!(versions[0].id, "1.20.4");
     assert!(versions[0].is_release());
@@ -31,7 +33,9 @@ async fn fetch_manifest_bmclapi_mirror() {
     let mock = MockHttpClient::new();
     mock.mock_response("bmclapi2.bangbang93.com", MANIFEST_JSON);
 
-    let versions = fetch_version_manifest(&mock, &DownloadMirror::Bmclapi).await.unwrap();
+    let versions = fetch_version_manifest(&mock, &DownloadMirror::Bmclapi)
+        .await
+        .unwrap();
     assert_eq!(versions.len(), 5);
 }
 
@@ -40,7 +44,9 @@ async fn fetch_manifest_parses_version_types() {
     let mock = MockHttpClient::new();
     mock.mock_response("piston-meta.mojang.com", MANIFEST_JSON);
 
-    let versions = fetch_version_manifest(&mock, &DownloadMirror::Official).await.unwrap();
+    let versions = fetch_version_manifest(&mock, &DownloadMirror::Official)
+        .await
+        .unwrap();
 
     assert!(versions[0].is_release());
     assert!(!versions[1].is_release());

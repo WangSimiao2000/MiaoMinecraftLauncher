@@ -1,8 +1,8 @@
 mod mock_http;
 
+use miao_core::config::LauncherConfig;
 use miao_core::modloader::{ModLoaderType, fetch_all_loader_versions, install_loader};
 use miao_core::modloader::{fabric, forge, neoforge, quilt};
-use miao_core::config::LauncherConfig;
 
 use mock_http::MockHttpClient;
 
@@ -66,7 +66,9 @@ async fn fetch_fabric_loader_versions() {
     let mock = MockHttpClient::new();
     mock.mock_response("meta.fabricmc.net", FABRIC_VERSIONS_JSON);
 
-    let versions = fabric::fetch_loader_versions(&mock, "1.20.4").await.unwrap();
+    let versions = fabric::fetch_loader_versions(&mock, "1.20.4")
+        .await
+        .unwrap();
     assert_eq!(versions.len(), 3);
     assert_eq!(versions[0].loader.version, "0.16.0");
     assert!(versions[0].loader.stable);
@@ -118,7 +120,9 @@ async fn fetch_forge_recommended() {
     let mock = MockHttpClient::new();
     mock.mock_response("minecraftforge.net", FORGE_PROMOS_JSON);
 
-    let version = forge::fetch_recommended_version(&mock, "1.20.4").await.unwrap();
+    let version = forge::fetch_recommended_version(&mock, "1.20.4")
+        .await
+        .unwrap();
     assert_eq!(version, Some("49.0.30".to_string()));
 }
 
@@ -128,7 +132,9 @@ async fn fetch_forge_recommended_fallback_to_latest() {
     let mock = MockHttpClient::new();
     mock.mock_response("minecraftforge.net", json);
 
-    let version = forge::fetch_recommended_version(&mock, "1.20.4").await.unwrap();
+    let version = forge::fetch_recommended_version(&mock, "1.20.4")
+        .await
+        .unwrap();
     assert_eq!(version, Some("49.0.31".to_string()));
 }
 
@@ -137,7 +143,9 @@ async fn fetch_forge_no_version() {
     let mock = MockHttpClient::new();
     mock.mock_response("minecraftforge.net", r#"{"promos": {}}"#);
 
-    let version = forge::fetch_recommended_version(&mock, "1.20.4").await.unwrap();
+    let version = forge::fetch_recommended_version(&mock, "1.20.4")
+        .await
+        .unwrap();
     assert_eq!(version, None);
 }
 
@@ -199,7 +207,9 @@ async fn fetch_fabric_profile() {
     let mock = MockHttpClient::new();
     mock.mock_response("meta.fabricmc.net", FABRIC_PROFILE_JSON);
 
-    let profile = fabric::fetch_profile(&mock, "1.20.4", "0.16.0").await.unwrap();
+    let profile = fabric::fetch_profile(&mock, "1.20.4", "0.16.0")
+        .await
+        .unwrap();
     assert_eq!(profile.id, "fabric-loader-0.16.0-1.20.4");
     assert_eq!(profile.libraries.len(), 1);
 }
@@ -209,7 +219,9 @@ async fn fetch_quilt_profile() {
     let mock = MockHttpClient::new();
     mock.mock_response("meta.quiltmc.org", QUILT_PROFILE_JSON);
 
-    let profile = quilt::fetch_profile(&mock, "1.20.4", "0.26.4").await.unwrap();
+    let profile = quilt::fetch_profile(&mock, "1.20.4", "0.26.4")
+        .await
+        .unwrap();
     assert_eq!(profile.id, "quilt-loader-0.26.4-1.20.4");
     assert_eq!(profile.libraries.len(), 1);
 }
@@ -229,7 +241,9 @@ async fn fetch_forge_install_profile() {
     let mock = MockHttpClient::new();
     mock.mock_response("minecraftforge.net", FORGE_PROFILE_JSON);
 
-    let profile = forge::fetch_install_profile(&mock, "1.20.4", "49.0.30").await.unwrap();
+    let profile = forge::fetch_install_profile(&mock, "1.20.4", "49.0.30")
+        .await
+        .unwrap();
     assert_eq!(profile.id, "forge-1.20.4-49.0.30");
     assert_eq!(profile.libraries.len(), 1);
 }

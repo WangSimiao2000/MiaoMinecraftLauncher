@@ -102,8 +102,7 @@ pub async fn install_loader(
             neoforge::collect_library_downloads(&profile, config)
         }
         ModLoaderType::Forge => {
-            let profile =
-                forge::fetch_install_profile(http, mc_version, loader_version).await?;
+            let profile = forge::fetch_install_profile(http, mc_version, loader_version).await?;
             forge::collect_library_downloads(&profile, config)
         }
     };
