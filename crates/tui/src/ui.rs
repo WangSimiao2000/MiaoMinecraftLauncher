@@ -47,12 +47,112 @@ fn render_tabs(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
 }
 
 fn render_content(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    if matches!(
+        app.input_mode,
+        crate::app::InputMode::CreateName
+            | crate::app::InputMode::CreateSelectVersion
+            | crate::app::InputMode::CreateSelectLoader
+    ) {
+        render_create_wizard(frame, app, area);
+        return;
+    }
+
     match app.active_tab() {
         Tab::Instances => render_instances(frame, app, area),
         Tab::Versions => render_versions(frame, app, area),
         Tab::Accounts => render_accounts(frame, app, area),
         Tab::Settings => render_settings(frame, app, area),
     }
+}
+
+fn render_create_wizard(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let mut items: Vec<ListItem> = Vec::new();
+
+    items.push(ListItem::new("  ╭─ Create New Instance ─╮"));
+    items.push(ListItem::new("  │"));
+
+    let name_display = if app.create_name.is_empty() {
+        "(auto from version)".to_string()
+    } else {
+        app.create_name.clone()
+    };
+
+    let name_marker = if app.input_mode == crate::app::InputMode::CreateName {
+        "▶"
+    } else {
+        "✓"
+    };
+    items.push(ListItem::new(format!(
+        "  │ {} Name: {}_",
+        name_marker, name_display
+    )));
+    items.push(ListItem::new("  │"));
+
+    let ver_marker = if app.input_mode == crate::app::InputMode::CreateSelectVersion {
+        "▶"
+    } else if matches!(app.input_mode, crate::app::InputMode::CreateSelectLoader) {
+        "✓"
+    } else {
+        " "
+    };
+
+    if app.input_mode == crate::app::InputMode::CreateSelectVersion {
+        items.push(ListItem::new(format!("  │ {} MC Version:", ver_marker)));
+        let start = app.create_version_cursor.saturating_sub(3);
+        let end = (start + 8).min(app.versions.len());
+        for i in start..end {
+            let prefix = if i == app.create_version_cursor {
+                "    ▶ "
+            } else {
+                "      "
+            };
+            items.push(ListItem::new(format!(
+                "  │ {}{}",
+                prefix, app.versions[i].id
+            )));
+        }
+    } else {
+        let ver_name = app
+            .versions
+            .get(app.create_version_cursor)
+            .map(|v| v.id.as_str())
+            .unwrap_or("?");
+        items.push(ListItem::new(format!(
+            "  │ {} MC Version: {}",
+            ver_marker, ver_name
+        )));
+    }
+
+    items.push(ListItem::new("  │"));
+
+    let loader_marker = if app.input_mode == crate::app::InputMode::CreateSelectLoader {
+        "▶"
+    } else {
+        " "
+    };
+
+    if app.input_mode == crate::app::InputMode::CreateSelectLoader {
+        items.push(ListItem::new(format!("  │ {} Mod Loader:", loader_marker)));
+        for (i, name) in crate::app::LOADER_OPTIONS.iter().enumerate() {
+            let prefix = if i == app.create_loader_cursor {
+                "    ▶ "
+            } else {
+                "      "
+            };
+            items.push(ListItem::new(format!("  │ {}{}", prefix, name)));
+        }
+    }
+
+    items.push(ListItem::new("  │"));
+    items.push(ListItem::new("  ╰──────────────────────────╯"));
+
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" New Instance [Enter=next, Esc=cancel] "),
+    );
+
+    frame.render_widget(list, area);
 }
 
 fn render_instances(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {

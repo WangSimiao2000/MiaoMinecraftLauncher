@@ -91,6 +91,50 @@ async fn run_app(
                 continue;
             }
 
+            if app.input_mode == InputMode::CreateName {
+                match key.code {
+                    KeyCode::Enter => app.create_name_confirm(),
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                        app.status_message = "Cancelled.".to_string();
+                    }
+                    KeyCode::Backspace => {
+                        app.create_name.pop();
+                    }
+                    KeyCode::Char(c) => app.create_name.push(c),
+                    _ => {}
+                }
+                continue;
+            }
+
+            if app.input_mode == InputMode::CreateSelectVersion {
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => app.create_version_prev(),
+                    KeyCode::Down | KeyCode::Char('j') => app.create_version_next(),
+                    KeyCode::Enter => app.create_version_confirm(),
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                        app.status_message = "Cancelled.".to_string();
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
+            if app.input_mode == InputMode::CreateSelectLoader {
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => app.create_loader_prev(),
+                    KeyCode::Down | KeyCode::Char('j') => app.create_loader_next(),
+                    KeyCode::Enter => app.create_loader_confirm(),
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                        app.status_message = "Cancelled.".to_string();
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
             match key.code {
                 KeyCode::Char('q') => return Ok(()),
                 KeyCode::Tab => app.next_tab(),
@@ -102,9 +146,8 @@ async fn run_app(
                 KeyCode::Char('a') => app.start_add_account(),
                 KeyCode::Char('r') => app.refresh_instances(),
                 KeyCode::Char('l') => app.launch_selected(),
-                KeyCode::Char('i') => app.install_selected(),
+                KeyCode::Char('n') => app.start_create_instance(),
                 KeyCode::Char('m') => app.start_ms_login(),
-                KeyCode::Char('f') => app.start_loader_select(),
                 KeyCode::Char('s') => app.toggle_snapshots(),
                 _ => {}
             }

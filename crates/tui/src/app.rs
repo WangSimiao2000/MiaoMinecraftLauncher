@@ -37,9 +37,12 @@ pub enum InputMode {
     Normal,
     Input,
     SelectLoader,
+    CreateName,
+    CreateSelectVersion,
+    CreateSelectLoader,
 }
 
-pub const LOADER_OPTIONS: [&str; 4] = ["Fabric", "Quilt", "NeoForge", "Forge"];
+pub const LOADER_OPTIONS: [&str; 5] = ["None (Vanilla)", "Fabric", "Quilt", "NeoForge", "Forge"];
 
 #[derive(Debug, Clone)]
 pub enum AsyncMessage {
@@ -69,6 +72,9 @@ pub struct App {
     pub rx: mpsc::UnboundedReceiver<AsyncMessage>,
     pub tx: mpsc::UnboundedSender<AsyncMessage>,
     pub all_versions: Vec<VersionInfo>,
+    pub create_name: String,
+    pub create_version_cursor: usize,
+    pub create_loader_cursor: usize,
 }
 
 impl App {
@@ -95,6 +101,9 @@ impl App {
             rx,
             tx,
             all_versions: Vec::new(),
+            create_name: String::new(),
+            create_version_cursor: 0,
+            create_loader_cursor: 0,
         })
     }
 
@@ -416,6 +425,115 @@ impl App {
         };
     }
 
+    pub fn start_create_instance(&mut self) {
+        if self.versions.is_empty() {
+            self.status_message = "Versions not loaded yet. Wait...".to_string();
+            return;
+        }
+        self.create_name.clear();
+        self.create_version_cursor = 0;
+        self.create_loader_cursor = 0;
+        self.input_mode = InputMode::CreateName;
+        self.status_message = "New instance - Enter name (Enter=next, Esc=cancel):".to_string();
+    }
+
+    pub fn create_name_confirm(&mut self) {
+        if self.create_name.is_empty() {
+            if let Some(ver) = self.versions.get(self.create_version_cursor) {
+                self.create_name = ver.id.clone();
+            }
+        }
+        self.input_mode = InputMode::CreateSelectVersion;
+        self.status_message = "Select MC version [j/k] navigate, [Enter] next:".to_string();
+    }
+
+    pub fn create_version_confirm(&mut self) {
+        self.input_mode = InputMode::CreateSelectLoader;
+        self.create_loader_cursor = 0;
+        self.status_message = "Select mod loader [j/k] navigate, [Enter] create:".to_string();
+    }
+
+    pub fn create_loader_confirm(&mut self) {
+        let Some(ver) = self.versions.get(self.create_version_cursor).cloned() else {
+            self.input_mode = InputMode::Normal;
+            return;
+        };
+
+        let instance_name = if self.create_name.is_empty() {
+            ver.id.clone()
+        } else {
+            self.create_name.clone()
+        };
+
+        let loader_type = if self.create_loader_cursor == 0 {
+            None
+        } else {
+            Some(match self.create_loader_cursor {
+                1 => "fabric",
+                2 => "quilt",
+                3 => "neoforge",
+                4 => "forge",
+                _ => unreachable!(),
+            })
+        };
+
+        self.input_mode = InputMode::Normal;
+
+        if self.installing {
+            self.status_message = "Already installing...".to_string();
+            return;
+        }
+
+        self.installing = true;
+        self.status_message = format!("Creating '{}'...", instance_name);
+
+        let tx = self.tx.clone();
+        let config = self.config.clone();
+        let loader_type_owned = loader_type.map(|s| s.to_string());
+
+        tokio::spawn(async move {
+            if let Err(e) = do_create_instance(
+                &ver,
+                &instance_name,
+                loader_type_owned.as_deref(),
+                &config,
+                &tx,
+            )
+            .await
+            {
+                let _ = tx.send(AsyncMessage::InstallError(e.to_string()));
+            }
+        });
+    }
+
+    pub fn create_version_next(&mut self) {
+        if !self.versions.is_empty() {
+            self.create_version_cursor = (self.create_version_cursor + 1) % self.versions.len();
+        }
+    }
+
+    pub fn create_version_prev(&mut self) {
+        if !self.versions.is_empty() {
+            self.create_version_cursor = if self.create_version_cursor == 0 {
+                self.versions.len() - 1
+            } else {
+                self.create_version_cursor - 1
+            };
+        }
+    }
+
+    pub fn create_loader_next(&mut self) {
+        self.create_loader_cursor = (self.create_loader_cursor + 1) % LOADER_OPTIONS.len();
+    }
+
+    pub fn create_loader_prev(&mut self) {
+        self.create_loader_cursor = if self.create_loader_cursor == 0 {
+            LOADER_OPTIONS.len() - 1
+        } else {
+            self.create_loader_cursor - 1
+        };
+    }
+
     pub fn start_loader_select(&mut self) {
         if self.instances.is_empty() {
             self.status_message = "No instance selected.".to_string();
@@ -669,5 +787,167 @@ async fn do_loader_install(
         "{} {} for '{}'",
         loader_type, loader_ver, instance_name
     )));
+    Ok(())
+}
+
+async fn do_create_instance(
+    ver: &VersionInfo,
+    instance_name: &str,
+    loader_type: Option<&str>,
+    config: &LauncherConfig,
+    tx: &mpsc::UnboundedSender<AsyncMessage>,
+) -> anyhow::Result<()> {
+    use miao_core::modloader::{ModLoaderType, fabric, forge, neoforge, quilt};
+
+    let http = reqwest::Client::new();
+
+    let _ = tx.send(AsyncMessage::InstallProgress(format!(
+        "Fetching metadata for {}...",
+        ver.id
+    )));
+
+    let meta =
+        miao_core::version::install::fetch_version_meta(&http, &ver.url, &config.download_mirror)
+            .await?;
+
+    miao_core::version::install::save_version_meta(&meta, config)?;
+
+    let tasks =
+        miao_core::version::install::all_download_tasks(&meta, config, &config.download_mirror);
+
+    let _ = tx.send(AsyncMessage::InstallProgress(format!(
+        "Downloading {} libraries...",
+        tasks.len()
+    )));
+
+    let dm = DownloadManager::new(
+        config.download_mirror.clone(),
+        config.max_concurrent_downloads,
+    );
+    dm.download_all(tasks).await?;
+
+    let asset_index_path = config
+        .assets_dir()
+        .join("indexes")
+        .join(format!("{}.json", &meta.asset_index.id));
+
+    if asset_index_path.exists() {
+        let asset_index = miao_core::version::assets::fetch_asset_index(&asset_index_path).await?;
+        let asset_tasks = miao_core::version::assets::collect_asset_downloads(
+            &asset_index,
+            config,
+            &config.download_mirror,
+        );
+
+        let _ = tx.send(AsyncMessage::InstallProgress(format!(
+            "Downloading {} assets...",
+            asset_tasks.len()
+        )));
+
+        let dm2 = DownloadManager::new(
+            config.download_mirror.clone(),
+            config.max_concurrent_downloads,
+        );
+        dm2.download_all(asset_tasks).await?;
+    }
+
+    let mut inst = Instance::new(instance_name, &ver.id);
+
+    if let Some(lt) = loader_type {
+        let loader_config = match lt {
+            "fabric" => {
+                let _ = tx.send(AsyncMessage::InstallProgress(
+                    "Installing Fabric...".to_string(),
+                ));
+                let versions = fabric::fetch_loader_versions(&http, &ver.id).await?;
+                let lv = versions
+                    .iter()
+                    .find(|v| v.loader.stable)
+                    .or(versions.first())
+                    .map(|v| v.loader.version.clone())
+                    .ok_or_else(|| anyhow::anyhow!("No Fabric versions"))?;
+                let profile = fabric::fetch_profile(&http, &ver.id, &lv).await?;
+                let tasks = fabric::collect_fabric_library_downloads(&profile, config);
+                let dm = DownloadManager::new(
+                    config.download_mirror.clone(),
+                    config.max_concurrent_downloads,
+                );
+                dm.download_all(tasks).await?;
+                miao_core::instance::ModLoaderConfig {
+                    loader_type: ModLoaderType::Fabric,
+                    version: lv,
+                }
+            }
+            "quilt" => {
+                let _ = tx.send(AsyncMessage::InstallProgress(
+                    "Installing Quilt...".to_string(),
+                ));
+                let versions = quilt::fetch_loader_versions(&http, &ver.id).await?;
+                let lv = versions
+                    .first()
+                    .map(|v| v.loader.version.clone())
+                    .ok_or_else(|| anyhow::anyhow!("No Quilt versions"))?;
+                let profile = quilt::fetch_profile(&http, &ver.id, &lv).await?;
+                let tasks = quilt::collect_library_downloads(&profile, config);
+                let dm = DownloadManager::new(
+                    config.download_mirror.clone(),
+                    config.max_concurrent_downloads,
+                );
+                dm.download_all(tasks).await?;
+                miao_core::instance::ModLoaderConfig {
+                    loader_type: ModLoaderType::Quilt,
+                    version: lv,
+                }
+            }
+            "neoforge" => {
+                let _ = tx.send(AsyncMessage::InstallProgress(
+                    "Installing NeoForge...".to_string(),
+                ));
+                let versions = neoforge::fetch_versions(&http, &ver.id).await?;
+                let lv = versions
+                    .first()
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("No NeoForge versions"))?;
+                let profile = neoforge::fetch_profile(&http, &lv).await?;
+                let tasks = neoforge::collect_library_downloads(&profile, config);
+                let dm = DownloadManager::new(
+                    config.download_mirror.clone(),
+                    config.max_concurrent_downloads,
+                );
+                dm.download_all(tasks).await?;
+                miao_core::instance::ModLoaderConfig {
+                    loader_type: ModLoaderType::NeoForge,
+                    version: lv,
+                }
+            }
+            "forge" => {
+                let _ = tx.send(AsyncMessage::InstallProgress(
+                    "Installing Forge...".to_string(),
+                ));
+                let lv = forge::fetch_recommended_version(&http, &ver.id)
+                    .await?
+                    .ok_or_else(|| anyhow::anyhow!("No Forge versions"))?;
+                let profile = forge::fetch_install_profile(&http, &ver.id, &lv).await?;
+                let tasks = forge::collect_library_downloads(&profile, config);
+                let dm = DownloadManager::new(
+                    config.download_mirror.clone(),
+                    config.max_concurrent_downloads,
+                );
+                dm.download_all(tasks).await?;
+                miao_core::instance::ModLoaderConfig {
+                    loader_type: ModLoaderType::Forge,
+                    version: lv,
+                }
+            }
+            _ => anyhow::bail!("Unknown loader"),
+        };
+        inst.mod_loader = Some(loader_config);
+    }
+
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    inst.save_to(&instance_dir)?;
+    Instance::create_directories(&instance_dir)?;
+
+    let _ = tx.send(AsyncMessage::InstallDone(instance_name.to_string()));
     Ok(())
 }
