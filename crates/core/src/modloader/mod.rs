@@ -1,4 +1,7 @@
 pub mod fabric;
+pub mod forge;
+pub mod neoforge;
+pub mod quilt;
 
 use serde::{Deserialize, Serialize};
 
