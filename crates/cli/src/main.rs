@@ -110,6 +110,40 @@ enum Commands {
         /// Minecraft version (e.g. 1.20.4)
         version: String,
     },
+    /// Search mods on Modrinth
+    ModSearch {
+        /// Search query
+        query: String,
+        /// Filter by MC version
+        #[arg(short = 'v', long)]
+        mc_version: Option<String>,
+        /// Filter by loader (fabric, quilt, neoforge, forge)
+        #[arg(short, long)]
+        loader: Option<String>,
+    },
+    /// Install a mod from Modrinth into an instance
+    ModInstall {
+        /// Instance name
+        instance: String,
+        /// Project ID or slug from Modrinth
+        project: String,
+    },
+    /// Export instance as .mrpack
+    Export {
+        /// Instance name
+        instance: String,
+        /// Output path (default: current directory)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+    /// Import a .mrpack modpack
+    Import {
+        /// Path to .mrpack file
+        path: String,
+        /// Instance name (defaults to pack name)
+        #[arg(short, long)]
+        name: Option<String>,
+    },
     /// Upgrade the mod loader version for an instance (same loader type only)
     UpgradeLoader {
         /// Instance name
@@ -164,6 +198,16 @@ async fn main() -> anyhow::Result<()> {
         Commands::Saves { instance, delete } => cmd_saves(&config, &instance, delete.as_deref())?,
         Commands::Open { instance } => cmd_open(&config, &instance)?,
         Commands::Loaders { version } => cmd_loaders(&config, &version).await?,
+        Commands::ModSearch {
+            query,
+            mc_version,
+            loader,
+        } => cmd_mod_search(&query, mc_version.as_deref(), loader.as_deref()).await?,
+        Commands::ModInstall { instance, project } => {
+            cmd_mod_install(&config, &instance, &project).await?
+        }
+        Commands::Export { instance, output } => cmd_export(&config, &instance, output.as_deref())?,
+        Commands::Import { path, name } => cmd_import(&config, &path, name.as_deref()).await?,
         Commands::UpgradeLoader { instance, version } => {
             cmd_upgrade_loader(&config, &instance, version.as_deref()).await?
         }
@@ -750,6 +794,136 @@ fn cmd_java() {
             j.version,
             j.path.display()
         );
+    }
+}
+
+async fn cmd_mod_search(
+    query: &str,
+    mc_version: Option<&str>,
+    loader: Option<&str>,
+) -> anyhow::Result<()> {
+    let result = miao_core::modrinth::api::search_mods(query, mc_version, loader, 15).await?;
+
+    if result.hits.is_empty() {
+        println!("No mods found for '{}'.", query);
+        return Ok(());
+    }
+
+    println!("{:<30} {:<15} DOWNLOADS", "NAME", "ID");
+    println!("{}", "-".repeat(60));
+    for hit in &result.hits {
+        println!(
+            "{:<30} {:<15} {}",
+            truncate(&hit.title, 28),
+            hit.slug,
+            format_downloads(hit.downloads)
+        );
+    }
+    println!("\nInstall: miao mod-install <instance> <slug>");
+    Ok(())
+}
+
+async fn cmd_mod_install(
+    config: &LauncherConfig,
+    instance_name: &str,
+    project: &str,
+) -> anyhow::Result<()> {
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    let inst = Instance::load_from(&instance_dir)?;
+
+    let loader = inst
+        .mod_loader
+        .as_ref()
+        .map(|l| l.loader_type.as_str())
+        .unwrap_or("fabric");
+
+    println!(
+        "Searching versions for '{}' (MC {}, {})...",
+        project, inst.minecraft_version, loader
+    );
+
+    let versions = miao_core::modrinth::api::get_project_versions(
+        project,
+        Some(&inst.minecraft_version),
+        Some(loader),
+    )
+    .await?;
+
+    let version = versions
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("No compatible version found for {}", project))?;
+
+    let file = version
+        .files
+        .iter()
+        .find(|f| f.primary)
+        .or(version.files.first())
+        .ok_or_else(|| anyhow::anyhow!("No files in version"))?;
+
+    println!("Installing {} ({})...", version.name, file.filename);
+
+    let mods_dir = Instance::mods_dir(&instance_dir);
+    let dest = miao_core::modrinth::api::download_mod_file(file, &mods_dir).await?;
+
+    println!("✓ Installed at {}", dest.display());
+    Ok(())
+}
+
+fn cmd_export(
+    config: &LauncherConfig,
+    instance_name: &str,
+    output: Option<&str>,
+) -> anyhow::Result<()> {
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    let inst = Instance::load_from(&instance_dir)?;
+
+    let output_path = output
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+    println!("Exporting '{}' as .mrpack...", instance_name);
+    let result = miao_core::modrinth::mrpack::export_mrpack(&instance_dir, &inst, &output_path)?;
+    println!("✓ Exported to {}", result.display());
+    Ok(())
+}
+
+async fn cmd_import(config: &LauncherConfig, path: &str, name: Option<&str>) -> anyhow::Result<()> {
+    let mrpack_path = std::path::Path::new(path);
+    if !mrpack_path.exists() {
+        anyhow::bail!("File not found: {}", path);
+    }
+
+    println!("Importing {}...", path);
+    let inst = miao_core::modrinth::mrpack::import_mrpack(mrpack_path, config, name).await?;
+
+    let loader_info = inst
+        .mod_loader
+        .as_ref()
+        .map(|l| format!(" + {} {}", l.loader_type, l.version))
+        .unwrap_or_default();
+
+    println!(
+        "✓ Imported '{}' (MC {}{})",
+        inst.name, inst.minecraft_version, loader_info
+    );
+    Ok(())
+}
+
+fn truncate(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}…", &s[..max - 1])
+    }
+}
+
+fn format_downloads(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.0}K", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
     }
 }
 
