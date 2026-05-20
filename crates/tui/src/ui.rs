@@ -11,8 +11,8 @@ use crate::app::{App, InputMode, ViewMode};
 pub fn render(frame: &mut Frame, app: &App) {
     let main_constraints = if app.show_log {
         vec![
-            Constraint::Min(8),
-            Constraint::Length(10),
+            Constraint::Min(12),
+            Constraint::Max(8),
             Constraint::Length(3),
         ]
     } else {
