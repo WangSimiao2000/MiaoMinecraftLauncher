@@ -82,6 +82,26 @@ pub fn collect_asset_index_download(
     }
 }
 
+pub fn save_version_meta(meta: &VersionMeta, config: &LauncherConfig) -> Result<()> {
+    let dir = config.versions_dir().join(&meta.id);
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join(format!("{}.json", &meta.id));
+    let content = serde_json::to_string_pretty(meta)?;
+    std::fs::write(&path, content)?;
+    Ok(())
+}
+
+pub fn all_download_tasks(
+    meta: &VersionMeta,
+    config: &LauncherConfig,
+    mirror: &DownloadMirror,
+) -> Vec<DownloadTask> {
+    let mut tasks = collect_library_downloads(meta, config, mirror);
+    tasks.push(collect_client_download(meta, config, mirror));
+    tasks.push(collect_asset_index_download(meta, config, mirror));
+    tasks
+}
+
 pub fn library_maven_path(name: &str) -> Option<String> {
     let parts: Vec<&str> = name.splitn(3, ':').collect();
     if parts.len() != 3 {

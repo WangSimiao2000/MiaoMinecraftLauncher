@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionMeta {
     pub id: String,
@@ -13,25 +13,25 @@ pub struct VersionMeta {
     pub java_version: Option<JavaVersion>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Arguments {
     pub game: Vec<serde_json::Value>,
     pub jvm: Vec<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Library {
     pub name: String,
     pub downloads: Option<LibraryDownloads>,
     pub rules: Option<Vec<Rule>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct LibraryDownloads {
     pub artifact: Option<Artifact>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Artifact {
     pub path: String,
     pub sha1: String,
@@ -39,18 +39,18 @@ pub struct Artifact {
     pub url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Rule {
     pub action: String,
     pub os: Option<OsRule>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OsRule {
     pub name: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AssetIndex {
     pub id: String,
     pub sha1: String,
@@ -59,20 +59,20 @@ pub struct AssetIndex {
     pub total_size: Option<u64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Downloads {
     pub client: DownloadEntry,
     pub server: Option<DownloadEntry>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DownloadEntry {
     pub sha1: String,
     pub size: u64,
     pub url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JavaVersion {
     pub major_version: u32,
