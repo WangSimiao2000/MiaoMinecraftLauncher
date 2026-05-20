@@ -684,13 +684,20 @@ impl App {
                         &http,
                         &asset,
                         &java_dir,
-                        move |downloaded, total| {
-                            let _ = tx2.send(AsyncMessage::InstallProgress(format!(
-                                "Downloading Java {}: {:.1}/{:.1} MB",
-                                required,
-                                downloaded as f64 / 1_000_000.0,
-                                total as f64 / 1_000_000.0
-                            )));
+                        move |phase| {
+                            use miao_core::java::download::DownloadPhase;
+                            let msg = match phase {
+                                DownloadPhase::Downloading { downloaded, total } => format!(
+                                    "Java {}: {:.1}/{:.1} MB",
+                                    required,
+                                    downloaded as f64 / 1_000_000.0,
+                                    total as f64 / 1_000_000.0
+                                ),
+                                DownloadPhase::Extracting => {
+                                    format!("Java {}: extracting...", required)
+                                }
+                            };
+                            let _ = tx2.send(AsyncMessage::InstallProgress(msg));
                         },
                     )
                     .await

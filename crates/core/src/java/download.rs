@@ -3,6 +3,12 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
+#[derive(Debug, Clone)]
+pub enum DownloadPhase {
+    Downloading { downloaded: u64, total: u64 },
+    Extracting,
+}
+
 const ADOPTIUM_API: &str = "https://api.adoptium.net/v3";
 
 #[derive(Debug, Deserialize)]
@@ -83,14 +89,14 @@ pub async fn download_and_extract_java(
     asset: &AdoptiumAsset,
     java_base_dir: &Path,
 ) -> Result<PathBuf> {
-    download_and_extract_java_with_progress(http, asset, java_base_dir, |_, _| {}).await
+    download_and_extract_java_with_progress(http, asset, java_base_dir, |_| {}).await
 }
 
 pub async fn download_and_extract_java_with_progress(
     http: &reqwest::Client,
     asset: &AdoptiumAsset,
     java_base_dir: &Path,
-    on_progress: impl Fn(u64, u64),
+    on_progress: impl Fn(DownloadPhase),
 ) -> Result<PathBuf> {
     use futures::StreamExt;
 
@@ -115,8 +121,13 @@ pub async fn download_and_extract_java_with_progress(
         let chunk = chunk?;
         downloaded += chunk.len() as u64;
         all_bytes.extend_from_slice(&chunk);
-        on_progress(downloaded, total_size);
+        on_progress(DownloadPhase::Downloading {
+            downloaded,
+            total: total_size,
+        });
     }
+
+    on_progress(DownloadPhase::Extracting);
 
     let tar_gz = flate2::read::GzDecoder::new(&all_bytes[..]);
     let mut archive = tar::Archive::new(tar_gz);
