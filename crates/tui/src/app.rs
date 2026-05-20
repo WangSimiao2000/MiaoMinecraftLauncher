@@ -16,43 +16,25 @@ use tokio::sync::mpsc;
 const MS_CLIENT_ID: &str = "00000000-0000-0000-0000-000000000000";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Tab {
-    Instances,
-    Versions,
-    Accounts,
-    Settings,
-}
-
-impl Tab {
-    pub const ALL: [Tab; 4] = [Tab::Instances, Tab::Versions, Tab::Accounts, Tab::Settings];
-
-    pub fn title(&self) -> &str {
-        match self {
-            Self::Instances => "Instances",
-            Self::Versions => "Versions",
-            Self::Accounts => "Accounts",
-            Self::Settings => "Settings",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputMode {
     Normal,
-    Input,
-    SelectLoader,
     CreateName,
     CreateSelectVersion,
     CreateSelectLoader,
-    ManageInstance,
-    ManageMods,
-    ManageResourcePacks,
-    ManageShaders,
-    ManageSaves,
     ConfirmDelete,
+    Settings,
+    AccountView,
+    AccountInput,
 }
 
-pub const LOADER_OPTIONS: [&str; 5] = ["None (Vanilla)", "Fabric", "Quilt", "NeoForge", "Forge"];
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewMode {
+    Detail,
+    Mods,
+    ResourcePacks,
+    Shaders,
+    Saves,
+}
 
 #[derive(Debug, Clone)]
 pub enum AsyncMessage {
@@ -69,17 +51,15 @@ pub enum AsyncMessage {
 
 pub struct App {
     pub config: LauncherConfig,
-    pub current_tab: usize,
     pub selected_index: usize,
     pub instances: Vec<Instance>,
     pub versions: Vec<VersionInfo>,
     pub status_message: String,
     pub input_mode: InputMode,
+    pub view_mode: ViewMode,
     pub input_buffer: String,
     pub loading: bool,
     pub installing: bool,
-    pub show_snapshots: bool,
-    pub loader_cursor: usize,
     pub ms_device_code: Option<DeviceCodeResponse>,
     pub rx: mpsc::UnboundedReceiver<AsyncMessage>,
     pub tx: mpsc::UnboundedSender<AsyncMessage>,
@@ -105,18 +85,15 @@ impl App {
 
         Ok(Self {
             config,
-            current_tab: 0,
             selected_index: 0,
             instances,
             versions: Vec::new(),
-            status_message: "[q]uit [Tab]switch [j/k]nav [i]nstall [l]aunch [f]loader [a]ccount [m]s [s]napshots"
-                .to_string(),
+            status_message: "[n]ew [Enter]launch [d]elete [a]ccount [,]settings [q]uit".to_string(),
             input_mode: InputMode::Normal,
+            view_mode: ViewMode::Detail,
             input_buffer: String::new(),
             loading: true,
             installing: false,
-            show_snapshots: false,
-            loader_cursor: 0,
             ms_device_code: None,
             rx,
             tx,
@@ -180,74 +157,31 @@ impl App {
         }
     }
 
-    pub fn active_tab(&self) -> Tab {
-        Tab::ALL[self.current_tab]
-    }
-
-    pub fn next_tab(&mut self) {
-        self.current_tab = (self.current_tab + 1) % Tab::ALL.len();
-        self.selected_index = 0;
-    }
-
-    pub fn prev_tab(&mut self) {
-        self.current_tab = if self.current_tab == 0 {
-            Tab::ALL.len() - 1
-        } else {
-            self.current_tab - 1
-        };
-        self.selected_index = 0;
-    }
-
-    pub fn next_item(&mut self) {
-        let max = self.current_list_len();
-        if max > 0 {
-            self.selected_index = (self.selected_index + 1) % max;
+    pub fn next_instance(&mut self) {
+        if !self.instances.is_empty() {
+            self.selected_index = (self.selected_index + 1) % self.instances.len();
+            self.view_mode = ViewMode::Detail;
         }
     }
 
-    pub fn prev_item(&mut self) {
-        let max = self.current_list_len();
-        if max > 0 {
+    pub fn prev_instance(&mut self) {
+        if !self.instances.is_empty() {
             self.selected_index = if self.selected_index == 0 {
-                max - 1
+                self.instances.len() - 1
             } else {
                 self.selected_index - 1
             };
-        }
-    }
-
-    pub fn select_item(&mut self) {
-        match self.active_tab() {
-            Tab::Instances => {
-                if let Some(inst) = self.instances.get(self.selected_index) {
-                    self.status_message = format!("'{}' selected. Press 'l' to launch.", inst.name);
-                }
-            }
-            Tab::Versions => {
-                if let Some(ver) = self.versions.get(self.selected_index) {
-                    self.status_message = format!("MC {} selected. Press 'i' to install.", ver.id);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    pub fn go_back(&mut self) {
-        if self.input_mode == InputMode::Input {
-            self.input_mode = InputMode::Normal;
-            self.input_buffer.clear();
-            self.status_message = "Cancelled.".to_string();
+            self.view_mode = ViewMode::Detail;
         }
     }
 
     pub fn start_add_account(&mut self) {
-        self.input_mode = InputMode::Input;
-        self.input_buffer.clear();
-        self.status_message = "Enter username (Enter=confirm, Esc=cancel):".to_string();
+        self.input_mode = InputMode::AccountView;
+        self.status_message = "[o]ffline [m]icrosoft [Esc]back".to_string();
     }
 
-    pub fn confirm_input(&mut self) {
-        if self.input_mode == InputMode::Input && !self.input_buffer.is_empty() {
+    pub fn confirm_add_offline_account(&mut self) {
+        if !self.input_buffer.is_empty() {
             let username = self.input_buffer.clone();
             let account = create_offline_account(&username);
             self.status_message = format!("✓ Added offline account: {}", account.username);
@@ -256,7 +190,7 @@ impl App {
                 self.config.active_account_index = Some(0);
             }
             let _ = self.config.save();
-            self.input_mode = InputMode::Normal;
+            self.input_mode = InputMode::AccountView;
             self.input_buffer.clear();
         }
     }
@@ -417,39 +351,14 @@ impl App {
         self.instances = instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
     }
 
-    pub fn toggle_snapshots(&mut self) {
-        self.show_snapshots = !self.show_snapshots;
-        self.selected_index = 0;
-        self.filter_versions();
-        self.status_message = if self.show_snapshots {
-            "Showing all versions (including snapshots)".to_string()
-        } else {
-            "Showing releases only".to_string()
-        };
-    }
-
     fn filter_versions(&mut self) {
-        self.versions = if self.show_snapshots {
-            self.all_versions.iter().take(80).cloned().collect()
-        } else {
-            self.all_versions
-                .iter()
-                .filter(|v| v.is_release())
-                .take(50)
-                .cloned()
-                .collect()
-        };
-    }
-
-    pub fn start_manage_instance(&mut self) {
-        if self.instances.is_empty() {
-            self.status_message = "No instance selected.".to_string();
-            return;
-        }
-        self.input_mode = InputMode::ManageInstance;
-        self.status_message =
-            "[d]elete [m]ods [r]esourcepacks [s]haders [w]orlds [o]pen folder [Esc]back"
-                .to_string();
+        self.versions = self
+            .all_versions
+            .iter()
+            .filter(|v| v.is_release())
+            .take(50)
+            .cloned()
+            .collect();
     }
 
     pub fn confirm_delete_instance(&mut self) {
@@ -478,8 +387,7 @@ impl App {
         let mods_dir = Instance::mods_dir(&instance_dir);
         self.manage_mods = miao_core::modmanager::scan_mods_dir(&mods_dir);
         self.manage_cursor = 0;
-        self.input_mode = InputMode::ManageMods;
-        self.status_message = "[j/k]nav [Enter]toggle [d]elete [o]pen folder [Esc]back".to_string();
+        self.view_mode = ViewMode::Mods;
     }
 
     pub fn open_manage_resourcepacks(&mut self) {
@@ -490,8 +398,7 @@ impl App {
         let dir = Instance::resourcepacks_dir(&instance_dir);
         self.manage_resourcepacks = miao_core::resource::scan_resourcepacks(&dir);
         self.manage_cursor = 0;
-        self.input_mode = InputMode::ManageResourcePacks;
-        self.status_message = "[j/k]nav [d]elete [o]pen folder [Esc]back".to_string();
+        self.view_mode = ViewMode::ResourcePacks;
     }
 
     pub fn open_manage_shaders(&mut self) {
@@ -502,8 +409,7 @@ impl App {
         let dir = Instance::shaderpacks_dir(&instance_dir);
         self.manage_shaders = miao_core::resource::scan_shaderpacks(&dir);
         self.manage_cursor = 0;
-        self.input_mode = InputMode::ManageShaders;
-        self.status_message = "[j/k]nav [d]elete [o]pen folder [Esc]back".to_string();
+        self.view_mode = ViewMode::Shaders;
     }
 
     pub fn open_manage_saves(&mut self) {
@@ -513,8 +419,7 @@ impl App {
         let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
         self.manage_saves = instance::list_saves(&instance_dir);
         self.manage_cursor = 0;
-        self.input_mode = InputMode::ManageSaves;
-        self.status_message = "[j/k]nav [d]elete [o]pen folder [Esc]back".to_string();
+        self.view_mode = ViewMode::Saves;
     }
 
     pub fn open_instance_folder(&self) {
@@ -534,8 +439,8 @@ impl App {
     }
 
     pub fn delete_current_resource(&mut self) {
-        match self.input_mode {
-            InputMode::ManageMods => {
+        match self.view_mode {
+            ViewMode::Mods => {
                 if let Some(m) = self.manage_mods.get(self.manage_cursor) {
                     let name = m.name.clone();
                     if let Err(e) = m.delete() {
@@ -549,7 +454,7 @@ impl App {
                     }
                 }
             }
-            InputMode::ManageResourcePacks => {
+            ViewMode::ResourcePacks => {
                 if let Some(r) = self.manage_resourcepacks.get(self.manage_cursor) {
                     let name = r.name.clone();
                     if let Err(e) = r.delete() {
@@ -565,7 +470,7 @@ impl App {
                     }
                 }
             }
-            InputMode::ManageShaders => {
+            ViewMode::Shaders => {
                 if let Some(s) = self.manage_shaders.get(self.manage_cursor) {
                     let name = s.name.clone();
                     if let Err(e) = s.delete() {
@@ -580,7 +485,7 @@ impl App {
                     }
                 }
             }
-            InputMode::ManageSaves => {
+            ViewMode::Saves => {
                 if let Some(s) = self.manage_saves.get(self.manage_cursor) {
                     let name = s.name.clone();
                     if let Err(e) = s.delete() {
@@ -599,12 +504,12 @@ impl App {
     }
 
     pub fn manage_next(&mut self) {
-        let max = match self.input_mode {
-            InputMode::ManageMods => self.manage_mods.len(),
-            InputMode::ManageResourcePacks => self.manage_resourcepacks.len(),
-            InputMode::ManageShaders => self.manage_shaders.len(),
-            InputMode::ManageSaves => self.manage_saves.len(),
-            _ => 0,
+        let max = match self.view_mode {
+            ViewMode::Mods => self.manage_mods.len(),
+            ViewMode::ResourcePacks => self.manage_resourcepacks.len(),
+            ViewMode::Shaders => self.manage_shaders.len(),
+            ViewMode::Saves => self.manage_saves.len(),
+            ViewMode::Detail => 0,
         };
         if max > 0 {
             self.manage_cursor = (self.manage_cursor + 1) % max;
@@ -612,12 +517,12 @@ impl App {
     }
 
     pub fn manage_prev(&mut self) {
-        let max = match self.input_mode {
-            InputMode::ManageMods => self.manage_mods.len(),
-            InputMode::ManageResourcePacks => self.manage_resourcepacks.len(),
-            InputMode::ManageShaders => self.manage_shaders.len(),
-            InputMode::ManageSaves => self.manage_saves.len(),
-            _ => 0,
+        let max = match self.view_mode {
+            ViewMode::Mods => self.manage_mods.len(),
+            ViewMode::ResourcePacks => self.manage_resourcepacks.len(),
+            ViewMode::Shaders => self.manage_shaders.len(),
+            ViewMode::Saves => self.manage_saves.len(),
+            ViewMode::Detail => 0,
         };
         if max > 0 {
             self.manage_cursor = if self.manage_cursor == 0 {
@@ -949,181 +854,6 @@ impl App {
             };
         }
     }
-
-    pub fn loader_next(&mut self) {
-        self.loader_cursor = (self.loader_cursor + 1) % LOADER_OPTIONS.len();
-    }
-
-    pub fn loader_prev(&mut self) {
-        self.loader_cursor = if self.loader_cursor == 0 {
-            LOADER_OPTIONS.len() - 1
-        } else {
-            self.loader_cursor - 1
-        };
-    }
-
-    pub fn confirm_loader(&mut self) {
-        let Some(inst) = self.instances.get(self.selected_index) else {
-            self.input_mode = InputMode::Normal;
-            return;
-        };
-
-        let loader_name = LOADER_OPTIONS[self.loader_cursor];
-        self.input_mode = InputMode::Normal;
-
-        if self.installing {
-            self.status_message = "Already installing...".to_string();
-            return;
-        }
-
-        self.installing = true;
-        self.status_message = format!("Installing {} for '{}'...", loader_name, inst.name);
-
-        let tx = self.tx.clone();
-        let config = self.config.clone();
-        let instance_name = inst.name.clone();
-        let mc_version = inst.minecraft_version.clone();
-        let loader_idx = self.loader_cursor;
-
-        tokio::spawn(async move {
-            let result =
-                do_loader_install(&instance_name, &mc_version, loader_idx, &config, &tx).await;
-            if let Err(e) = result {
-                let _ = tx.send(AsyncMessage::InstallError(e.to_string()));
-            }
-        });
-    }
-
-    fn current_list_len(&self) -> usize {
-        match self.active_tab() {
-            Tab::Instances => self.instances.len(),
-            Tab::Versions => self.versions.len(),
-            Tab::Accounts => self.config.accounts.len(),
-            _ => 0,
-        }
-    }
-}
-
-async fn do_loader_install(
-    instance_name: &str,
-    mc_version: &str,
-    loader_idx: usize,
-    config: &LauncherConfig,
-    tx: &mpsc::UnboundedSender<AsyncMessage>,
-) -> anyhow::Result<()> {
-    use miao_core::modloader::{ModLoaderType, fabric, forge, neoforge, quilt};
-
-    let http = reqwest::Client::new();
-    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
-
-    let (loader_type, loader_ver) = match loader_idx {
-        0 => {
-            let _ = tx.send(AsyncMessage::InstallProgress(
-                "Fetching Fabric versions...".to_string(),
-            ));
-            let versions = fabric::fetch_loader_versions(&http, mc_version).await?;
-            let ver = versions
-                .iter()
-                .find(|v| v.loader.stable)
-                .or(versions.first())
-                .map(|v| v.loader.version.clone())
-                .ok_or_else(|| anyhow::anyhow!("No Fabric versions for {}", mc_version))?;
-
-            let _ = tx.send(AsyncMessage::InstallProgress(format!(
-                "Installing Fabric {}...",
-                ver
-            )));
-            let profile = fabric::fetch_profile(&http, mc_version, &ver).await?;
-            let tasks = fabric::collect_fabric_library_downloads(&profile, config);
-            let dm = DownloadManager::new(
-                config.download_mirror.clone(),
-                config.max_concurrent_downloads,
-            );
-            dm.download_all(tasks).await?;
-            (ModLoaderType::Fabric, ver)
-        }
-        1 => {
-            let _ = tx.send(AsyncMessage::InstallProgress(
-                "Fetching Quilt versions...".to_string(),
-            ));
-            let versions = quilt::fetch_loader_versions(&http, mc_version).await?;
-            let ver = versions
-                .first()
-                .map(|v| v.loader.version.clone())
-                .ok_or_else(|| anyhow::anyhow!("No Quilt versions for {}", mc_version))?;
-
-            let _ = tx.send(AsyncMessage::InstallProgress(format!(
-                "Installing Quilt {}...",
-                ver
-            )));
-            let profile = quilt::fetch_profile(&http, mc_version, &ver).await?;
-            let tasks = quilt::collect_library_downloads(&profile, config);
-            let dm = DownloadManager::new(
-                config.download_mirror.clone(),
-                config.max_concurrent_downloads,
-            );
-            dm.download_all(tasks).await?;
-            (ModLoaderType::Quilt, ver)
-        }
-        2 => {
-            let _ = tx.send(AsyncMessage::InstallProgress(
-                "Fetching NeoForge versions...".to_string(),
-            ));
-            let versions = neoforge::fetch_versions(&http, mc_version).await?;
-            let ver = versions
-                .first()
-                .cloned()
-                .ok_or_else(|| anyhow::anyhow!("No NeoForge versions for {}", mc_version))?;
-
-            let _ = tx.send(AsyncMessage::InstallProgress(format!(
-                "Installing NeoForge {}...",
-                ver
-            )));
-            let profile = neoforge::fetch_profile(&http, &ver).await?;
-            let tasks = neoforge::collect_library_downloads(&profile, config);
-            let dm = DownloadManager::new(
-                config.download_mirror.clone(),
-                config.max_concurrent_downloads,
-            );
-            dm.download_all(tasks).await?;
-            (ModLoaderType::NeoForge, ver)
-        }
-        3 => {
-            let _ = tx.send(AsyncMessage::InstallProgress(
-                "Fetching Forge versions...".to_string(),
-            ));
-            let ver = forge::fetch_recommended_version(&http, mc_version)
-                .await?
-                .ok_or_else(|| anyhow::anyhow!("No Forge versions for {}", mc_version))?;
-
-            let _ = tx.send(AsyncMessage::InstallProgress(format!(
-                "Installing Forge {}...",
-                ver
-            )));
-            let profile = forge::fetch_install_profile(&http, mc_version, &ver).await?;
-            let tasks = forge::collect_library_downloads(&profile, config);
-            let dm = DownloadManager::new(
-                config.download_mirror.clone(),
-                config.max_concurrent_downloads,
-            );
-            dm.download_all(tasks).await?;
-            (ModLoaderType::Forge, ver)
-        }
-        _ => anyhow::bail!("Invalid loader index"),
-    };
-
-    let mut inst = Instance::load_from(&instance_dir)?;
-    inst.mod_loader = Some(miao_core::instance::ModLoaderConfig {
-        loader_type: loader_type.clone(),
-        version: loader_ver.clone(),
-    });
-    inst.save_to(&instance_dir)?;
-
-    let _ = tx.send(AsyncMessage::InstallDone(format!(
-        "{} {} for '{}'",
-        loader_type, loader_ver, instance_name
-    )));
-    Ok(())
 }
 
 async fn do_create_instance_with_version(

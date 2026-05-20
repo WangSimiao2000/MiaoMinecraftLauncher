@@ -2,7 +2,7 @@ mod app;
 mod ui;
 
 use anyhow::Result;
-use app::InputMode;
+use app::{InputMode, ViewMode};
 use crossterm::{
     ExecutableCommand,
     event::{self, Event, KeyCode, KeyEventKind},
@@ -39,12 +39,7 @@ fn fetch_versions(app: &mut app::App) {
         if let Ok(versions) =
             miao_core::version::manifest::fetch_version_manifest(&http, &mirror).await
         {
-            let releases: Vec<_> = versions
-                .into_iter()
-                .filter(|v| v.is_release())
-                .take(50)
-                .collect();
-            let _ = tx.send(app::AsyncMessage::VersionsLoaded(releases));
+            let _ = tx.send(app::AsyncMessage::VersionsLoaded(versions));
         }
     });
 }
@@ -64,177 +59,166 @@ async fn run_app(
                 continue;
             }
 
-            if app.input_mode == InputMode::Input {
-                match key.code {
-                    KeyCode::Enter => app.confirm_input(),
-                    KeyCode::Esc => app.go_back(),
-                    KeyCode::Backspace => {
-                        app.input_buffer.pop();
-                    }
-                    KeyCode::Char(c) => app.input_buffer.push(c),
-                    _ => {}
-                }
-                continue;
+            match app.input_mode {
+                InputMode::Normal => handle_normal(app, key.code),
+                InputMode::CreateName => handle_create_name(app, key.code),
+                InputMode::CreateSelectVersion => handle_create_version(app, key.code),
+                InputMode::CreateSelectLoader => handle_create_loader(app, key.code),
+                InputMode::ConfirmDelete => handle_confirm_delete(app, key.code),
+                InputMode::Settings => handle_settings(app, key.code),
+                InputMode::AccountView => handle_account_view(app, key.code),
+                InputMode::AccountInput => handle_account_input(app, key.code),
             }
 
-            if app.input_mode == InputMode::SelectLoader {
-                match key.code {
-                    KeyCode::Up | KeyCode::Char('k') => app.loader_prev(),
-                    KeyCode::Down | KeyCode::Char('j') => app.loader_next(),
-                    KeyCode::Enter => app.confirm_loader(),
-                    KeyCode::Esc => {
-                        app.input_mode = InputMode::Normal;
-                        app.status_message = "Cancelled.".to_string();
-                    }
-                    _ => {}
-                }
-                continue;
-            }
-
-            if app.input_mode == InputMode::CreateName {
-                match key.code {
-                    KeyCode::Enter => app.create_name_confirm(),
-                    KeyCode::Esc => {
-                        app.input_mode = InputMode::Normal;
-                        app.status_message = "Cancelled.".to_string();
-                    }
-                    KeyCode::Backspace => {
-                        app.create_name.pop();
-                    }
-                    KeyCode::Char(c) => app.create_name.push(c),
-                    _ => {}
-                }
-                continue;
-            }
-
-            if app.input_mode == InputMode::CreateSelectVersion {
-                match key.code {
-                    KeyCode::Up | KeyCode::Char('k') => app.create_version_prev(),
-                    KeyCode::Down | KeyCode::Char('j') => app.create_version_next(),
-                    KeyCode::Enter => app.create_version_confirm(),
-                    KeyCode::Esc => {
-                        app.input_mode = InputMode::Normal;
-                        app.status_message = "Cancelled.".to_string();
-                    }
-                    _ => {}
-                }
-                continue;
-            }
-
-            if app.input_mode == InputMode::CreateSelectLoader {
-                match key.code {
-                    KeyCode::Up | KeyCode::Char('k') => app.create_loader_prev(),
-                    KeyCode::Down | KeyCode::Char('j') => app.create_loader_next(),
-                    KeyCode::Left | KeyCode::Char('h') => app.loader_version_prev(),
-                    KeyCode::Right | KeyCode::Char('l') => app.loader_version_next(),
-                    KeyCode::Enter => app.create_loader_confirm(),
-                    KeyCode::Esc => {
-                        app.input_mode = InputMode::Normal;
-                        app.status_message = "Cancelled.".to_string();
-                    }
-                    _ => {}
-                }
-                continue;
-            }
-
-            if app.input_mode == InputMode::ManageInstance {
-                match key.code {
-                    KeyCode::Char('d') => {
-                        app.input_mode = InputMode::ConfirmDelete;
-                        app.status_message = "Delete this instance? [y]es [n]o".to_string();
-                    }
-                    KeyCode::Char('m') => app.open_manage_mods(),
-                    KeyCode::Char('r') => app.open_manage_resourcepacks(),
-                    KeyCode::Char('s') => app.open_manage_shaders(),
-                    KeyCode::Char('w') => app.open_manage_saves(),
-                    KeyCode::Char('o') => app.open_instance_folder(),
-                    KeyCode::Char('j') => app.download_java_for_instance(),
-                    KeyCode::Esc => {
-                        app.input_mode = InputMode::Normal;
-                        app.status_message = "Back to instances.".to_string();
-                    }
-                    _ => {}
-                }
-                continue;
-            }
-
-            if app.input_mode == InputMode::ConfirmDelete {
-                match key.code {
-                    KeyCode::Char('y') => app.confirm_delete_instance(),
-                    _ => {
-                        app.input_mode = InputMode::ManageInstance;
-                        app.status_message = "Cancelled.".to_string();
-                    }
-                }
-                continue;
-            }
-
-            if matches!(
-                app.input_mode,
-                InputMode::ManageMods
-                    | InputMode::ManageResourcePacks
-                    | InputMode::ManageShaders
-                    | InputMode::ManageSaves
-            ) {
-                match key.code {
-                    KeyCode::Up | KeyCode::Char('k') => app.manage_prev(),
-                    KeyCode::Down | KeyCode::Char('j') => app.manage_next(),
-                    KeyCode::Enter if app.input_mode == InputMode::ManageMods => {
-                        app.toggle_current_mod();
-                    }
-                    KeyCode::Char('d') => app.delete_current_resource(),
-                    KeyCode::Char('o') => {
-                        if let Some(inst) = app.instances.get(app.selected_index) {
-                            let instance_dir = miao_core::instance::Instance::instance_dir(
-                                &app.config.instances_dir(),
-                                &inst.name,
-                            );
-                            let dir = match app.input_mode {
-                                InputMode::ManageMods => {
-                                    miao_core::instance::Instance::mods_dir(&instance_dir)
-                                }
-                                InputMode::ManageResourcePacks => {
-                                    miao_core::instance::Instance::resourcepacks_dir(&instance_dir)
-                                }
-                                InputMode::ManageShaders => {
-                                    miao_core::instance::Instance::shaderpacks_dir(&instance_dir)
-                                }
-                                InputMode::ManageSaves => {
-                                    miao_core::instance::Instance::saves_dir(&instance_dir)
-                                }
-                                _ => instance_dir,
-                            };
-                            let _ = miao_core::instance::open_folder(&dir);
-                        }
-                    }
-                    KeyCode::Esc => {
-                        app.input_mode = InputMode::ManageInstance;
-                        app.status_message =
-                            "[d]elete [m]ods [r]esourcepacks [s]haders [w]orlds [o]pen [j]ava [Esc]back"
-                                .to_string();
-                    }
-                    _ => {}
-                }
-                continue;
-            }
-
-            match key.code {
-                KeyCode::Char('q') => return Ok(()),
-                KeyCode::Tab => app.next_tab(),
-                KeyCode::BackTab => app.prev_tab(),
-                KeyCode::Up | KeyCode::Char('k') => app.prev_item(),
-                KeyCode::Down | KeyCode::Char('j') => app.next_item(),
-                KeyCode::Enter => app.select_item(),
-                KeyCode::Char('h') | KeyCode::Left => app.go_back(),
-                KeyCode::Char('a') => app.start_add_account(),
-                KeyCode::Char('e') => app.start_manage_instance(),
-                KeyCode::Char('r') => app.refresh_instances(),
-                KeyCode::Char('l') => app.launch_selected(),
-                KeyCode::Char('n') => app.start_create_instance(),
-                KeyCode::Char('m') => app.start_ms_login(),
-                KeyCode::Char('s') => app.toggle_snapshots(),
-                _ => {}
+            if matches!(app.input_mode, InputMode::Normal) && key.code == KeyCode::Char('q') {
+                return Ok(());
             }
         }
+    }
+}
+
+fn handle_normal(app: &mut app::App, key: KeyCode) {
+    match app.view_mode {
+        ViewMode::Detail => match key {
+            KeyCode::Up | KeyCode::Char('k') => app.prev_instance(),
+            KeyCode::Down | KeyCode::Char('j') => app.next_instance(),
+            KeyCode::Enter => app.launch_selected(),
+            KeyCode::Char('n') => app.start_create_instance(),
+            KeyCode::Char('d') if !app.instances.is_empty() => {
+                app.input_mode = InputMode::ConfirmDelete;
+                app.status_message = "Delete this instance? [y]es / any key = cancel".to_string();
+            }
+            KeyCode::Char('J') => app.download_java_for_instance(),
+            KeyCode::Char('o') => app.open_instance_folder(),
+            KeyCode::Char('m') => app.open_manage_mods(),
+            KeyCode::Char('r') => app.open_manage_resourcepacks(),
+            KeyCode::Char('s') => app.open_manage_shaders(),
+            KeyCode::Char('w') => app.open_manage_saves(),
+            KeyCode::Char('a') => app.start_add_account(),
+            KeyCode::Char(',') => {
+                app.input_mode = InputMode::Settings;
+            }
+            _ => {}
+        },
+        ViewMode::Mods | ViewMode::ResourcePacks | ViewMode::Shaders | ViewMode::Saves => match key
+        {
+            KeyCode::Up | KeyCode::Char('k') => app.manage_prev(),
+            KeyCode::Down | KeyCode::Char('j') => app.manage_next(),
+            KeyCode::Enter if app.view_mode == ViewMode::Mods => app.toggle_current_mod(),
+            KeyCode::Char('d') => app.delete_current_resource(),
+            KeyCode::Char('o') => {
+                if let Some(inst) = app.instances.get(app.selected_index) {
+                    let instance_dir = miao_core::instance::Instance::instance_dir(
+                        &app.config.instances_dir(),
+                        &inst.name,
+                    );
+                    let dir = match app.view_mode {
+                        ViewMode::Mods => miao_core::instance::Instance::mods_dir(&instance_dir),
+                        ViewMode::ResourcePacks => {
+                            miao_core::instance::Instance::resourcepacks_dir(&instance_dir)
+                        }
+                        ViewMode::Shaders => {
+                            miao_core::instance::Instance::shaderpacks_dir(&instance_dir)
+                        }
+                        ViewMode::Saves => miao_core::instance::Instance::saves_dir(&instance_dir),
+                        _ => instance_dir,
+                    };
+                    let _ = miao_core::instance::open_folder(&dir);
+                }
+            }
+            KeyCode::Esc => {
+                app.view_mode = ViewMode::Detail;
+            }
+            _ => {}
+        },
+    }
+}
+
+fn handle_create_name(app: &mut app::App, key: KeyCode) {
+    match key {
+        KeyCode::Enter => app.create_name_confirm(),
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+            app.status_message = "Cancelled.".to_string();
+        }
+        KeyCode::Backspace => {
+            app.create_name.pop();
+        }
+        KeyCode::Char(c) => app.create_name.push(c),
+        _ => {}
+    }
+}
+
+fn handle_create_version(app: &mut app::App, key: KeyCode) {
+    match key {
+        KeyCode::Up | KeyCode::Char('k') => app.create_version_prev(),
+        KeyCode::Down | KeyCode::Char('j') => app.create_version_next(),
+        KeyCode::Enter => app.create_version_confirm(),
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+            app.status_message = "Cancelled.".to_string();
+        }
+        _ => {}
+    }
+}
+
+fn handle_create_loader(app: &mut app::App, key: KeyCode) {
+    match key {
+        KeyCode::Up | KeyCode::Char('k') => app.create_loader_prev(),
+        KeyCode::Down | KeyCode::Char('j') => app.create_loader_next(),
+        KeyCode::Left | KeyCode::Char('h') => app.loader_version_prev(),
+        KeyCode::Right | KeyCode::Char('l') => app.loader_version_next(),
+        KeyCode::Enter => app.create_loader_confirm(),
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+            app.status_message = "Cancelled.".to_string();
+        }
+        _ => {}
+    }
+}
+
+fn handle_confirm_delete(app: &mut app::App, key: KeyCode) {
+    match key {
+        KeyCode::Char('y') => app.confirm_delete_instance(),
+        _ => {
+            app.input_mode = InputMode::Normal;
+            app.status_message = "Cancelled.".to_string();
+        }
+    }
+}
+
+fn handle_settings(app: &mut app::App, key: KeyCode) {
+    if key == KeyCode::Esc {
+        app.input_mode = InputMode::Normal;
+    }
+}
+
+fn handle_account_view(app: &mut app::App, key: KeyCode) {
+    match key {
+        KeyCode::Char('o') => {
+            app.input_mode = InputMode::AccountInput;
+            app.input_buffer.clear();
+            app.status_message = "Enter username (Enter=confirm, Esc=cancel):".to_string();
+        }
+        KeyCode::Char('m') => app.start_ms_login(),
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+        }
+        _ => {}
+    }
+}
+
+fn handle_account_input(app: &mut app::App, key: KeyCode) {
+    match key {
+        KeyCode::Enter => app.confirm_add_offline_account(),
+        KeyCode::Esc => {
+            app.input_mode = InputMode::AccountView;
+            app.input_buffer.clear();
+        }
+        KeyCode::Backspace => {
+            app.input_buffer.pop();
+        }
+        KeyCode::Char(c) => app.input_buffer.push(c),
+        _ => {}
     }
 }

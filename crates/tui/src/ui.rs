@@ -3,65 +3,240 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Tabs},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use crate::app::{App, Tab};
+use crate::app::{App, InputMode, ViewMode};
 
 pub fn render(frame: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ])
+        .constraints([Constraint::Min(0), Constraint::Length(3)])
         .split(frame.area());
 
-    render_tabs(frame, app, chunks[0]);
-    render_content(frame, app, chunks[1]);
-    render_status_bar(frame, app, chunks[2]);
-}
-
-fn render_tabs(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    let titles: Vec<Line> = Tab::ALL
-        .iter()
-        .map(|t| Line::from(Span::raw(t.title())))
-        .collect();
-
-    let tabs = Tabs::new(titles)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" MiaoMC Launcher "),
-        )
-        .select(app.current_tab)
-        .style(Style::default().fg(Color::White))
-        .highlight_style(
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        );
-
-    frame.render_widget(tabs, area);
-}
-
-fn render_content(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    if matches!(
-        app.input_mode,
-        crate::app::InputMode::CreateName
-            | crate::app::InputMode::CreateSelectVersion
-            | crate::app::InputMode::CreateSelectLoader
-    ) {
-        render_create_wizard(frame, app, area);
-        return;
+    match app.input_mode {
+        InputMode::CreateName | InputMode::CreateSelectVersion | InputMode::CreateSelectLoader => {
+            render_create_wizard(frame, app, chunks[0]);
+        }
+        InputMode::Settings => {
+            render_settings(frame, app, chunks[0]);
+        }
+        InputMode::AccountInput | InputMode::AccountView => {
+            render_accounts(frame, app, chunks[0]);
+        }
+        _ => {
+            render_main_layout(frame, app, chunks[0]);
+        }
     }
 
-    match app.active_tab() {
-        Tab::Instances => render_instances(frame, app, area),
-        Tab::Versions => render_versions(frame, app, area),
-        Tab::Accounts => render_accounts(frame, app, area),
-        Tab::Settings => render_settings(frame, app, area),
+    render_status_bar(frame, app, chunks[1]);
+}
+
+fn render_main_layout(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
+        .split(area);
+
+    render_instance_list(frame, app, columns[0]);
+    render_detail_panel(frame, app, columns[1]);
+}
+
+fn render_instance_list(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let items: Vec<ListItem> = if app.instances.is_empty() {
+        vec![ListItem::new("  (no instances)")]
+    } else {
+        app.instances
+            .iter()
+            .enumerate()
+            .map(|(i, inst)| {
+                let prefix = if i == app.selected_index {
+                    "▶ "
+                } else {
+                    "  "
+                };
+                let loader = inst
+                    .mod_loader
+                    .as_ref()
+                    .map(|l| format!(" [{}]", l.loader_type))
+                    .unwrap_or_default();
+                ListItem::new(format!("{}{}{}", prefix, inst.name, loader))
+            })
+            .collect()
+    };
+
+    let title = " Instances [n]ew [a]ccount [,]settings [q]uit ";
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title(title));
+    frame.render_widget(list, area);
+}
+
+fn render_detail_panel(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let Some(inst) = app.instances.get(app.selected_index) else {
+        let empty = Paragraph::new("\n  Select an instance or press 'n' to create one.")
+            .block(Block::default().borders(Borders::ALL).title(" Detail "));
+        frame.render_widget(empty, area);
+        return;
+    };
+
+    let mut lines: Vec<Line> = Vec::new();
+
+    lines.push(Line::from(vec![
+        Span::styled(" Name: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(&inst.name),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled(" MC:   ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(&inst.minecraft_version),
+    ]));
+
+    let loader_str = inst
+        .mod_loader
+        .as_ref()
+        .map(|l| format!("{} {}", l.loader_type, l.version))
+        .unwrap_or_else(|| "Vanilla".to_string());
+    lines.push(Line::from(vec![
+        Span::styled(" Loader:", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(format!(" {}", loader_str)),
+    ]));
+
+    lines.push(Line::raw(""));
+    lines.push(Line::styled(
+        " [Enter]launch [d]elete [j]ava [o]pen folder",
+        Style::default().fg(Color::DarkGray),
+    ));
+    lines.push(Line::raw(""));
+
+    match app.view_mode {
+        ViewMode::Detail => {
+            lines.push(Line::styled(
+                " ─── Resources [m]ods [r]esources [s]haders [w]orlds ───",
+                Style::default().fg(Color::Cyan),
+            ));
+            lines.push(Line::raw(""));
+
+            let instance_dir = miao_core::instance::Instance::instance_dir(
+                &app.config.instances_dir(),
+                &inst.name,
+            );
+
+            let mods_dir = miao_core::instance::Instance::mods_dir(&instance_dir);
+            let mods = miao_core::modmanager::scan_mods_dir(&mods_dir);
+            lines.push(Line::styled(
+                format!("  Mods ({})", mods.len()),
+                Style::default().add_modifier(Modifier::BOLD),
+            ));
+            for m in mods.iter().take(5) {
+                let status = if m.enabled { "✓" } else { "✗" };
+                lines.push(Line::raw(format!("    {} {}", status, m.name)));
+            }
+            if mods.len() > 5 {
+                lines.push(Line::styled(
+                    format!("    ... and {} more", mods.len() - 5),
+                    Style::default().fg(Color::DarkGray),
+                ));
+            }
+
+            lines.push(Line::raw(""));
+
+            let res_dir = miao_core::instance::Instance::resourcepacks_dir(&instance_dir);
+            let resources = miao_core::resource::scan_resourcepacks(&res_dir);
+            lines.push(Line::styled(
+                format!("  Resource Packs ({})", resources.len()),
+                Style::default().add_modifier(Modifier::BOLD),
+            ));
+            for r in resources.iter().take(3) {
+                lines.push(Line::raw(format!("    {}", r.name)));
+            }
+
+            let shader_dir = miao_core::instance::Instance::shaderpacks_dir(&instance_dir);
+            let shaders = miao_core::resource::scan_shaderpacks(&shader_dir);
+            if !shaders.is_empty() {
+                lines.push(Line::raw(""));
+                lines.push(Line::styled(
+                    format!("  Shaders ({})", shaders.len()),
+                    Style::default().add_modifier(Modifier::BOLD),
+                ));
+                for s in shaders.iter().take(3) {
+                    lines.push(Line::raw(format!("    {}", s.name)));
+                }
+            }
+
+            let saves = miao_core::instance::list_saves(&instance_dir);
+            if !saves.is_empty() {
+                lines.push(Line::raw(""));
+                lines.push(Line::styled(
+                    format!("  Worlds ({})", saves.len()),
+                    Style::default().add_modifier(Modifier::BOLD),
+                ));
+                for s in saves.iter().take(3) {
+                    lines.push(Line::raw(format!("    {}", s.name)));
+                }
+            }
+        }
+        ViewMode::Mods => render_manage_list(&mut lines, app, "Mods"),
+        ViewMode::ResourcePacks => render_manage_list(&mut lines, app, "Resource Packs"),
+        ViewMode::Shaders => render_manage_list(&mut lines, app, "Shaders"),
+        ViewMode::Saves => render_manage_list(&mut lines, app, "Worlds"),
+    }
+
+    let title = if app.input_mode == InputMode::ConfirmDelete {
+        " ⚠ Delete? [y]es [n]o "
+    } else {
+        " Instance "
+    };
+
+    let detail = Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(title));
+    frame.render_widget(detail, area);
+}
+
+fn render_manage_list(lines: &mut Vec<Line>, app: &App, section: &str) {
+    lines.push(Line::styled(
+        format!(" ─── {} [j/k]nav [d]elete [o]pen [Esc]back ───", section),
+        Style::default().fg(Color::Cyan),
+    ));
+
+    if section == "Mods" {
+        lines.push(Line::styled(
+            "      [Enter]toggle",
+            Style::default().fg(Color::DarkGray),
+        ));
+    }
+
+    lines.push(Line::raw(""));
+
+    let items: Vec<String> = match app.view_mode {
+        ViewMode::Mods => app
+            .manage_mods
+            .iter()
+            .map(|m| {
+                let status = if m.enabled { "✓" } else { "✗" };
+                format!("{} {}", status, m.name)
+            })
+            .collect(),
+        ViewMode::ResourcePacks => app
+            .manage_resourcepacks
+            .iter()
+            .map(|r| r.name.clone())
+            .collect(),
+        ViewMode::Shaders => app.manage_shaders.iter().map(|s| s.name.clone()).collect(),
+        ViewMode::Saves => app.manage_saves.iter().map(|s| s.name.clone()).collect(),
+        _ => Vec::new(),
+    };
+
+    if items.is_empty() {
+        lines.push(Line::styled(
+            "  (empty)",
+            Style::default().fg(Color::DarkGray),
+        ));
+    } else {
+        for (i, item) in items.iter().enumerate() {
+            let prefix = if i == app.manage_cursor {
+                "  ▶ "
+            } else {
+                "    "
+            };
+            lines.push(Line::raw(format!("{}{}", prefix, item)));
+        }
     }
 }
 
@@ -77,7 +252,7 @@ fn render_create_wizard(frame: &mut Frame, app: &App, area: ratatui::layout::Rec
         app.create_name.clone()
     };
 
-    let name_marker = if app.input_mode == crate::app::InputMode::CreateName {
+    let name_marker = if app.input_mode == InputMode::CreateName {
         "▶"
     } else {
         "✓"
@@ -88,15 +263,15 @@ fn render_create_wizard(frame: &mut Frame, app: &App, area: ratatui::layout::Rec
     )));
     items.push(ListItem::new("  │"));
 
-    let ver_marker = if app.input_mode == crate::app::InputMode::CreateSelectVersion {
+    let ver_marker = if app.input_mode == InputMode::CreateSelectVersion {
         "▶"
-    } else if matches!(app.input_mode, crate::app::InputMode::CreateSelectLoader) {
+    } else if matches!(app.input_mode, InputMode::CreateSelectLoader) {
         "✓"
     } else {
         " "
     };
 
-    if app.input_mode == crate::app::InputMode::CreateSelectVersion {
+    if app.input_mode == InputMode::CreateSelectVersion {
         items.push(ListItem::new(format!("  │ {} MC Version:", ver_marker)));
         let start = app.create_version_cursor.saturating_sub(3);
         let end = (start + 8).min(app.versions.len());
@@ -125,17 +300,11 @@ fn render_create_wizard(frame: &mut Frame, app: &App, area: ratatui::layout::Rec
 
     items.push(ListItem::new("  │"));
 
-    let loader_marker = if app.input_mode == crate::app::InputMode::CreateSelectLoader {
-        "▶"
-    } else {
-        " "
-    };
-
-    if app.input_mode == crate::app::InputMode::CreateSelectLoader {
-        items.push(ListItem::new(format!("  │ {} Mod Loader:", loader_marker)));
+    if app.input_mode == InputMode::CreateSelectLoader {
+        items.push(ListItem::new("  │ ▶ Mod Loader:"));
 
         if app.loading_loader_versions {
-            items.push(ListItem::new("  │   Loading loader versions..."));
+            items.push(ListItem::new("  │   Loading..."));
         } else {
             let available_loaders = app.get_available_loaders();
             for (idx, name, available) in &available_loaders {
@@ -152,7 +321,7 @@ fn render_create_wizard(frame: &mut Frame, app: &App, area: ratatui::layout::Rec
                 let loader_versions = app.get_current_loader_versions();
                 if !loader_versions.is_empty() {
                     items.push(ListItem::new("  │"));
-                    items.push(ListItem::new("  │   Version:"));
+                    items.push(ListItem::new("  │   Version [←/→]:"));
                     let start = app.loader_version_cursor.saturating_sub(3);
                     let end = (start + 6).min(loader_versions.len());
                     for (i, v) in loader_versions.iter().enumerate().take(end).skip(start) {
@@ -180,107 +349,49 @@ fn render_create_wizard(frame: &mut Frame, app: &App, area: ratatui::layout::Rec
             .borders(Borders::ALL)
             .title(" New Instance [Enter=next, Esc=cancel] "),
     );
-
     frame.render_widget(list, area);
 }
 
-fn render_instances(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    let items: Vec<ListItem> = if app.instances.is_empty() {
-        vec![ListItem::new(
-            "  No instances. Go to Versions tab and press 'i' to install.",
-        )]
+fn render_settings(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let java_installations = miao_core::java::detect_system_java();
+    let java_str = if java_installations.is_empty() {
+        "  None detected".to_string()
     } else {
-        app.instances
+        java_installations
             .iter()
-            .enumerate()
-            .map(|(i, inst)| {
-                let loader = inst
-                    .mod_loader
-                    .as_ref()
-                    .map(|l| format!(" [{}]", l.loader_type))
-                    .unwrap_or_default();
-                let prefix = if i == app.selected_index {
-                    "▶ "
-                } else {
-                    "  "
-                };
-                ListItem::new(format!(
-                    "{}{} - MC {}{}",
-                    prefix, inst.name, inst.minecraft_version, loader
-                ))
+            .map(|j| {
+                format!(
+                    "  Java {} ({}) - {}",
+                    j.major_version,
+                    j.version,
+                    j.path.display()
+                )
             })
-            .collect()
+            .collect::<Vec<_>>()
+            .join("\n")
     };
 
-    if app.input_mode == crate::app::InputMode::SelectLoader {
-        let mut loader_items: Vec<ListItem> = Vec::new();
-        loader_items.push(ListItem::new("  Select Mod Loader:"));
-        loader_items.push(ListItem::new(""));
-        for (i, name) in crate::app::LOADER_OPTIONS.iter().enumerate() {
-            let prefix = if i == app.loader_cursor {
-                "  ▶ "
-            } else {
-                "    "
-            };
-            loader_items.push(ListItem::new(format!("{}{}", prefix, name)));
-        }
-
-        let list = List::new(loader_items).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" Install Mod Loader [Enter=confirm, Esc=cancel] "),
-        );
-        frame.render_widget(list, area);
-        return;
-    }
-
-    let list = List::new(items).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Instances [l=launch, f=loader] "),
+    let text = format!(
+        "\n  Data dir: {}\n  Mirror: {:?}\n  Concurrent downloads: {}\n\n  Java installations:\n{}",
+        app.config.data_dir.display(),
+        app.config.download_mirror,
+        app.config.max_concurrent_downloads,
+        java_str,
     );
 
-    frame.render_widget(list, area);
-}
-
-fn render_versions(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    let items: Vec<ListItem> = if app.loading {
-        vec![ListItem::new("  Loading versions...")]
-    } else if app.versions.is_empty() {
-        vec![ListItem::new("  No versions loaded. Check network.")]
-    } else {
-        app.versions
-            .iter()
-            .enumerate()
-            .map(|(i, ver)| {
-                let prefix = if i == app.selected_index {
-                    "▶ "
-                } else {
-                    "  "
-                };
-                ListItem::new(format!("{}{:<16} {}", prefix, ver.id, ver.release_time))
-            })
-            .collect()
-    };
-
-    let title = if app.installing {
-        " Versions [installing...] "
-    } else {
-        " Versions [i=install] "
-    };
-
-    let list = List::new(items).block(Block::default().borders(Borders::ALL).title(title));
-
-    frame.render_widget(list, area);
+    let paragraph = Paragraph::new(text).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Settings [Esc=back] "),
+    );
+    frame.render_widget(paragraph, area);
 }
 
 fn render_accounts(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     let mut lines: Vec<ListItem> = Vec::new();
 
     if app.config.accounts.is_empty() {
-        lines.push(ListItem::new(
-            "  No accounts. Press 'a' for offline, 'm' for Microsoft.",
-        ));
+        lines.push(ListItem::new("  No accounts configured."));
     } else {
         for (i, acc) in app.config.accounts.iter().enumerate() {
             let active = app.config.active_account_index == Some(i);
@@ -305,41 +416,18 @@ fn render_accounts(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
         lines.push(ListItem::new("  Waiting for authorization..."));
     }
 
-    if app.input_mode == crate::app::InputMode::Input {
+    lines.push(ListItem::new(""));
+    lines.push(ListItem::new(
+        "  [o]ffline account  [m]icrosoft login  [Esc]back",
+    ));
+
+    if app.input_mode == InputMode::AccountInput {
         lines.push(ListItem::new(""));
         lines.push(ListItem::new(format!("  Username: {}_", app.input_buffer)));
     }
 
-    let list = List::new(lines).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Accounts [a=offline, m=microsoft] "),
-    );
-
+    let list = List::new(lines).block(Block::default().borders(Borders::ALL).title(" Accounts "));
     frame.render_widget(list, area);
-}
-
-fn render_settings(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    let text = format!(
-        "\n  Data dir: {}\n  Mirror: {:?}\n  Concurrent downloads: {}\n  Java: {}",
-        app.config.data_dir.display(),
-        app.config.download_mirror,
-        app.config.max_concurrent_downloads,
-        if app.config.java_paths.is_empty() {
-            "auto-detect".to_string()
-        } else {
-            app.config
-                .java_paths
-                .iter()
-                .map(|p| p.display().to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        }
-    );
-
-    let paragraph =
-        Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(" Settings "));
-    frame.render_widget(paragraph, area);
 }
 
 fn render_status_bar(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
@@ -348,6 +436,5 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) 
         Style::default().fg(Color::Yellow),
     )]))
     .block(Block::default().borders(Borders::ALL));
-
     frame.render_widget(status, area);
 }
