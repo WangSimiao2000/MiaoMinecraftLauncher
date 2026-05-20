@@ -1,8 +1,21 @@
+mod app;
+
 use anyhow::Result;
 
 fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
-    tracing::info!("MiaoMinecraftLauncher GUI starting...");
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([900.0, 600.0])
+            .with_min_inner_size([640.0, 480.0]),
+        ..Default::default()
+    };
 
-    todo!("GUI implementation with egui/eframe")
+    eframe::run_native(
+        "MiaoMinecraftLauncher",
+        options,
+        Box::new(|cc| Ok(Box::new(app::MiaoApp::new(cc)))),
+    )
+    .map_err(|e| anyhow::anyhow!("eframe error: {}", e))?;
+
+    Ok(())
 }

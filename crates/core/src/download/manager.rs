@@ -108,11 +108,71 @@ impl DownloadManager {
     }
 }
 
-async fn verify_sha1(path: &Path, expected: &str) -> Result<bool> {
+pub async fn verify_sha1(path: &Path, expected: &str) -> Result<bool> {
     use sha1::{Digest, Sha1};
 
     let data = tokio::fs::read(path).await?;
     let hash = Sha1::digest(&data);
     let hex = format!("{:x}", hash);
     Ok(hex == expected)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[tokio::test]
+    async fn verify_sha1_correct_hash() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"hello world").unwrap();
+
+        let expected = "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed";
+        let result = verify_sha1(file.path(), expected).await.unwrap();
+        assert!(result);
+    }
+
+    #[tokio::test]
+    async fn verify_sha1_incorrect_hash() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"hello world").unwrap();
+
+        let result = verify_sha1(file.path(), "0000000000000000000000000000000000000000")
+            .await
+            .unwrap();
+        assert!(!result);
+    }
+
+    #[tokio::test]
+    async fn download_manager_progress_initial_state() {
+        let manager = DownloadManager::new(DownloadMirror::Official, 4);
+        let progress = manager.progress().await;
+        assert_eq!(progress.total_files, 0);
+        assert_eq!(progress.completed_files, 0);
+        assert_eq!(progress.total_bytes, 0);
+        assert_eq!(progress.downloaded_bytes, 0);
+    }
+
+    #[tokio::test]
+    async fn download_manager_skips_verified_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.txt");
+        std::fs::write(&file_path, b"hello world").unwrap();
+
+        let manager = DownloadManager::new(DownloadMirror::Official, 4);
+
+        let tasks = vec![DownloadTask {
+            url: "https://httpbin.org/status/404".to_string(),
+            dest: file_path,
+            sha1: Some("2aae6c35c94fcfb415dbe95f408b9ce91ee846ed".to_string()),
+            size: Some(11),
+        }];
+
+        let result = manager.download_all(tasks).await;
+        assert!(result.is_ok());
+
+        let progress = manager.progress().await;
+        assert_eq!(progress.completed_files, 1);
+    }
 }

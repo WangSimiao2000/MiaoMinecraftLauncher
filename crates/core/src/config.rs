@@ -83,4 +83,91 @@ impl LauncherConfig {
     pub fn assets_dir(&self) -> PathBuf {
         self.data_dir.join("assets")
     }
+
+    pub fn load_from_path(path: &PathBuf) -> Result<Self> {
+        if path.exists() {
+            let content = std::fs::read_to_string(path)?;
+            Ok(toml::from_str(&content)?)
+        } else {
+            Ok(Self::default())
+        }
+    }
+
+    pub fn save_to_path(&self, path: &PathBuf) -> Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let content = toml::to_string_pretty(self)?;
+        std::fs::write(path, content)?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_values() {
+        let config = LauncherConfig::default();
+        assert_eq!(config.max_concurrent_downloads, 64);
+        assert!(config.accounts.is_empty());
+        assert!(config.active_account_index.is_none());
+        assert!(config.java_paths.is_empty());
+        assert!(matches!(config.download_mirror, DownloadMirror::Official));
+    }
+
+    #[test]
+    fn config_directories() {
+        let config = LauncherConfig {
+            data_dir: PathBuf::from("/tmp/test-miao"),
+            ..Default::default()
+        };
+
+        assert_eq!(config.instances_dir(), PathBuf::from("/tmp/test-miao/instances"));
+        assert_eq!(config.versions_dir(), PathBuf::from("/tmp/test-miao/versions"));
+        assert_eq!(config.libraries_dir(), PathBuf::from("/tmp/test-miao/libraries"));
+        assert_eq!(config.assets_dir(), PathBuf::from("/tmp/test-miao/assets"));
+    }
+
+    #[test]
+    fn config_save_and_load_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("config.toml");
+
+        let config = LauncherConfig {
+            data_dir: PathBuf::from("/custom/data"),
+            max_concurrent_downloads: 32,
+            download_mirror: DownloadMirror::Bmclapi,
+            ..Default::default()
+        };
+
+        config.save_to_path(&config_path).unwrap();
+        let loaded = LauncherConfig::load_from_path(&config_path).unwrap();
+
+        assert_eq!(loaded.data_dir, PathBuf::from("/custom/data"));
+        assert_eq!(loaded.max_concurrent_downloads, 32);
+        assert!(matches!(loaded.download_mirror, DownloadMirror::Bmclapi));
+    }
+
+    #[test]
+    fn config_load_nonexistent_returns_default() {
+        let path = PathBuf::from("/nonexistent/config.toml");
+        let config = LauncherConfig::load_from_path(&path).unwrap();
+        assert_eq!(config.max_concurrent_downloads, 64);
+    }
+
+    #[test]
+    fn config_path_not_empty() {
+        let path = LauncherConfig::config_path();
+        assert!(path.to_string_lossy().contains("miao-minecraft-launcher"));
+    }
+
+    #[test]
+    fn download_mirror_custom_variant() {
+        let mirror = DownloadMirror::Custom("https://my-mirror.com".to_string());
+        let json = serde_json::to_string(&mirror).unwrap();
+        let deserialized: DownloadMirror = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, DownloadMirror::Custom(url) if url == "https://my-mirror.com"));
+    }
 }
