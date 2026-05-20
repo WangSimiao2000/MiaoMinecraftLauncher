@@ -151,7 +151,10 @@ impl MiaoApp {
         });
 
         let Some(java_path) = java_path else {
-            self.status = format!("No Java {} found!", required_java);
+            self.status = format!(
+                "No Java {} found! Click '☕ Download Java' to install.",
+                required_java
+            );
             return;
         };
 

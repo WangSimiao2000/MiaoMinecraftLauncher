@@ -312,7 +312,10 @@ impl App {
         });
 
         let Some(java_path) = java_path else {
-            self.status_message = format!("No Java {} found!", required_java);
+            self.status_message = format!(
+                "No Java {} found! Press 'e' → 'j' to download, or install manually.",
+                required_java
+            );
             return;
         };
 
