@@ -77,6 +77,20 @@ async fn run_app(
                 continue;
             }
 
+            if app.input_mode == InputMode::SelectLoader {
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => app.loader_prev(),
+                    KeyCode::Down | KeyCode::Char('j') => app.loader_next(),
+                    KeyCode::Enter => app.confirm_loader(),
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                        app.status_message = "Cancelled.".to_string();
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
             match key.code {
                 KeyCode::Char('q') => return Ok(()),
                 KeyCode::Tab => app.next_tab(),
@@ -90,6 +104,8 @@ async fn run_app(
                 KeyCode::Char('l') => app.launch_selected(),
                 KeyCode::Char('i') => app.install_selected(),
                 KeyCode::Char('m') => app.start_ms_login(),
+                KeyCode::Char('f') => app.start_loader_select(),
+                KeyCode::Char('s') => app.toggle_snapshots(),
                 _ => {}
             }
         }

@@ -36,7 +36,10 @@ impl Tab {
 pub enum InputMode {
     Normal,
     Input,
+    SelectLoader,
 }
+
+pub const LOADER_OPTIONS: [&str; 4] = ["Fabric", "Quilt", "NeoForge", "Forge"];
 
 #[derive(Debug, Clone)]
 pub enum AsyncMessage {
@@ -60,9 +63,12 @@ pub struct App {
     pub input_buffer: String,
     pub loading: bool,
     pub installing: bool,
+    pub show_snapshots: bool,
+    pub loader_cursor: usize,
     pub ms_device_code: Option<DeviceCodeResponse>,
     pub rx: mpsc::UnboundedReceiver<AsyncMessage>,
     pub tx: mpsc::UnboundedSender<AsyncMessage>,
+    pub all_versions: Vec<VersionInfo>,
 }
 
 impl App {
@@ -77,15 +83,18 @@ impl App {
             selected_index: 0,
             instances,
             versions: Vec::new(),
-            status_message: "[q]uit [Tab]switch [j/k]nav [i]nstall [l]aunch [a]ccount [m]icrosoft"
+            status_message: "[q]uit [Tab]switch [j/k]nav [i]nstall [l]aunch [f]loader [a]ccount [m]s [s]napshots"
                 .to_string(),
             input_mode: InputMode::Normal,
             input_buffer: String::new(),
             loading: true,
             installing: false,
+            show_snapshots: false,
+            loader_cursor: 0,
             ms_device_code: None,
             rx,
             tx,
+            all_versions: Vec::new(),
         })
     }
 
@@ -93,7 +102,8 @@ impl App {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
                 AsyncMessage::VersionsLoaded(v) => {
-                    self.versions = v;
+                    self.all_versions = v;
+                    self.filter_versions();
                     self.loading = false;
                 }
                 AsyncMessage::InstallProgress(s) => {
@@ -382,6 +392,85 @@ impl App {
         self.instances = instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
     }
 
+    pub fn toggle_snapshots(&mut self) {
+        self.show_snapshots = !self.show_snapshots;
+        self.selected_index = 0;
+        self.filter_versions();
+        self.status_message = if self.show_snapshots {
+            "Showing all versions (including snapshots)".to_string()
+        } else {
+            "Showing releases only".to_string()
+        };
+    }
+
+    fn filter_versions(&mut self) {
+        self.versions = if self.show_snapshots {
+            self.all_versions.iter().take(80).cloned().collect()
+        } else {
+            self.all_versions
+                .iter()
+                .filter(|v| v.is_release())
+                .take(50)
+                .cloned()
+                .collect()
+        };
+    }
+
+    pub fn start_loader_select(&mut self) {
+        if self.instances.is_empty() {
+            self.status_message = "No instance selected.".to_string();
+            return;
+        }
+        self.input_mode = InputMode::SelectLoader;
+        self.loader_cursor = 0;
+        self.status_message =
+            "Select loader: [j/k] navigate, [Enter] confirm, [Esc] cancel".to_string();
+    }
+
+    pub fn loader_next(&mut self) {
+        self.loader_cursor = (self.loader_cursor + 1) % LOADER_OPTIONS.len();
+    }
+
+    pub fn loader_prev(&mut self) {
+        self.loader_cursor = if self.loader_cursor == 0 {
+            LOADER_OPTIONS.len() - 1
+        } else {
+            self.loader_cursor - 1
+        };
+    }
+
+    pub fn confirm_loader(&mut self) {
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            self.input_mode = InputMode::Normal;
+            return;
+        };
+
+        let loader_name = LOADER_OPTIONS[self.loader_cursor];
+        self.input_mode = InputMode::Normal;
+
+        if self.installing {
+            self.status_message = "Already installing...".to_string();
+            return;
+        }
+
+        self.installing = true;
+        self.status_message = format!("Installing {} for '{}'...", loader_name, inst.name);
+
+        let tx = self.tx.clone();
+        let config = self.config.clone();
+        let instance_name = inst.name.clone();
+        let mc_version = inst.minecraft_version.clone();
+        let loader_idx = self.loader_cursor;
+
+        tokio::spawn(async move {
+            let result =
+                do_loader_install(&instance_name, &mc_version, loader_idx, &config, &tx).await;
+            if let Err(e) = result {
+                let _ = tx.send(AsyncMessage::InstallError(e.to_string()));
+            }
+        });
+    }
+
     fn current_list_len(&self) -> usize {
         match self.active_tab() {
             Tab::Instances => self.instances.len(),
@@ -458,5 +547,127 @@ async fn do_install(
     Instance::create_directories(&instance_dir)?;
 
     let _ = tx.send(AsyncMessage::InstallDone(instance_name.to_string()));
+    Ok(())
+}
+
+async fn do_loader_install(
+    instance_name: &str,
+    mc_version: &str,
+    loader_idx: usize,
+    config: &LauncherConfig,
+    tx: &mpsc::UnboundedSender<AsyncMessage>,
+) -> anyhow::Result<()> {
+    use miao_core::modloader::{ModLoaderType, fabric, forge, neoforge, quilt};
+
+    let http = reqwest::Client::new();
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+
+    let (loader_type, loader_ver) = match loader_idx {
+        0 => {
+            let _ = tx.send(AsyncMessage::InstallProgress(
+                "Fetching Fabric versions...".to_string(),
+            ));
+            let versions = fabric::fetch_loader_versions(&http, mc_version).await?;
+            let ver = versions
+                .iter()
+                .find(|v| v.loader.stable)
+                .or(versions.first())
+                .map(|v| v.loader.version.clone())
+                .ok_or_else(|| anyhow::anyhow!("No Fabric versions for {}", mc_version))?;
+
+            let _ = tx.send(AsyncMessage::InstallProgress(format!(
+                "Installing Fabric {}...",
+                ver
+            )));
+            let profile = fabric::fetch_profile(&http, mc_version, &ver).await?;
+            let tasks = fabric::collect_fabric_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            (ModLoaderType::Fabric, ver)
+        }
+        1 => {
+            let _ = tx.send(AsyncMessage::InstallProgress(
+                "Fetching Quilt versions...".to_string(),
+            ));
+            let versions = quilt::fetch_loader_versions(&http, mc_version).await?;
+            let ver = versions
+                .first()
+                .map(|v| v.loader.version.clone())
+                .ok_or_else(|| anyhow::anyhow!("No Quilt versions for {}", mc_version))?;
+
+            let _ = tx.send(AsyncMessage::InstallProgress(format!(
+                "Installing Quilt {}...",
+                ver
+            )));
+            let profile = quilt::fetch_profile(&http, mc_version, &ver).await?;
+            let tasks = quilt::collect_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            (ModLoaderType::Quilt, ver)
+        }
+        2 => {
+            let _ = tx.send(AsyncMessage::InstallProgress(
+                "Fetching NeoForge versions...".to_string(),
+            ));
+            let versions = neoforge::fetch_versions(&http, mc_version).await?;
+            let ver = versions
+                .first()
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("No NeoForge versions for {}", mc_version))?;
+
+            let _ = tx.send(AsyncMessage::InstallProgress(format!(
+                "Installing NeoForge {}...",
+                ver
+            )));
+            let profile = neoforge::fetch_profile(&http, &ver).await?;
+            let tasks = neoforge::collect_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            (ModLoaderType::NeoForge, ver)
+        }
+        3 => {
+            let _ = tx.send(AsyncMessage::InstallProgress(
+                "Fetching Forge versions...".to_string(),
+            ));
+            let ver = forge::fetch_recommended_version(&http, mc_version)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("No Forge versions for {}", mc_version))?;
+
+            let _ = tx.send(AsyncMessage::InstallProgress(format!(
+                "Installing Forge {}...",
+                ver
+            )));
+            let profile = forge::fetch_install_profile(&http, mc_version, &ver).await?;
+            let tasks = forge::collect_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            (ModLoaderType::Forge, ver)
+        }
+        _ => anyhow::bail!("Invalid loader index"),
+    };
+
+    let mut inst = Instance::load_from(&instance_dir)?;
+    inst.mod_loader = Some(miao_core::instance::ModLoaderConfig {
+        loader_type: loader_type.clone(),
+        version: loader_ver.clone(),
+    });
+    inst.save_to(&instance_dir)?;
+
+    let _ = tx.send(AsyncMessage::InstallDone(format!(
+        "{} {} for '{}'",
+        loader_type, loader_ver, instance_name
+    )));
     Ok(())
 }

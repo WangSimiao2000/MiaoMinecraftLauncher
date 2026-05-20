@@ -39,7 +39,10 @@ pub struct MiaoApp {
     selected_version: Option<usize>,
     status: String,
     offline_username_input: String,
+    selected_loader: usize,
 }
+
+const LOADER_NAMES: [&str; 4] = ["Fabric", "Quilt", "NeoForge", "Forge"];
 
 impl MiaoApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -86,6 +89,7 @@ impl MiaoApp {
             selected_version: None,
             status: "Ready".to_string(),
             offline_username_input: String::new(),
+            selected_loader: 0,
         }
     }
 
@@ -181,6 +185,40 @@ impl MiaoApp {
                 match result {
                     Ok(_) => s.install_status = Some(format!("✓ {} installed!", ver.id)),
                     Err(e) => s.install_status = Some(format!("✗ Failed: {}", e)),
+                }
+            });
+        });
+    }
+
+    fn install_loader(&mut self, instance_name: String, mc_version: String, loader_idx: usize) {
+        {
+            let mut state = self.async_state.lock().unwrap();
+            if state.installing {
+                self.status = "Already installing...".to_string();
+                return;
+            }
+            state.installing = true;
+            state.install_status = Some(format!(
+                "Installing {} for '{}'...",
+                LOADER_NAMES[loader_idx], instance_name
+            ));
+        }
+
+        self.status = format!("Installing {}...", LOADER_NAMES[loader_idx]);
+
+        let state = self.async_state.clone();
+        let config = self.config.clone();
+
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let result =
+                    do_loader_install(&instance_name, &mc_version, loader_idx, &config).await;
+                let mut s = state.lock().unwrap();
+                s.installing = false;
+                match result {
+                    Ok(msg) => s.install_status = Some(format!("✓ {}", msg)),
+                    Err(e) => s.install_status = Some(format!("✗ Loader failed: {}", e)),
                 }
             });
         });
@@ -360,11 +398,35 @@ impl MiaoApp {
             }
 
             ui.separator();
-            if let Some(idx) = self.selected_instance
-                && ui.button("▶ Launch").clicked()
-            {
-                self.launch_instance(idx);
-            }
+            ui.horizontal(|ui| {
+                if let Some(idx) = self.selected_instance
+                    && ui.button("▶ Launch").clicked()
+                {
+                    self.launch_instance(idx);
+                }
+
+                if self.selected_instance.is_some() {
+                    ui.separator();
+                    egui::ComboBox::from_label("Mod Loader")
+                        .selected_text(LOADER_NAMES[self.selected_loader])
+                        .show_ui(ui, |ui| {
+                            for (i, name) in LOADER_NAMES.iter().enumerate() {
+                                ui.selectable_value(&mut self.selected_loader, i, *name);
+                            }
+                        });
+
+                    if ui.button("Install Loader").clicked()
+                        && let Some(idx) = self.selected_instance
+                    {
+                        let inst = &self.instances[idx];
+                        self.install_loader(
+                            inst.name.clone(),
+                            inst.minecraft_version.clone(),
+                            self.selected_loader,
+                        );
+                    }
+                }
+            });
         }
     }
 
@@ -550,4 +612,92 @@ async fn do_install(
     Instance::create_directories(&instance_dir)?;
 
     Ok(())
+}
+
+async fn do_loader_install(
+    instance_name: &str,
+    mc_version: &str,
+    loader_idx: usize,
+    config: &LauncherConfig,
+) -> anyhow::Result<String> {
+    use miao_core::modloader::{ModLoaderType, fabric, forge, neoforge, quilt};
+
+    let http = reqwest::Client::new();
+    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+
+    let (loader_type, loader_ver) = match loader_idx {
+        0 => {
+            let versions = fabric::fetch_loader_versions(&http, mc_version).await?;
+            let ver = versions
+                .iter()
+                .find(|v| v.loader.stable)
+                .or(versions.first())
+                .map(|v| v.loader.version.clone())
+                .ok_or_else(|| anyhow::anyhow!("No Fabric versions for {}", mc_version))?;
+            let profile = fabric::fetch_profile(&http, mc_version, &ver).await?;
+            let tasks = fabric::collect_fabric_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            (ModLoaderType::Fabric, ver)
+        }
+        1 => {
+            let versions = quilt::fetch_loader_versions(&http, mc_version).await?;
+            let ver = versions
+                .first()
+                .map(|v| v.loader.version.clone())
+                .ok_or_else(|| anyhow::anyhow!("No Quilt versions for {}", mc_version))?;
+            let profile = quilt::fetch_profile(&http, mc_version, &ver).await?;
+            let tasks = quilt::collect_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            (ModLoaderType::Quilt, ver)
+        }
+        2 => {
+            let versions = neoforge::fetch_versions(&http, mc_version).await?;
+            let ver = versions
+                .first()
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("No NeoForge versions for {}", mc_version))?;
+            let profile = neoforge::fetch_profile(&http, &ver).await?;
+            let tasks = neoforge::collect_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            (ModLoaderType::NeoForge, ver)
+        }
+        3 => {
+            let ver = forge::fetch_recommended_version(&http, mc_version)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("No Forge versions for {}", mc_version))?;
+            let profile = forge::fetch_install_profile(&http, mc_version, &ver).await?;
+            let tasks = forge::collect_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            (ModLoaderType::Forge, ver)
+        }
+        _ => anyhow::bail!("Invalid loader"),
+    };
+
+    let mut inst = Instance::load_from(&instance_dir)?;
+    inst.mod_loader = Some(miao_core::instance::ModLoaderConfig {
+        loader_type: loader_type.clone(),
+        version: loader_ver.clone(),
+    });
+    inst.save_to(&instance_dir)?;
+
+    Ok(format!(
+        "{} {} for '{}'",
+        loader_type, loader_ver, instance_name
+    ))
 }

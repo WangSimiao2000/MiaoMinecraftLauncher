@@ -83,10 +83,32 @@ fn render_instances(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             .collect()
     };
 
+    if app.input_mode == crate::app::InputMode::SelectLoader {
+        let mut loader_items: Vec<ListItem> = Vec::new();
+        loader_items.push(ListItem::new("  Select Mod Loader:"));
+        loader_items.push(ListItem::new(""));
+        for (i, name) in crate::app::LOADER_OPTIONS.iter().enumerate() {
+            let prefix = if i == app.loader_cursor {
+                "  ▶ "
+            } else {
+                "    "
+            };
+            loader_items.push(ListItem::new(format!("{}{}", prefix, name)));
+        }
+
+        let list = List::new(loader_items).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Install Mod Loader [Enter=confirm, Esc=cancel] "),
+        );
+        frame.render_widget(list, area);
+        return;
+    }
+
     let list = List::new(items).block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" Instances [l=launch] "),
+            .title(" Instances [l=launch, f=loader] "),
     );
 
     frame.render_widget(list, area);
