@@ -133,13 +133,45 @@ fn render_create_wizard(frame: &mut Frame, app: &App, area: ratatui::layout::Rec
 
     if app.input_mode == crate::app::InputMode::CreateSelectLoader {
         items.push(ListItem::new(format!("  │ {} Mod Loader:", loader_marker)));
-        for (i, name) in crate::app::LOADER_OPTIONS.iter().enumerate() {
-            let prefix = if i == app.create_loader_cursor {
-                "    ▶ "
-            } else {
-                "      "
-            };
-            items.push(ListItem::new(format!("  │ {}{}", prefix, name)));
+
+        if app.loading_loader_versions {
+            items.push(ListItem::new("  │   Loading loader versions..."));
+        } else {
+            let available_loaders = app.get_available_loaders();
+            for (idx, name, available) in &available_loaders {
+                let prefix = if *idx == app.create_loader_cursor {
+                    "    ▶ "
+                } else {
+                    "      "
+                };
+                let suffix = if !available { " (unavailable)" } else { "" };
+                items.push(ListItem::new(format!(
+                    "  │ {}{}{}",
+                    prefix, name, suffix
+                )));
+            }
+
+            if app.create_loader_cursor > 0 {
+                let loader_versions = app.get_current_loader_versions();
+                if !loader_versions.is_empty() {
+                    items.push(ListItem::new("  │"));
+                    items.push(ListItem::new("  │   Version:"));
+                    let start = app.loader_version_cursor.saturating_sub(3);
+                    let end = (start + 6).min(loader_versions.len());
+                    for (i, v) in loader_versions.iter().enumerate().take(end).skip(start) {
+                        let prefix = if i == app.loader_version_cursor {
+                            "      ▶ "
+                        } else {
+                            "        "
+                        };
+                        let stable_marker = if v.stable { " ★" } else { "" };
+                        items.push(ListItem::new(format!(
+                            "  │ {}{}{}",
+                            prefix, v.version, stable_marker
+                        )));
+                    }
+                }
+            }
         }
     }
 

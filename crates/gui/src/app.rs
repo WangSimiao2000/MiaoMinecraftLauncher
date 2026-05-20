@@ -7,7 +7,9 @@ use miao_core::download::manager::DownloadManager;
 use miao_core::instance::{self, Instance};
 use miao_core::java;
 use miao_core::launch::{LaunchOptions, build_launch_command};
+use miao_core::modloader::{ModLoaderType, ModLoaderVersion};
 use miao_core::version::VersionInfo;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 const MS_CLIENT_ID: &str = "00000000-0000-0000-0000-000000000000";
@@ -28,6 +30,8 @@ struct AsyncState {
     installing: bool,
     ms_device_code: Option<DeviceCodeResponse>,
     ms_logging_in: bool,
+    loader_versions: HashMap<ModLoaderType, Vec<ModLoaderVersion>>,
+    loading_loader_versions: bool,
 }
 
 pub struct MiaoApp {
@@ -44,10 +48,10 @@ pub struct MiaoApp {
     new_instance_name: String,
     new_instance_version_idx: usize,
     new_instance_loader: usize,
+    new_instance_loader_version_idx: usize,
 }
 
 const LOADER_NAMES: [&str; 4] = ["Fabric", "Quilt", "NeoForge", "Forge"];
-const CREATE_LOADER_OPTIONS: [&str; 5] = ["None (Vanilla)", "Fabric", "Quilt", "NeoForge", "Forge"];
 
 impl MiaoApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -99,6 +103,7 @@ impl MiaoApp {
             new_instance_name: String::new(),
             new_instance_version_idx: 0,
             new_instance_loader: 0,
+            new_instance_loader_version_idx: 0,
         }
     }
 
@@ -406,6 +411,7 @@ impl MiaoApp {
                             .get(self.new_instance_version_idx)
                             .map(|v| v.id.as_str())
                             .unwrap_or("?");
+                        let prev_version_idx = self.new_instance_version_idx;
                         egui::ComboBox::from_id_salt("mc_ver")
                             .selected_text(current)
                             .show_ui(ui, |ui| {
@@ -417,6 +423,12 @@ impl MiaoApp {
                                     );
                                 }
                             });
+                        if self.new_instance_version_idx != prev_version_idx {
+                            self.new_instance_loader_version_idx = 0;
+                            self.fetch_loader_versions_for_version(
+                                &state.versions[self.new_instance_version_idx].id,
+                            );
+                        }
                     } else {
                         ui.label("Loading...");
                     }
@@ -424,14 +436,61 @@ impl MiaoApp {
 
                 ui.horizontal(|ui| {
                     ui.label("Mod Loader:");
+                    let available_loaders = self.get_available_loaders(state);
+                    let current_loader_name = available_loaders
+                        .iter()
+                        .find(|(idx, _, _)| *idx == self.new_instance_loader)
+                        .map(|(_, name, _)| *name)
+                        .unwrap_or("None (Vanilla)");
+
                     egui::ComboBox::from_id_salt("loader")
-                        .selected_text(CREATE_LOADER_OPTIONS[self.new_instance_loader])
+                        .selected_text(current_loader_name)
                         .show_ui(ui, |ui| {
-                            for (i, name) in CREATE_LOADER_OPTIONS.iter().enumerate() {
-                                ui.selectable_value(&mut self.new_instance_loader, i, *name);
+                            for (idx, name, available) in &available_loaders {
+                                let label = if *available {
+                                    *name
+                                } else {
+                                    &format!("{} (unavailable)", name)
+                                };
+                                ui.add_enabled_ui(*available, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.new_instance_loader,
+                                        *idx,
+                                        label,
+                                    );
+                                });
                             }
                         });
                 });
+
+                if self.new_instance_loader > 0 {
+                    let loader_versions = self.get_current_loader_versions(state);
+                    if !loader_versions.is_empty() {
+                        ui.horizontal(|ui| {
+                            ui.label("Loader Version:");
+                            let current_version = loader_versions
+                                .get(self.new_instance_loader_version_idx)
+                                .map(|v| v.version.as_str())
+                                .unwrap_or("?");
+                            egui::ComboBox::from_id_salt("loader_ver")
+                                .selected_text(current_version)
+                                .show_ui(ui, |ui| {
+                                    for (i, v) in loader_versions.iter().enumerate() {
+                                        let label = if v.stable {
+                                            format!("{} ★", v.version)
+                                        } else {
+                                            v.version.clone()
+                                        };
+                                        ui.selectable_value(
+                                            &mut self.new_instance_loader_version_idx,
+                                            i,
+                                            label,
+                                        );
+                                    }
+                                });
+                        });
+                    }
+                }
 
                 ui.separator();
 
@@ -445,20 +504,26 @@ impl MiaoApp {
                     let loader = if self.new_instance_loader == 0 {
                         None
                     } else {
-                        Some(
-                            match self.new_instance_loader {
+                        let loader_versions = self.get_current_loader_versions(state);
+                        let version = loader_versions
+                            .get(self.new_instance_loader_version_idx)
+                            .map(|v| v.version.clone())
+                            .or_else(|| loader_versions.first().map(|v| v.version.clone()));
+
+                        version.map(|v| {
+                            let loader_type = match self.new_instance_loader {
                                 1 => "fabric",
                                 2 => "quilt",
                                 3 => "neoforge",
                                 4 => "forge",
                                 _ => "fabric",
-                            }
-                            .to_string(),
-                        )
+                            };
+                            (loader_type.to_string(), v)
+                        })
                     };
 
                     self.show_create_dialog = false;
-                    self.create_instance_async(ver, name, loader);
+                    self.create_instance_async_with_version(ver, name, loader);
                 }
             });
 
@@ -467,11 +532,82 @@ impl MiaoApp {
         }
     }
 
-    fn create_instance_async(
+    fn fetch_loader_versions_for_version(&mut self, mc_version: &str) {
+        {
+            let mut s = self.async_state.lock().unwrap();
+            if s.loading_loader_versions {
+                return;
+            }
+            s.loading_loader_versions = true;
+            s.loader_versions.clear();
+        }
+
+        self.status = format!("Loading loader versions for {}...", mc_version);
+
+        let state = self.async_state.clone();
+        let http = reqwest::Client::new();
+        let mc_version = mc_version.to_string();
+        let ctx = self.async_state.lock().unwrap().clone();
+
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let versions =
+                    miao_core::modloader::fetch_all_loader_versions(&http, &mc_version).await;
+                let mut s = state.lock().unwrap();
+                s.loading_loader_versions = false;
+                match versions {
+                    Ok(v) => {
+                        s.loader_versions = v;
+                    }
+                    Err(e) => {
+                        s.install_status = Some(format!("Failed to load loader versions: {}", e));
+                    }
+                }
+                drop(ctx);
+            });
+        });
+    }
+
+    fn get_available_loaders(&self, state: &AsyncState) -> Vec<(usize, &'static str, bool)> {
+        let mut loaders = Vec::new();
+        loaders.push((0, "None (Vanilla)", true));
+
+        let loader_types = [
+            (1, "Fabric", ModLoaderType::Fabric),
+            (2, "Quilt", ModLoaderType::Quilt),
+            (3, "NeoForge", ModLoaderType::NeoForge),
+            (4, "Forge", ModLoaderType::Forge),
+        ];
+
+        for (idx, name, loader_type) in loader_types {
+            let available = state.loader_versions.contains_key(&loader_type);
+            loaders.push((idx, name, available));
+        }
+
+        loaders
+    }
+
+    fn get_current_loader_versions<'a>(&self, state: &'a AsyncState) -> Vec<&'a ModLoaderVersion> {
+        let loader_type = match self.new_instance_loader {
+            1 => Some(ModLoaderType::Fabric),
+            2 => Some(ModLoaderType::Quilt),
+            3 => Some(ModLoaderType::NeoForge),
+            4 => Some(ModLoaderType::Forge),
+            _ => None,
+        };
+
+        loader_type
+            .and_then(|lt| state.loader_versions.get(&lt))
+            .map(|v| v.iter().collect())
+            .unwrap_or_default()
+    }
+
+    fn create_instance_async_with_version(
         &mut self,
         ver: VersionInfo,
         instance_name: String,
-        loader_type: Option<String>,
+        loader: Option<(String, String)>,
     ) {
         {
             let mut s = self.async_state.lock().unwrap();
@@ -491,8 +627,13 @@ impl MiaoApp {
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
-                let result =
-                    do_create_instance(&ver, &instance_name, loader_type.as_deref(), &config).await;
+                let result = do_create_instance_with_version(
+                    &ver,
+                    &instance_name,
+                    loader.as_ref().map(|(lt, lv)| (lt.as_str(), lv.as_str())),
+                    &config,
+                )
+                .await;
                 let mut s = state.lock().unwrap();
                 s.installing = false;
                 match result {
@@ -842,10 +983,10 @@ async fn do_loader_install(
     ))
 }
 
-async fn do_create_instance(
+async fn do_create_instance_with_version(
     ver: &VersionInfo,
     instance_name: &str,
-    loader_type: Option<&str>,
+    loader: Option<(&str, &str)>,
     config: &LauncherConfig,
 ) -> anyhow::Result<()> {
     use miao_core::modloader::{ModLoaderType, fabric, forge, neoforge, quilt};
@@ -887,17 +1028,10 @@ async fn do_create_instance(
 
     let mut inst = Instance::new(instance_name, &ver.id);
 
-    if let Some(lt) = loader_type {
-        let loader_config = match lt {
+    if let Some((loader_type, loader_version)) = loader {
+        let loader_config = match loader_type {
             "fabric" => {
-                let versions = fabric::fetch_loader_versions(&http, &ver.id).await?;
-                let lv = versions
-                    .iter()
-                    .find(|v| v.loader.stable)
-                    .or(versions.first())
-                    .map(|v| v.loader.version.clone())
-                    .ok_or_else(|| anyhow::anyhow!("No Fabric versions"))?;
-                let profile = fabric::fetch_profile(&http, &ver.id, &lv).await?;
+                let profile = fabric::fetch_profile(&http, &ver.id, loader_version).await?;
                 let tasks = fabric::collect_fabric_library_downloads(&profile, config);
                 let dm = DownloadManager::new(
                     config.download_mirror.clone(),
@@ -906,16 +1040,11 @@ async fn do_create_instance(
                 dm.download_all(tasks).await?;
                 miao_core::instance::ModLoaderConfig {
                     loader_type: ModLoaderType::Fabric,
-                    version: lv,
+                    version: loader_version.to_string(),
                 }
             }
             "quilt" => {
-                let versions = quilt::fetch_loader_versions(&http, &ver.id).await?;
-                let lv = versions
-                    .first()
-                    .map(|v| v.loader.version.clone())
-                    .ok_or_else(|| anyhow::anyhow!("No Quilt versions"))?;
-                let profile = quilt::fetch_profile(&http, &ver.id, &lv).await?;
+                let profile = quilt::fetch_profile(&http, &ver.id, loader_version).await?;
                 let tasks = quilt::collect_library_downloads(&profile, config);
                 let dm = DownloadManager::new(
                     config.download_mirror.clone(),
@@ -924,16 +1053,11 @@ async fn do_create_instance(
                 dm.download_all(tasks).await?;
                 miao_core::instance::ModLoaderConfig {
                     loader_type: ModLoaderType::Quilt,
-                    version: lv,
+                    version: loader_version.to_string(),
                 }
             }
             "neoforge" => {
-                let versions = neoforge::fetch_versions(&http, &ver.id).await?;
-                let lv = versions
-                    .first()
-                    .cloned()
-                    .ok_or_else(|| anyhow::anyhow!("No NeoForge versions"))?;
-                let profile = neoforge::fetch_profile(&http, &lv).await?;
+                let profile = neoforge::fetch_profile(&http, loader_version).await?;
                 let tasks = neoforge::collect_library_downloads(&profile, config);
                 let dm = DownloadManager::new(
                     config.download_mirror.clone(),
@@ -942,14 +1066,11 @@ async fn do_create_instance(
                 dm.download_all(tasks).await?;
                 miao_core::instance::ModLoaderConfig {
                     loader_type: ModLoaderType::NeoForge,
-                    version: lv,
+                    version: loader_version.to_string(),
                 }
             }
             "forge" => {
-                let lv = forge::fetch_recommended_version(&http, &ver.id)
-                    .await?
-                    .ok_or_else(|| anyhow::anyhow!("No Forge versions"))?;
-                let profile = forge::fetch_install_profile(&http, &ver.id, &lv).await?;
+                let profile = forge::fetch_install_profile(&http, &ver.id, loader_version).await?;
                 let tasks = forge::collect_library_downloads(&profile, config);
                 let dm = DownloadManager::new(
                     config.download_mirror.clone(),
@@ -958,7 +1079,7 @@ async fn do_create_instance(
                 dm.download_all(tasks).await?;
                 miao_core::instance::ModLoaderConfig {
                     loader_type: ModLoaderType::Forge,
-                    version: lv,
+                    version: loader_version.to_string(),
                 }
             }
             _ => anyhow::bail!("Unknown loader"),

@@ -3,9 +3,78 @@ pub mod forge;
 pub mod neoforge;
 pub mod quilt;
 
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// Fetch all available loader versions for a given Minecraft version.
+/// Returns a map of loader type to available versions.
+pub async fn fetch_all_loader_versions(
+    http: &reqwest::Client,
+    minecraft_version: &str,
+) -> Result<std::collections::HashMap<ModLoaderType, Vec<ModLoaderVersion>>> {
+    let mut result = std::collections::HashMap::new();
+
+    if let Ok(fabric_versions) = fabric::fetch_loader_versions(http, minecraft_version).await {
+        let versions: Vec<ModLoaderVersion> = fabric_versions
+            .into_iter()
+            .map(|v| ModLoaderVersion {
+                loader_type: ModLoaderType::Fabric,
+                version: v.loader.version,
+                minecraft_version: minecraft_version.to_string(),
+                stable: v.loader.stable,
+            })
+            .collect();
+        if !versions.is_empty() {
+            result.insert(ModLoaderType::Fabric, versions);
+        }
+    }
+
+    if let Ok(quilt_versions) = quilt::fetch_loader_versions(http, minecraft_version).await {
+        let versions: Vec<ModLoaderVersion> = quilt_versions
+            .into_iter()
+            .map(|v| ModLoaderVersion {
+                loader_type: ModLoaderType::Quilt,
+                version: v.loader.version,
+                minecraft_version: minecraft_version.to_string(),
+                stable: true,
+            })
+            .collect();
+        if !versions.is_empty() {
+            result.insert(ModLoaderType::Quilt, versions);
+        }
+    }
+
+    if let Ok(neoforge_versions) = neoforge::fetch_versions(http, minecraft_version).await {
+        let versions: Vec<ModLoaderVersion> = neoforge_versions
+            .into_iter()
+            .map(|v| ModLoaderVersion {
+                loader_type: ModLoaderType::NeoForge,
+                version: v,
+                minecraft_version: minecraft_version.to_string(),
+                stable: true,
+            })
+            .collect();
+        if !versions.is_empty() {
+            result.insert(ModLoaderType::NeoForge, versions);
+        }
+    }
+
+    if let Ok(Some(forge_version)) =
+        forge::fetch_recommended_version(http, minecraft_version).await
+    {
+        let versions = vec![ModLoaderVersion {
+            loader_type: ModLoaderType::Forge,
+            version: forge_version,
+            minecraft_version: minecraft_version.to_string(),
+            stable: true,
+        }];
+        result.insert(ModLoaderType::Forge, versions);
+    }
+
+    Ok(result)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ModLoaderType {
     Forge,
     NeoForge,

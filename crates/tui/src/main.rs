@@ -125,6 +125,8 @@ async fn run_app(
                 match key.code {
                     KeyCode::Up | KeyCode::Char('k') => app.create_loader_prev(),
                     KeyCode::Down | KeyCode::Char('j') => app.create_loader_next(),
+                    KeyCode::Left | KeyCode::Char('h') => app.loader_version_prev(),
+                    KeyCode::Right | KeyCode::Char('l') => app.loader_version_next(),
                     KeyCode::Enter => app.create_loader_confirm(),
                     KeyCode::Esc => {
                         app.input_mode = InputMode::Normal;
