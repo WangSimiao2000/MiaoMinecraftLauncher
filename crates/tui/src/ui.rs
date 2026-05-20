@@ -9,23 +9,13 @@ use ratatui::{
 use crate::app::{App, InputMode, ViewMode};
 
 pub fn render(frame: &mut Frame, app: &App) {
-    let main_constraints = if app.show_log {
-        vec![
-            Constraint::Min(12),
-            Constraint::Max(8),
-            Constraint::Length(3),
-        ]
-    } else {
-        vec![Constraint::Min(0), Constraint::Length(3)]
-    };
-
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(main_constraints)
+        .constraints([Constraint::Min(0), Constraint::Length(3)])
         .split(frame.area());
 
     let content_area = chunks[0];
-    let status_area = if app.show_log { chunks[2] } else { chunks[1] };
+    let status_area = chunks[1];
 
     match app.input_mode {
         InputMode::CreateName | InputMode::CreateSelectVersion | InputMode::CreateSelectLoader => {
@@ -46,10 +36,6 @@ pub fn render(frame: &mut Frame, app: &App) {
         _ => {
             render_main_layout(frame, app, content_area);
         }
-    }
-
-    if app.show_log {
-        render_log_panel(frame, app, chunks[1]);
     }
 
     render_status_bar(frame, app, status_area);
@@ -450,22 +436,6 @@ fn render_accounts(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     }
 
     let list = List::new(lines).block(Block::default().borders(Borders::ALL).title(" Accounts "));
-    frame.render_widget(list, area);
-}
-
-fn render_log_panel(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    let visible_lines = area.height.saturating_sub(2) as usize;
-    let start = app.log_messages.len().saturating_sub(visible_lines);
-    let items: Vec<ListItem> = app.log_messages[start..]
-        .iter()
-        .map(|msg| ListItem::new(format!("  {}", msg)))
-        .collect();
-
-    let list = List::new(items).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Log [L=close] "),
-    );
     frame.render_widget(list, area);
 }
 

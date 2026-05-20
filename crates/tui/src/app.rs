@@ -88,8 +88,7 @@ pub struct App {
     pub manage_shaders: Vec<ShaderPack>,
     pub manage_saves: Vec<SaveWorld>,
     pub manage_cursor: usize,
-    pub log_messages: Vec<String>,
-    pub show_log: bool,
+
     pub mod_search_query: String,
     pub mod_search_results: Vec<SearchHit>,
     pub mod_search_cursor: usize,
@@ -131,8 +130,7 @@ impl App {
             manage_shaders: Vec::new(),
             manage_saves: Vec::new(),
             manage_cursor: 0,
-            log_messages: Vec::new(),
-            show_log: false,
+
             mod_search_query: String::new(),
             mod_search_results: Vec::new(),
             mod_search_cursor: 0,
@@ -157,20 +155,17 @@ impl App {
                     self.status_message = format!("Loaded loader versions for {}", mc_version);
                 }
                 AsyncMessage::InstallProgress(s) => {
-                    self.log_messages.push(s.clone());
                     self.status_message = s;
                 }
                 AsyncMessage::InstallDone(name) => {
                     self.installing = false;
                     let msg = format!("✓ Installed '{}'", name);
-                    self.log_messages.push(msg.clone());
                     self.status_message = msg;
                     self.refresh_instances();
                 }
                 AsyncMessage::InstallError(e) => {
                     self.installing = false;
                     let msg = format!("✗ {}", e);
-                    self.log_messages.push(msg.clone());
                     self.status_message = msg;
                 }
                 AsyncMessage::MsDeviceCode(dc) => {
@@ -187,7 +182,6 @@ impl App {
                 }
                 AsyncMessage::JavaDownloadDone(msg) => {
                     self.installing = false;
-                    self.log_messages.push(msg.clone());
                     self.status_message = msg;
                 }
                 AsyncMessage::ModSearchDone(hits) => {
@@ -219,34 +213,28 @@ impl App {
                     }
                 }
                 AsyncMessage::ModInstallDone(msg) => {
-                    self.log_messages.push(msg.clone());
                     self.status_message = msg;
                     self.refresh_instances();
                 }
                 AsyncMessage::ModInstallError(e) => {
                     let msg = format!("✗ Mod install failed: {}", e);
-                    self.log_messages.push(msg.clone());
                     self.status_message = msg;
                 }
                 AsyncMessage::ImportDone(msg) => {
                     self.installing = false;
-                    self.log_messages.push(msg.clone());
                     self.status_message = msg;
                     self.refresh_instances();
                 }
                 AsyncMessage::ImportError(e) => {
                     self.installing = false;
                     let msg = format!("✗ Import failed: {}", e);
-                    self.log_messages.push(msg.clone());
                     self.status_message = msg;
                 }
                 AsyncMessage::ExportDone(msg) => {
-                    self.log_messages.push(msg.clone());
                     self.status_message = msg;
                 }
                 AsyncMessage::ExportError(e) => {
                     let msg = format!("✗ Export failed: {}", e);
-                    self.log_messages.push(msg.clone());
                     self.status_message = msg;
                 }
             }
@@ -361,16 +349,12 @@ impl App {
 
         match build_launch_command(&options) {
             Ok(mut cmd) => {
-                cmd.stdout(std::process::Stdio::piped());
-                cmd.stderr(std::process::Stdio::piped());
+                cmd.stdout(std::process::Stdio::null());
+                cmd.stderr(std::process::Stdio::null());
                 match cmd.spawn() {
-                    Ok(child) => {
+                    Ok(_) => {
                         self.status_message =
                             format!("✓ Launched {} with {}", inst.name, java_path.display());
-                        let tx = self.tx.clone();
-                        tokio::spawn(async move {
-                            Self::stream_child_output(child, tx).await;
-                        });
                     }
                     Err(e) => {
                         self.status_message = format!("✗ Launch failed: {}", e);
@@ -635,42 +619,6 @@ impl App {
                 self.manage_cursor - 1
             };
         }
-    }
-
-    async fn stream_child_output(
-        mut child: std::process::Child,
-        tx: mpsc::UnboundedSender<AsyncMessage>,
-    ) {
-        use tokio::io::{AsyncBufReadExt, BufReader};
-
-        let stderr = child.stderr.take();
-        let stdout = child.stdout.take();
-
-        let tx2 = tx.clone();
-        let stderr_task = tokio::spawn(async move {
-            if let Some(stderr) = stderr {
-                let reader = BufReader::new(tokio::process::ChildStderr::from_std(stderr).unwrap());
-                let mut lines = reader.lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    let _ = tx2.send(AsyncMessage::InstallProgress(line));
-                }
-            }
-        });
-
-        let tx3 = tx.clone();
-        let stdout_task = tokio::spawn(async move {
-            if let Some(stdout) = stdout {
-                let reader = BufReader::new(tokio::process::ChildStdout::from_std(stdout).unwrap());
-                let mut lines = reader.lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    let _ = tx3.send(AsyncMessage::InstallProgress(line));
-                }
-            }
-        });
-
-        let _ = stderr_task.await;
-        let _ = stdout_task.await;
-        let _ = child.wait();
     }
 
     pub fn start_mod_search(&mut self) {

@@ -50,8 +50,7 @@ pub struct MiaoApp {
     new_instance_version_idx: usize,
     new_instance_loader: usize,
     new_instance_loader_version_idx: usize,
-    log_messages: Vec<String>,
-    show_log: bool,
+
     mod_search_query: String,
     mod_search_results: Vec<miao_core::modrinth::api::SearchHit>,
     mod_search_versions: Vec<miao_core::modrinth::api::ProjectVersion>,
@@ -108,8 +107,7 @@ impl MiaoApp {
             new_instance_version_idx: 0,
             new_instance_loader: 0,
             new_instance_loader_version_idx: 0,
-            log_messages: Vec::new(),
-            show_log: false,
+
             mod_search_query: String::new(),
             mod_search_results: Vec::new(),
             mod_search_versions: Vec::new(),
@@ -125,22 +123,13 @@ impl eframe::App for MiaoApp {
         let state = self.async_state.lock().unwrap().clone();
 
         if let Some(ref s) = state.install_status {
+            self.status = s.clone();
             if s.starts_with('✓') {
                 self.instances =
                     instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
-                self.log_messages.push(s.clone());
-                self.status = s.clone();
                 self.async_state.lock().unwrap().install_status = None;
-            } else if s.starts_with('✗') {
-                self.log_messages.push(s.clone());
-                self.status = s.clone();
+            } else if s.starts_with('✗') || (!state.installing && !state.ms_logging_in) {
                 self.async_state.lock().unwrap().install_status = None;
-            } else if !state.installing && !state.ms_logging_in {
-                self.status = s.clone();
-                self.async_state.lock().unwrap().install_status = None;
-            } else if state.installing {
-                self.log_messages.push(s.clone());
-                self.status = s.clone();
             }
         }
 
@@ -178,23 +167,7 @@ impl eframe::App for MiaoApp {
         });
 
         egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if ui.selectable_label(self.show_log, &self.status).clicked() {
-                    self.show_log = !self.show_log;
-                }
-            });
-
-            if self.show_log {
-                ui.separator();
-                egui::ScrollArea::vertical()
-                    .max_height(150.0)
-                    .stick_to_bottom(true)
-                    .show(ui, |ui| {
-                        for msg in &self.log_messages {
-                            ui.label(msg);
-                        }
-                    });
-            }
+            ui.label(&self.status);
         });
 
         egui::SidePanel::left("instance_list")
@@ -333,12 +306,26 @@ impl MiaoApp {
                 } else {
                     for mut m in mods {
                         ui.horizontal(|ui| {
-                            let toggle = if m.enabled { "✓" } else { "✗" };
-                            if ui.small_button(toggle).clicked() {
-                                let _ = m.toggle();
+                            if m.enabled {
+                                let btn = egui::Button::new(
+                                    egui::RichText::new("ON").color(egui::Color32::GREEN),
+                                );
+                                if ui.add(btn).clicked() {
+                                    let _ = m.toggle();
+                                }
+                                ui.label(&m.name);
+                            } else {
+                                let btn = egui::Button::new(
+                                    egui::RichText::new("OFF").color(egui::Color32::GRAY),
+                                );
+                                if ui.add(btn).clicked() {
+                                    let _ = m.toggle();
+                                }
+                                ui.label(
+                                    egui::RichText::new(&m.name).color(egui::Color32::DARK_GRAY),
+                                );
                             }
-                            ui.label(&m.name);
-                            if ui.small_button("🗑").clicked() {
+                            if ui.small_button("Del").clicked() {
                                 let _ = m.delete();
                             }
                         });
