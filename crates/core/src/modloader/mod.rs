@@ -88,22 +88,58 @@ pub async fn install_loader(
 ) -> Result<crate::instance::ModLoaderConfig> {
     use crate::download::manager::DownloadManager;
 
-    let tasks = match loader_type {
+    let (tasks, main_class, extra_libraries) = match loader_type {
         ModLoaderType::Fabric => {
             let profile = fabric::fetch_profile(http, mc_version, loader_version).await?;
-            fabric::collect_fabric_library_downloads(&profile, config)
+            let libs: Vec<String> = profile
+                .libraries
+                .iter()
+                .filter_map(|l| {
+                    fabric::fabric_library_to_path(&l.name)
+                        .map(|p| config.libraries_dir().join(p).to_string_lossy().to_string())
+                })
+                .collect();
+            let tasks = fabric::collect_fabric_library_downloads(&profile, config);
+            (tasks, Some(profile.main_class), libs)
         }
         ModLoaderType::Quilt => {
             let profile = quilt::fetch_profile(http, mc_version, loader_version).await?;
-            quilt::collect_library_downloads(&profile, config)
+            let libs: Vec<String> = profile
+                .libraries
+                .iter()
+                .filter_map(|l| {
+                    fabric::fabric_library_to_path(&l.name)
+                        .map(|p| config.libraries_dir().join(p).to_string_lossy().to_string())
+                })
+                .collect();
+            let tasks = quilt::collect_library_downloads(&profile, config);
+            (tasks, Some(profile.main_class), libs)
         }
         ModLoaderType::NeoForge => {
             let profile = neoforge::fetch_profile(http, loader_version).await?;
-            neoforge::collect_library_downloads(&profile, config)
+            let libs: Vec<String> = profile
+                .libraries
+                .iter()
+                .filter_map(|l| {
+                    fabric::fabric_library_to_path(&l.name)
+                        .map(|p| config.libraries_dir().join(p).to_string_lossy().to_string())
+                })
+                .collect();
+            let tasks = neoforge::collect_library_downloads(&profile, config);
+            (tasks, Some(profile.main_class), libs)
         }
         ModLoaderType::Forge => {
             let profile = forge::fetch_install_profile(http, mc_version, loader_version).await?;
-            forge::collect_library_downloads(&profile, config)
+            let libs: Vec<String> = profile
+                .libraries
+                .iter()
+                .filter_map(|l| {
+                    fabric::fabric_library_to_path(&l.name)
+                        .map(|p| config.libraries_dir().join(p).to_string_lossy().to_string())
+                })
+                .collect();
+            let tasks = forge::collect_library_downloads(&profile, config);
+            (tasks, Some(profile.main_class), libs)
         }
     };
 
@@ -116,6 +152,8 @@ pub async fn install_loader(
     Ok(crate::instance::ModLoaderConfig {
         loader_type: loader_type.clone(),
         version: loader_version.to_string(),
+        main_class,
+        extra_libraries,
     })
 }
 

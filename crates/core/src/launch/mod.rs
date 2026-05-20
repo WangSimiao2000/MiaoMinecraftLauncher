@@ -30,7 +30,13 @@ pub fn build_launch_command(options: &LaunchOptions) -> Result<Command> {
     let classpath = build_classpath(options)?;
     cmd.arg("-cp").arg(classpath);
 
-    cmd.arg(&options.version_meta.main_class);
+    let main_class = options
+        .instance
+        .mod_loader
+        .as_ref()
+        .and_then(|l| l.main_class.as_deref())
+        .unwrap_or(&options.version_meta.main_class);
+    cmd.arg(main_class);
 
     let game_args = build_game_args(options)?;
     for arg in game_args {
@@ -44,6 +50,12 @@ pub fn build_launch_command(options: &LaunchOptions) -> Result<Command> {
 
 fn build_classpath(options: &LaunchOptions) -> Result<String> {
     let mut paths: Vec<String> = Vec::new();
+
+    if let Some(loader) = &options.instance.mod_loader {
+        for lib_path in &loader.extra_libraries {
+            paths.push(lib_path.clone());
+        }
+    }
 
     for lib in &options.version_meta.libraries {
         if !VersionMeta::is_library_allowed(lib) {

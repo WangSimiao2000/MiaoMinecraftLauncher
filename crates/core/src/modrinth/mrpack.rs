@@ -128,21 +128,29 @@ pub async fn import_mrpack(
         inst.mod_loader = Some(crate::instance::ModLoaderConfig {
             loader_type: crate::modloader::ModLoaderType::Fabric,
             version: fabric_ver.clone(),
+            main_class: None,
+            extra_libraries: Vec::new(),
         });
     } else if let Some(quilt_ver) = index.dependencies.get("quilt-loader") {
         inst.mod_loader = Some(crate::instance::ModLoaderConfig {
             loader_type: crate::modloader::ModLoaderType::Quilt,
             version: quilt_ver.clone(),
+            main_class: None,
+            extra_libraries: Vec::new(),
         });
     } else if let Some(neoforge_ver) = index.dependencies.get("neoforge") {
         inst.mod_loader = Some(crate::instance::ModLoaderConfig {
             loader_type: crate::modloader::ModLoaderType::NeoForge,
             version: neoforge_ver.clone(),
+            main_class: None,
+            extra_libraries: Vec::new(),
         });
     } else if let Some(forge_ver) = index.dependencies.get("forge") {
         inst.mod_loader = Some(crate::instance::ModLoaderConfig {
             loader_type: crate::modloader::ModLoaderType::Forge,
             version: forge_ver.clone(),
+            main_class: None,
+            extra_libraries: Vec::new(),
         });
     }
 

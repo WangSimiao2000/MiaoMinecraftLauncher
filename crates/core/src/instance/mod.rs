@@ -24,6 +24,10 @@ pub struct Instance {
 pub struct ModLoaderConfig {
     pub loader_type: ModLoaderType,
     pub version: String,
+    #[serde(default)]
+    pub main_class: Option<String>,
+    #[serde(default)]
+    pub extra_libraries: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -63,6 +67,8 @@ impl Instance {
         self.mod_loader = Some(ModLoaderConfig {
             loader_type,
             version: version.to_string(),
+            main_class: None,
+            extra_libraries: Vec::new(),
         });
         self
     }
@@ -245,6 +251,8 @@ mod tests {
             Some(ModLoaderConfig {
                 loader_type: ModLoaderType::Fabric,
                 version: "0.15.6".to_string(),
+                main_class: None,
+                extra_libraries: Vec::new(),
             })
         );
         assert_eq!(
