@@ -330,16 +330,16 @@ impl eframe::App for MiaoApp {
             if s.starts_with('✓') && s.contains("installed") {
                 self.instances =
                     instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
-            }
-            if !state.installing && !state.ms_logging_in {
+                self.async_state.lock().unwrap().install_status = None;
+            } else if !state.installing && !state.ms_logging_in {
+                self.status = s.clone();
+                self.async_state.lock().unwrap().install_status = None;
+            } else if state.installing {
                 self.status = s.clone();
             }
         }
 
-        if state.installing {
-            if let Some(ref s) = state.install_status {
-                self.status = s.clone();
-            }
+        if state.installing || state.ms_logging_in {
             ctx.request_repaint();
         }
 
