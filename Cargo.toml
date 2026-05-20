@@ -42,6 +42,9 @@ uuid = { version = "1", features = ["v3", "v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 # Zip extraction (for game assets)
 zip = "2"
+# Tar/Gzip extraction (for Java downloads)
+flate2 = "1"
+tar = "0.4"
 # Async trait
 async-trait = "0.1"
 # Futures utilities

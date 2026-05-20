@@ -158,6 +158,57 @@ pub fn delete_instance(instances_base: &Path, name: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn open_folder(path: &Path) -> Result<()> {
+    if path.exists() {
+        open::that(path)?;
+    } else {
+        anyhow::bail!("Directory does not exist: {}", path.display());
+    }
+    Ok(())
+}
+
+pub fn list_saves(instance_dir: &Path) -> Vec<SaveWorld> {
+    let saves_dir = Instance::saves_dir(instance_dir);
+    let mut worlds = Vec::new();
+
+    let Ok(entries) = std::fs::read_dir(&saves_dir) else {
+        return worlds;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let level_dat = path.join("level.dat");
+        if !level_dat.exists() {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        worlds.push(SaveWorld { name, path });
+    }
+
+    worlds.sort_by(|a, b| a.name.cmp(&b.name));
+    worlds
+}
+
+#[derive(Debug, Clone)]
+pub struct SaveWorld {
+    pub name: String,
+    pub path: PathBuf,
+}
+
+impl SaveWorld {
+    pub fn delete(&self) -> Result<()> {
+        std::fs::remove_dir_all(&self.path)?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

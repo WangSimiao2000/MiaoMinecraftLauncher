@@ -10,11 +10,31 @@ pub struct ResourcePack {
     pub enabled: bool,
 }
 
+impl ResourcePack {
+    pub fn delete(&self) -> std::io::Result<()> {
+        if self.path.is_dir() {
+            std::fs::remove_dir_all(&self.path)
+        } else {
+            std::fs::remove_file(&self.path)
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaderPack {
     pub name: String,
     pub file_name: String,
     pub path: PathBuf,
+}
+
+impl ShaderPack {
+    pub fn delete(&self) -> std::io::Result<()> {
+        if self.path.is_dir() {
+            std::fs::remove_dir_all(&self.path)
+        } else {
+            std::fs::remove_file(&self.path)
+        }
+    }
 }
 
 pub fn scan_resourcepacks(dir: &PathBuf) -> Vec<ResourcePack> {

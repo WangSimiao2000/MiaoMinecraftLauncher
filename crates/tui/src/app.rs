@@ -3,10 +3,12 @@ use miao_core::auth::microsoft::{DeviceCodeResponse, MicrosoftAuth, PollResult};
 use miao_core::auth::offline::create_offline_account;
 use miao_core::config::LauncherConfig;
 use miao_core::download::manager::DownloadManager;
-use miao_core::instance::{self, Instance};
+use miao_core::instance::{self, Instance, SaveWorld};
 use miao_core::java;
 use miao_core::launch::{LaunchOptions, build_launch_command};
 use miao_core::modloader::{ModLoaderType, ModLoaderVersion};
+use miao_core::modmanager::ModInfo;
+use miao_core::resource::{ResourcePack, ShaderPack};
 use miao_core::version::VersionInfo;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
@@ -42,6 +44,12 @@ pub enum InputMode {
     CreateName,
     CreateSelectVersion,
     CreateSelectLoader,
+    ManageInstance,
+    ManageMods,
+    ManageResourcePacks,
+    ManageShaders,
+    ManageSaves,
+    ConfirmDelete,
 }
 
 pub const LOADER_OPTIONS: [&str; 5] = ["None (Vanilla)", "Fabric", "Quilt", "NeoForge", "Forge"];
@@ -56,6 +64,7 @@ pub enum AsyncMessage {
     MsDeviceCode(DeviceCodeResponse),
     MsLoginSuccess(String),
     MsLoginError(String),
+    JavaDownloadDone(String),
 }
 
 pub struct App {
@@ -81,6 +90,11 @@ pub struct App {
     pub loader_versions: HashMap<ModLoaderType, Vec<ModLoaderVersion>>,
     pub loader_version_cursor: usize,
     pub loading_loader_versions: bool,
+    pub manage_mods: Vec<ModInfo>,
+    pub manage_resourcepacks: Vec<ResourcePack>,
+    pub manage_shaders: Vec<ShaderPack>,
+    pub manage_saves: Vec<SaveWorld>,
+    pub manage_cursor: usize,
 }
 
 impl App {
@@ -113,6 +127,11 @@ impl App {
             loader_versions: HashMap::new(),
             loader_version_cursor: 0,
             loading_loader_versions: false,
+            manage_mods: Vec::new(),
+            manage_resourcepacks: Vec::new(),
+            manage_shaders: Vec::new(),
+            manage_saves: Vec::new(),
+            manage_cursor: 0,
         })
     }
 
@@ -152,6 +171,10 @@ impl App {
                 AsyncMessage::MsLoginError(e) => {
                     self.ms_device_code = None;
                     self.status_message = format!("✗ Login failed: {}", e);
+                }
+                AsyncMessage::JavaDownloadDone(msg) => {
+                    self.installing = false;
+                    self.status_message = msg;
                 }
             }
         }
@@ -413,6 +436,278 @@ impl App {
                 .cloned()
                 .collect()
         };
+    }
+
+    pub fn start_manage_instance(&mut self) {
+        if self.instances.is_empty() {
+            self.status_message = "No instance selected.".to_string();
+            return;
+        }
+        self.input_mode = InputMode::ManageInstance;
+        self.status_message =
+            "[d]elete [m]ods [r]esourcepacks [s]haders [w]orlds [o]pen folder [Esc]back"
+                .to_string();
+    }
+
+    pub fn confirm_delete_instance(&mut self) {
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            self.input_mode = InputMode::Normal;
+            return;
+        };
+        let name = inst.name.clone();
+        if let Err(e) = instance::delete_instance(&self.config.instances_dir(), &name) {
+            self.status_message = format!("✗ Delete failed: {}", e);
+        } else {
+            self.status_message = format!("✓ Deleted '{}'", name);
+            self.refresh_instances();
+            self.selected_index = self
+                .selected_index
+                .min(self.instances.len().saturating_sub(1));
+        }
+        self.input_mode = InputMode::Normal;
+    }
+
+    pub fn open_manage_mods(&mut self) {
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            return;
+        };
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
+        let mods_dir = Instance::mods_dir(&instance_dir);
+        self.manage_mods = miao_core::modmanager::scan_mods_dir(&mods_dir);
+        self.manage_cursor = 0;
+        self.input_mode = InputMode::ManageMods;
+        self.status_message = "[j/k]nav [Enter]toggle [d]elete [o]pen folder [Esc]back".to_string();
+    }
+
+    pub fn open_manage_resourcepacks(&mut self) {
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            return;
+        };
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
+        let dir = Instance::resourcepacks_dir(&instance_dir);
+        self.manage_resourcepacks = miao_core::resource::scan_resourcepacks(&dir);
+        self.manage_cursor = 0;
+        self.input_mode = InputMode::ManageResourcePacks;
+        self.status_message = "[j/k]nav [d]elete [o]pen folder [Esc]back".to_string();
+    }
+
+    pub fn open_manage_shaders(&mut self) {
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            return;
+        };
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
+        let dir = Instance::shaderpacks_dir(&instance_dir);
+        self.manage_shaders = miao_core::resource::scan_shaderpacks(&dir);
+        self.manage_cursor = 0;
+        self.input_mode = InputMode::ManageShaders;
+        self.status_message = "[j/k]nav [d]elete [o]pen folder [Esc]back".to_string();
+    }
+
+    pub fn open_manage_saves(&mut self) {
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            return;
+        };
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
+        self.manage_saves = instance::list_saves(&instance_dir);
+        self.manage_cursor = 0;
+        self.input_mode = InputMode::ManageSaves;
+        self.status_message = "[j/k]nav [d]elete [o]pen folder [Esc]back".to_string();
+    }
+
+    pub fn open_instance_folder(&self) {
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            return;
+        };
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
+        let _ = instance::open_folder(&instance_dir);
+    }
+
+    pub fn toggle_current_mod(&mut self) {
+        if let Some(m) = self.manage_mods.get_mut(self.manage_cursor)
+            && let Err(e) = m.toggle()
+        {
+            self.status_message = format!("✗ Toggle failed: {}", e);
+        }
+    }
+
+    pub fn delete_current_resource(&mut self) {
+        match self.input_mode {
+            InputMode::ManageMods => {
+                if let Some(m) = self.manage_mods.get(self.manage_cursor) {
+                    let name = m.name.clone();
+                    if let Err(e) = m.delete() {
+                        self.status_message = format!("✗ Delete failed: {}", e);
+                    } else {
+                        self.status_message = format!("✓ Deleted mod '{}'", name);
+                        self.manage_mods.remove(self.manage_cursor);
+                        if self.manage_cursor > 0 && self.manage_cursor >= self.manage_mods.len() {
+                            self.manage_cursor -= 1;
+                        }
+                    }
+                }
+            }
+            InputMode::ManageResourcePacks => {
+                if let Some(r) = self.manage_resourcepacks.get(self.manage_cursor) {
+                    let name = r.name.clone();
+                    if let Err(e) = r.delete() {
+                        self.status_message = format!("✗ Delete failed: {}", e);
+                    } else {
+                        self.status_message = format!("✓ Deleted '{}'", name);
+                        self.manage_resourcepacks.remove(self.manage_cursor);
+                        if self.manage_cursor > 0
+                            && self.manage_cursor >= self.manage_resourcepacks.len()
+                        {
+                            self.manage_cursor -= 1;
+                        }
+                    }
+                }
+            }
+            InputMode::ManageShaders => {
+                if let Some(s) = self.manage_shaders.get(self.manage_cursor) {
+                    let name = s.name.clone();
+                    if let Err(e) = s.delete() {
+                        self.status_message = format!("✗ Delete failed: {}", e);
+                    } else {
+                        self.status_message = format!("✓ Deleted '{}'", name);
+                        self.manage_shaders.remove(self.manage_cursor);
+                        if self.manage_cursor > 0 && self.manage_cursor >= self.manage_shaders.len()
+                        {
+                            self.manage_cursor -= 1;
+                        }
+                    }
+                }
+            }
+            InputMode::ManageSaves => {
+                if let Some(s) = self.manage_saves.get(self.manage_cursor) {
+                    let name = s.name.clone();
+                    if let Err(e) = s.delete() {
+                        self.status_message = format!("✗ Delete failed: {}", e);
+                    } else {
+                        self.status_message = format!("✓ Deleted '{}'", name);
+                        self.manage_saves.remove(self.manage_cursor);
+                        if self.manage_cursor > 0 && self.manage_cursor >= self.manage_saves.len() {
+                            self.manage_cursor -= 1;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn manage_next(&mut self) {
+        let max = match self.input_mode {
+            InputMode::ManageMods => self.manage_mods.len(),
+            InputMode::ManageResourcePacks => self.manage_resourcepacks.len(),
+            InputMode::ManageShaders => self.manage_shaders.len(),
+            InputMode::ManageSaves => self.manage_saves.len(),
+            _ => 0,
+        };
+        if max > 0 {
+            self.manage_cursor = (self.manage_cursor + 1) % max;
+        }
+    }
+
+    pub fn manage_prev(&mut self) {
+        let max = match self.input_mode {
+            InputMode::ManageMods => self.manage_mods.len(),
+            InputMode::ManageResourcePacks => self.manage_resourcepacks.len(),
+            InputMode::ManageShaders => self.manage_shaders.len(),
+            InputMode::ManageSaves => self.manage_saves.len(),
+            _ => 0,
+        };
+        if max > 0 {
+            self.manage_cursor = if self.manage_cursor == 0 {
+                max - 1
+            } else {
+                self.manage_cursor - 1
+            };
+        }
+    }
+
+    pub fn download_java_for_instance(&mut self) {
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            return;
+        };
+
+        let meta_path = self
+            .config
+            .versions_dir()
+            .join(&inst.minecraft_version)
+            .join(format!("{}.json", &inst.minecraft_version));
+
+        if !meta_path.exists() {
+            self.status_message = "Version meta not found.".to_string();
+            return;
+        }
+
+        let meta_content = match std::fs::read_to_string(&meta_path) {
+            Ok(c) => c,
+            Err(_) => {
+                self.status_message = "Cannot read version meta.".to_string();
+                return;
+            }
+        };
+
+        let meta: miao_core::version::meta::VersionMeta = match serde_json::from_str(&meta_content)
+        {
+            Ok(m) => m,
+            Err(_) => {
+                self.status_message = "Cannot parse version meta.".to_string();
+                return;
+            }
+        };
+
+        let required = meta.required_java_major();
+        let java_installations = java::detect_system_java();
+        if java::find_compatible_java(&java_installations, required).is_some() {
+            self.status_message = format!("Java {} already available.", required);
+            return;
+        }
+
+        self.installing = true;
+        self.status_message = format!("Downloading Java {}...", required);
+
+        let tx = self.tx.clone();
+        let java_dir = self.config.data_dir.join("java");
+
+        tokio::spawn(async move {
+            let http = reqwest::Client::new();
+            match miao_core::java::download::fetch_latest_asset(&http, required).await {
+                Ok(asset) => {
+                    let _ = tx.send(AsyncMessage::InstallProgress(format!(
+                        "Downloading Java {} ({:.1} MB)...",
+                        required,
+                        asset.binary.package.size as f64 / 1_000_000.0
+                    )));
+                    match miao_core::java::download::download_and_extract_java(
+                        &http, &asset, &java_dir,
+                    )
+                    .await
+                    {
+                        Ok(path) => {
+                            let _ = tx.send(AsyncMessage::JavaDownloadDone(format!(
+                                "✓ Java {} installed at {}",
+                                required,
+                                path.display()
+                            )));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(AsyncMessage::JavaDownloadDone(format!(
+                                "✗ Java download failed: {}",
+                                e
+                            )));
+                        }
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(AsyncMessage::JavaDownloadDone(format!(
+                        "✗ No Java {} available: {}",
+                        required, e
+                    )));
+                }
+            }
+        });
     }
 
     pub fn start_create_instance(&mut self) {

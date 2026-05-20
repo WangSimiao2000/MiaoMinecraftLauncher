@@ -15,6 +15,10 @@ pub struct ModInfo {
 }
 
 impl ModInfo {
+    pub fn delete(&self) -> std::io::Result<()> {
+        std::fs::remove_file(&self.path)
+    }
+
     pub fn toggle(&mut self) -> std::io::Result<()> {
         let new_path = if self.enabled {
             self.path.with_extension("jar.disabled")

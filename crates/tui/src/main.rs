@@ -137,6 +137,87 @@ async fn run_app(
                 continue;
             }
 
+            if app.input_mode == InputMode::ManageInstance {
+                match key.code {
+                    KeyCode::Char('d') => {
+                        app.input_mode = InputMode::ConfirmDelete;
+                        app.status_message = "Delete this instance? [y]es [n]o".to_string();
+                    }
+                    KeyCode::Char('m') => app.open_manage_mods(),
+                    KeyCode::Char('r') => app.open_manage_resourcepacks(),
+                    KeyCode::Char('s') => app.open_manage_shaders(),
+                    KeyCode::Char('w') => app.open_manage_saves(),
+                    KeyCode::Char('o') => app.open_instance_folder(),
+                    KeyCode::Char('j') => app.download_java_for_instance(),
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                        app.status_message = "Back to instances.".to_string();
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
+            if app.input_mode == InputMode::ConfirmDelete {
+                match key.code {
+                    KeyCode::Char('y') => app.confirm_delete_instance(),
+                    _ => {
+                        app.input_mode = InputMode::ManageInstance;
+                        app.status_message = "Cancelled.".to_string();
+                    }
+                }
+                continue;
+            }
+
+            if matches!(
+                app.input_mode,
+                InputMode::ManageMods
+                    | InputMode::ManageResourcePacks
+                    | InputMode::ManageShaders
+                    | InputMode::ManageSaves
+            ) {
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => app.manage_prev(),
+                    KeyCode::Down | KeyCode::Char('j') => app.manage_next(),
+                    KeyCode::Enter if app.input_mode == InputMode::ManageMods => {
+                        app.toggle_current_mod();
+                    }
+                    KeyCode::Char('d') => app.delete_current_resource(),
+                    KeyCode::Char('o') => {
+                        if let Some(inst) = app.instances.get(app.selected_index) {
+                            let instance_dir = miao_core::instance::Instance::instance_dir(
+                                &app.config.instances_dir(),
+                                &inst.name,
+                            );
+                            let dir = match app.input_mode {
+                                InputMode::ManageMods => {
+                                    miao_core::instance::Instance::mods_dir(&instance_dir)
+                                }
+                                InputMode::ManageResourcePacks => {
+                                    miao_core::instance::Instance::resourcepacks_dir(&instance_dir)
+                                }
+                                InputMode::ManageShaders => {
+                                    miao_core::instance::Instance::shaderpacks_dir(&instance_dir)
+                                }
+                                InputMode::ManageSaves => {
+                                    miao_core::instance::Instance::saves_dir(&instance_dir)
+                                }
+                                _ => instance_dir,
+                            };
+                            let _ = miao_core::instance::open_folder(&dir);
+                        }
+                    }
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::ManageInstance;
+                        app.status_message =
+                            "[d]elete [m]ods [r]esourcepacks [s]haders [w]orlds [o]pen [j]ava [Esc]back"
+                                .to_string();
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
             match key.code {
                 KeyCode::Char('q') => return Ok(()),
                 KeyCode::Tab => app.next_tab(),
@@ -146,6 +227,7 @@ async fn run_app(
                 KeyCode::Enter => app.select_item(),
                 KeyCode::Char('h') | KeyCode::Left => app.go_back(),
                 KeyCode::Char('a') => app.start_add_account(),
+                KeyCode::Char('e') => app.start_manage_instance(),
                 KeyCode::Char('r') => app.refresh_instances(),
                 KeyCode::Char('l') => app.launch_selected(),
                 KeyCode::Char('n') => app.start_create_instance(),
