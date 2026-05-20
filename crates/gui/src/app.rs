@@ -124,10 +124,10 @@ impl MiaoApp {
             }
 
             ui.separator();
-            if ui.button("▶ Launch").clicked() {
-                if let Some(idx) = self.selected_instance {
-                    self.status = format!("Launching {}...", self.instances[idx].name);
-                }
+            if ui.button("▶ Launch").clicked()
+                && let Some(idx) = self.selected_instance
+            {
+                self.status = format!("Launching {}...", self.instances[idx].name);
             }
         }
     }

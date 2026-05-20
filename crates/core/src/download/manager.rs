@@ -61,14 +61,13 @@ impl DownloadManager {
             tokio::fs::create_dir_all(parent).await?;
         }
 
-        if task.dest.exists() {
-            if let Some(expected_sha1) = &task.sha1 {
-                if verify_sha1(&task.dest, expected_sha1).await? {
-                    let mut progress = self.progress.lock().await;
-                    progress.completed_files += 1;
-                    return Ok(());
-                }
-            }
+        if task.dest.exists()
+            && let Some(expected_sha1) = &task.sha1
+            && verify_sha1(&task.dest, expected_sha1).await?
+        {
+            let mut progress = self.progress.lock().await;
+            progress.completed_files += 1;
+            return Ok(());
         }
 
         {
@@ -86,14 +85,14 @@ impl DownloadManager {
 
         tokio::fs::write(&task.dest, &bytes).await?;
 
-        if let Some(expected_sha1) = &task.sha1 {
-            if !verify_sha1(&task.dest, expected_sha1).await? {
-                anyhow::bail!(
-                    "SHA1 mismatch for {}: expected {}",
-                    task.dest.display(),
-                    expected_sha1
-                );
-            }
+        if let Some(expected_sha1) = &task.sha1
+            && !verify_sha1(&task.dest, expected_sha1).await?
+        {
+            anyhow::bail!(
+                "SHA1 mismatch for {}: expected {}",
+                task.dest.display(),
+                expected_sha1
+            );
         }
 
         let mut progress = self.progress.lock().await;

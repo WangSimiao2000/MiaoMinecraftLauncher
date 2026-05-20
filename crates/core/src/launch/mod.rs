@@ -49,11 +49,11 @@ fn build_classpath(options: &LaunchOptions) -> Result<String> {
         if !VersionMeta::is_library_allowed(lib) {
             continue;
         }
-        if let Some(downloads) = &lib.downloads {
-            if let Some(artifact) = &downloads.artifact {
-                let path = options.config.libraries_dir().join(&artifact.path);
-                paths.push(path.to_string_lossy().to_string());
-            }
+        if let Some(downloads) = &lib.downloads
+            && let Some(artifact) = &downloads.artifact
+        {
+            let path = options.config.libraries_dir().join(&artifact.path);
+            paths.push(path.to_string_lossy().to_string());
         }
     }
 
@@ -68,31 +68,24 @@ fn build_classpath(options: &LaunchOptions) -> Result<String> {
 }
 
 fn build_game_args(options: &LaunchOptions) -> Result<Vec<String>> {
-    let mut args = Vec::new();
-
-    args.push("--username".to_string());
-    args.push(options.auth.username().to_string());
-
-    args.push("--version".to_string());
-    args.push(options.version_meta.id.clone());
-
-    args.push("--gameDir".to_string());
-    args.push(options.game_dir.to_string_lossy().to_string());
-
-    args.push("--assetsDir".to_string());
-    args.push(options.config.assets_dir().to_string_lossy().to_string());
-
-    args.push("--assetIndex".to_string());
-    args.push(options.version_meta.asset_index.id.clone());
-
-    args.push("--uuid".to_string());
-    args.push(options.auth.uuid().to_string());
-
-    args.push("--accessToken".to_string());
-    args.push(options.auth.access_token().to_string());
-
-    args.push("--userType".to_string());
-    args.push("msa".to_string());
+    let mut args = vec![
+        "--username".to_string(),
+        options.auth.username().to_string(),
+        "--version".to_string(),
+        options.version_meta.id.clone(),
+        "--gameDir".to_string(),
+        options.game_dir.to_string_lossy().to_string(),
+        "--assetsDir".to_string(),
+        options.config.assets_dir().to_string_lossy().to_string(),
+        "--assetIndex".to_string(),
+        options.version_meta.asset_index.id.clone(),
+        "--uuid".to_string(),
+        options.auth.uuid().to_string(),
+        "--accessToken".to_string(),
+        options.auth.access_token().to_string(),
+        "--userType".to_string(),
+        "msa".to_string(),
+    ];
 
     if let Some(res) = &options.instance.resolution {
         args.push("--width".to_string());

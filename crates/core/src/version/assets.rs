@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -22,8 +21,7 @@ pub struct AssetObject {
 }
 
 pub async fn fetch_asset_index(
-    http: &reqwest::Client,
-    index_path: &PathBuf,
+    index_path: &std::path::Path,
 ) -> Result<AssetIndexFile> {
     let content = tokio::fs::read_to_string(index_path).await?;
     let index: AssetIndexFile = serde_json::from_str(&content)?;
@@ -37,7 +35,7 @@ pub fn collect_asset_downloads(
 ) -> Vec<DownloadTask> {
     let mut tasks = Vec::new();
 
-    for (_name, obj) in &index.objects {
+    for obj in index.objects.values() {
         let hash_prefix = &obj.hash[..2];
         let url = format!("{}/{}/{}", MOJANG_RESOURCES_BASE, hash_prefix, obj.hash);
         let dest = config

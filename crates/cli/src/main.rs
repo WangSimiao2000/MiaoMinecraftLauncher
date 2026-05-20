@@ -6,7 +6,7 @@ use miao_core::download::manager::DownloadManager;
 use miao_core::instance::{self, Instance};
 use miao_core::java;
 use miao_core::launch::{build_launch_command, LaunchOptions};
-use miao_core::version::{self, install, manifest, VersionType};
+use miao_core::version::{install, manifest, VersionType};
 
 #[derive(Parser)]
 #[command(name = "miao", version, about = "MiaoMinecraftLauncher - A feature-rich Minecraft launcher for Linux")]
@@ -76,7 +76,7 @@ fn cmd_list(config: &LauncherConfig) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    println!("{:<20} {:<12} {}", "NAME", "MC VERSION", "MOD LOADER");
+    println!("{:<20} {:<12} MOD LOADER", "NAME", "MC VERSION");
     println!("{}", "-".repeat(50));
     for inst in &instances {
         let loader = inst
@@ -101,7 +101,7 @@ async fn cmd_versions(config: &LauncherConfig, show_snapshots: bool) -> anyhow::
         versions.iter().filter(|v| v.is_release()).take(20).collect()
     };
 
-    println!("{:<16} {:<10} {}", "VERSION", "TYPE", "RELEASE DATE");
+    println!("{:<16} {:<10} RELEASE DATE", "VERSION", "TYPE");
     println!("{}", "-".repeat(50));
     for v in filtered {
         let type_str = match v.version_type {
@@ -136,7 +136,7 @@ async fn cmd_install(
     let meta = install::fetch_version_meta(&http, &version_info.url, &config.download_mirror).await?;
 
     println!("Collecting download tasks...");
-    let mut tasks = install::all_download_tasks(&meta, config, &config.download_mirror);
+    let tasks = install::all_download_tasks(&meta, config, &config.download_mirror);
 
     let asset_index_task = install::collect_asset_index_download(&meta, config, &config.download_mirror);
     let asset_index_path = asset_index_task.dest.clone();
@@ -147,7 +147,7 @@ async fn cmd_install(
 
     if asset_index_path.exists() {
         println!("Downloading assets...");
-        let asset_index = miao_core::version::assets::fetch_asset_index(&http, &asset_index_path).await?;
+        let asset_index = miao_core::version::assets::fetch_asset_index(&asset_index_path).await?;
         let asset_tasks = miao_core::version::assets::collect_asset_downloads(&asset_index, config, &config.download_mirror);
         println!("Downloading {} asset files...", asset_tasks.len());
         let dm2 = DownloadManager::new(config.download_mirror.clone(), config.max_concurrent_downloads);
@@ -253,7 +253,7 @@ fn cmd_java() {
         return;
     }
 
-    println!("{:<8} {:<15} {}", "MAJOR", "VERSION", "PATH");
+    println!("{:<8} {:<15} PATH", "MAJOR", "VERSION");
     println!("{}", "-".repeat(60));
     for j in &installations {
         println!("{:<8} {:<15} {}", j.major_version, j.version, j.path.display());

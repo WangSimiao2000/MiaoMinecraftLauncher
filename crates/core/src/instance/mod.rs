@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -78,31 +78,31 @@ impl Instance {
         self
     }
 
-    pub fn instance_dir(base: &PathBuf, name: &str) -> PathBuf {
+    pub fn instance_dir(base: &Path, name: &str) -> PathBuf {
         base.join(name)
     }
 
-    pub fn mods_dir(instance_dir: &PathBuf) -> PathBuf {
+    pub fn mods_dir(instance_dir: &Path) -> PathBuf {
         instance_dir.join("mods")
     }
 
-    pub fn resourcepacks_dir(instance_dir: &PathBuf) -> PathBuf {
+    pub fn resourcepacks_dir(instance_dir: &Path) -> PathBuf {
         instance_dir.join("resourcepacks")
     }
 
-    pub fn shaderpacks_dir(instance_dir: &PathBuf) -> PathBuf {
+    pub fn shaderpacks_dir(instance_dir: &Path) -> PathBuf {
         instance_dir.join("shaderpacks")
     }
 
-    pub fn saves_dir(instance_dir: &PathBuf) -> PathBuf {
+    pub fn saves_dir(instance_dir: &Path) -> PathBuf {
         instance_dir.join("saves")
     }
 
-    pub fn config_file(instance_dir: &PathBuf) -> PathBuf {
+    pub fn config_file(instance_dir: &Path) -> PathBuf {
         instance_dir.join("instance.toml")
     }
 
-    pub fn save_to(&self, instance_dir: &PathBuf) -> Result<()> {
+    pub fn save_to(&self, instance_dir: &Path) -> Result<()> {
         std::fs::create_dir_all(instance_dir)?;
         let config_path = Self::config_file(instance_dir);
         let content = toml::to_string_pretty(self)?;
@@ -110,14 +110,14 @@ impl Instance {
         Ok(())
     }
 
-    pub fn load_from(instance_dir: &PathBuf) -> Result<Self> {
+    pub fn load_from(instance_dir: &Path) -> Result<Self> {
         let config_path = Self::config_file(instance_dir);
         let content = std::fs::read_to_string(&config_path)?;
         let instance: Self = toml::from_str(&content)?;
         Ok(instance)
     }
 
-    pub fn create_directories(instance_dir: &PathBuf) -> Result<()> {
+    pub fn create_directories(instance_dir: &Path) -> Result<()> {
         std::fs::create_dir_all(Self::mods_dir(instance_dir))?;
         std::fs::create_dir_all(Self::resourcepacks_dir(instance_dir))?;
         std::fs::create_dir_all(Self::shaderpacks_dir(instance_dir))?;
@@ -126,7 +126,7 @@ impl Instance {
     }
 }
 
-pub fn list_instances(instances_base: &PathBuf) -> Result<Vec<Instance>> {
+pub fn list_instances(instances_base: &Path) -> Result<Vec<Instance>> {
     let mut instances = Vec::new();
 
     if !instances_base.exists() {
@@ -139,18 +139,18 @@ pub fn list_instances(instances_base: &PathBuf) -> Result<Vec<Instance>> {
             continue;
         }
         let config_file = Instance::config_file(&path);
-        if config_file.exists() {
-            if let Ok(instance) = Instance::load_from(&path) {
-                instances.push(instance);
-            }
+        if config_file.exists()
+            && let Ok(instance) = Instance::load_from(&path)
+        {
+            instances.push(instance);
         }
     }
 
-    instances.sort_by(|a, b| b.last_played.cmp(&a.last_played));
+    instances.sort_by_key(|i| std::cmp::Reverse(i.last_played));
     Ok(instances)
 }
 
-pub fn delete_instance(instances_base: &PathBuf, name: &str) -> Result<()> {
+pub fn delete_instance(instances_base: &Path, name: &str) -> Result<()> {
     let dir = Instance::instance_dir(instances_base, name);
     if dir.exists() {
         std::fs::remove_dir_all(&dir)?;

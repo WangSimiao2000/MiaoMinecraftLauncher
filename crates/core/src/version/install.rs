@@ -1,12 +1,10 @@
-use std::path::PathBuf;
-
 use anyhow::Result;
 
 use crate::config::{DownloadMirror, LauncherConfig};
 use crate::download::mirror::transform_url;
 use crate::download::DownloadTask;
 
-use super::meta::{VersionMeta, Library};
+use super::meta::VersionMeta;
 
 pub async fn fetch_version_meta(
     http: &reqwest::Client,
@@ -30,16 +28,16 @@ pub fn collect_library_downloads(
             continue;
         }
 
-        if let Some(downloads) = &lib.downloads {
-            if let Some(artifact) = &downloads.artifact {
-                let dest = config.libraries_dir().join(&artifact.path);
-                tasks.push(DownloadTask {
-                    url: transform_url(&artifact.url, mirror),
-                    dest,
-                    sha1: Some(artifact.sha1.clone()),
-                    size: Some(artifact.size),
-                });
-            }
+        if let Some(downloads) = &lib.downloads
+            && let Some(artifact) = &downloads.artifact
+        {
+            let dest = config.libraries_dir().join(&artifact.path);
+            tasks.push(DownloadTask {
+                url: transform_url(&artifact.url, mirror),
+                dest,
+                sha1: Some(artifact.sha1.clone()),
+                size: Some(artifact.size),
+            });
         }
     }
 

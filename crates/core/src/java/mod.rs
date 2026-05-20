@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -37,10 +37,10 @@ pub fn detect_java_in_paths(search_paths: &[&str]) -> Vec<JavaInstallation> {
         if let Ok(entries) = std::fs::read_dir(&base_path) {
             for entry in entries.flatten() {
                 let java_bin = entry.path().join("bin/java");
-                if java_bin.exists() {
-                    if let Ok(info) = probe_java(&java_bin) {
-                        installations.push(info);
-                    }
+                if java_bin.exists()
+                    && let Ok(info) = probe_java(&java_bin)
+                {
+                    installations.push(info);
                 }
             }
         }
@@ -108,7 +108,7 @@ pub fn find_exact_java(
     installations.iter().find(|j| j.major_version == major)
 }
 
-pub fn validate_java_path(path: &PathBuf) -> bool {
+pub fn validate_java_path(path: &Path) -> bool {
     path.exists() && path.is_file()
 }
 
