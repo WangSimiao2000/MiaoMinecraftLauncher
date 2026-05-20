@@ -9,27 +9,44 @@ use ratatui::{
 use crate::app::{App, InputMode, ViewMode};
 
 pub fn render(frame: &mut Frame, app: &App) {
+    let main_constraints = if app.show_log {
+        vec![
+            Constraint::Min(8),
+            Constraint::Length(10),
+            Constraint::Length(3),
+        ]
+    } else {
+        vec![Constraint::Min(0), Constraint::Length(3)]
+    };
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(3)])
+        .constraints(main_constraints)
         .split(frame.area());
+
+    let content_area = chunks[0];
+    let status_area = if app.show_log { chunks[2] } else { chunks[1] };
 
     match app.input_mode {
         InputMode::CreateName | InputMode::CreateSelectVersion | InputMode::CreateSelectLoader => {
-            render_create_wizard(frame, app, chunks[0]);
+            render_create_wizard(frame, app, content_area);
         }
         InputMode::Settings => {
-            render_settings(frame, app, chunks[0]);
+            render_settings(frame, app, content_area);
         }
         InputMode::AccountInput | InputMode::AccountView => {
-            render_accounts(frame, app, chunks[0]);
+            render_accounts(frame, app, content_area);
         }
         _ => {
-            render_main_layout(frame, app, chunks[0]);
+            render_main_layout(frame, app, content_area);
         }
     }
 
-    render_status_bar(frame, app, chunks[1]);
+    if app.show_log {
+        render_log_panel(frame, app, chunks[1]);
+    }
+
+    render_status_bar(frame, app, status_area);
 }
 
 fn render_main_layout(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
@@ -427,6 +444,22 @@ fn render_accounts(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     }
 
     let list = List::new(lines).block(Block::default().borders(Borders::ALL).title(" Accounts "));
+    frame.render_widget(list, area);
+}
+
+fn render_log_panel(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let visible_lines = area.height.saturating_sub(2) as usize;
+    let start = app.log_messages.len().saturating_sub(visible_lines);
+    let items: Vec<ListItem> = app.log_messages[start..]
+        .iter()
+        .map(|msg| ListItem::new(format!("  {}", msg)))
+        .collect();
+
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Log [L=close] "),
+    );
     frame.render_widget(list, area);
 }
 

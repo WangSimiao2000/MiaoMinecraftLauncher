@@ -75,6 +75,8 @@ pub struct App {
     pub manage_shaders: Vec<ShaderPack>,
     pub manage_saves: Vec<SaveWorld>,
     pub manage_cursor: usize,
+    pub log_messages: Vec<String>,
+    pub show_log: bool,
 }
 
 impl App {
@@ -109,6 +111,8 @@ impl App {
             manage_shaders: Vec::new(),
             manage_saves: Vec::new(),
             manage_cursor: 0,
+            log_messages: Vec::new(),
+            show_log: false,
         })
     }
 
@@ -126,16 +130,21 @@ impl App {
                     self.status_message = format!("Loaded loader versions for {}", mc_version);
                 }
                 AsyncMessage::InstallProgress(s) => {
+                    self.log_messages.push(s.clone());
                     self.status_message = s;
                 }
                 AsyncMessage::InstallDone(name) => {
                     self.installing = false;
-                    self.status_message = format!("✓ Installed '{}'! Press 'r' to refresh.", name);
+                    let msg = format!("✓ Installed '{}'", name);
+                    self.log_messages.push(msg.clone());
+                    self.status_message = msg;
                     self.refresh_instances();
                 }
                 AsyncMessage::InstallError(e) => {
                     self.installing = false;
-                    self.status_message = format!("✗ Install failed: {}", e);
+                    let msg = format!("✗ {}", e);
+                    self.log_messages.push(msg.clone());
+                    self.status_message = msg;
                 }
                 AsyncMessage::MsDeviceCode(dc) => {
                     self.ms_device_code = Some(dc);
@@ -151,6 +160,7 @@ impl App {
                 }
                 AsyncMessage::JavaDownloadDone(msg) => {
                     self.installing = false;
+                    self.log_messages.push(msg.clone());
                     self.status_message = msg;
                 }
             }

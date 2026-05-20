@@ -95,6 +95,9 @@ fn handle_normal(app: &mut app::App, key: KeyCode) {
             KeyCode::Char('s') => app.open_manage_shaders(),
             KeyCode::Char('w') => app.open_manage_saves(),
             KeyCode::Char('a') => app.start_add_account(),
+            KeyCode::Char('L') => {
+                app.show_log = !app.show_log;
+            }
             KeyCode::Char(',') => {
                 app.input_mode = InputMode::Settings;
             }
