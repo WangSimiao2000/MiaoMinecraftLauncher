@@ -10,11 +10,14 @@ use crate::config::DownloadMirror;
 
 use super::mirror::transform_url;
 
+pub type ProgressCallback = Arc<dyn Fn(&DownloadProgress) + Send + Sync>;
+
 pub struct DownloadManager {
     http: reqwest::Client,
     mirror: DownloadMirror,
     max_concurrent: usize,
     progress: Arc<Mutex<DownloadProgress>>,
+    on_progress: Option<ProgressCallback>,
 }
 
 impl DownloadManager {
@@ -33,7 +36,13 @@ impl DownloadManager {
                 completed_files: 0,
                 current_file: String::new(),
             })),
+            on_progress: None,
         }
+    }
+
+    pub fn with_progress_callback(mut self, callback: ProgressCallback) -> Self {
+        self.on_progress = Some(callback);
+        self
     }
 
     pub async fn download_all(&self, tasks: Vec<DownloadTask>) -> Result<()> {
@@ -98,6 +107,10 @@ impl DownloadManager {
         let mut progress = self.progress.lock().await;
         progress.completed_files += 1;
         progress.downloaded_bytes += task.size.unwrap_or(bytes.len() as u64);
+
+        if let Some(ref cb) = self.on_progress {
+            cb(&progress);
+        }
 
         Ok(())
     }

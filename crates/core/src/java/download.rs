@@ -83,6 +83,17 @@ pub async fn download_and_extract_java(
     asset: &AdoptiumAsset,
     java_base_dir: &Path,
 ) -> Result<PathBuf> {
+    download_and_extract_java_with_progress(http, asset, java_base_dir, |_, _| {}).await
+}
+
+pub async fn download_and_extract_java_with_progress(
+    http: &reqwest::Client,
+    asset: &AdoptiumAsset,
+    java_base_dir: &Path,
+    on_progress: impl Fn(u64, u64),
+) -> Result<PathBuf> {
+    use futures::StreamExt;
+
     let dest_dir = java_base_dir.join(format!("java-{}", asset.version.major));
     if dest_dir.exists() {
         std::fs::remove_dir_all(&dest_dir)?;
@@ -94,9 +105,20 @@ pub async fn download_and_extract_java(
         .send()
         .await?
         .error_for_status()?;
-    let bytes = response.bytes().await?;
 
-    let tar_gz = flate2::read::GzDecoder::new(&bytes[..]);
+    let total_size = asset.binary.package.size;
+    let mut downloaded: u64 = 0;
+    let mut all_bytes = Vec::with_capacity(total_size as usize);
+
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        downloaded += chunk.len() as u64;
+        all_bytes.extend_from_slice(&chunk);
+        on_progress(downloaded, total_size);
+    }
+
+    let tar_gz = flate2::read::GzDecoder::new(&all_bytes[..]);
     let mut archive = tar::Archive::new(tar_gz);
     archive.unpack(&dest_dir)?;
 

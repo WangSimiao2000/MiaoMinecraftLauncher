@@ -678,20 +678,28 @@ impl App {
             let http = reqwest::Client::new();
             match miao_core::java::download::fetch_latest_asset(&http, required).await {
                 Ok(asset) => {
-                    let _ = tx.send(AsyncMessage::InstallProgress(format!(
-                        "Downloading Java {} ({:.1} MB)...",
-                        required,
-                        asset.binary.package.size as f64 / 1_000_000.0
-                    )));
-                    match miao_core::java::download::download_and_extract_java(
-                        &http, &asset, &java_dir,
+                    let total_mb = asset.binary.package.size as f64 / 1_000_000.0;
+                    let tx2 = tx.clone();
+                    match miao_core::java::download::download_and_extract_java_with_progress(
+                        &http,
+                        &asset,
+                        &java_dir,
+                        move |downloaded, total| {
+                            let _ = tx2.send(AsyncMessage::InstallProgress(format!(
+                                "Downloading Java {}: {:.1}/{:.1} MB",
+                                required,
+                                downloaded as f64 / 1_000_000.0,
+                                total as f64 / 1_000_000.0
+                            )));
+                        },
                     )
                     .await
                     {
                         Ok(path) => {
                             let _ = tx.send(AsyncMessage::JavaDownloadDone(format!(
-                                "✓ Java {} installed at {}",
+                                "✓ Java {} installed ({:.1} MB) at {}",
                                 required,
+                                total_mb,
                                 path.display()
                             )));
                         }
@@ -1133,16 +1141,24 @@ async fn do_create_instance_with_version(
 
     let tasks =
         miao_core::version::install::all_download_tasks(&meta, config, &config.download_mirror);
+    let lib_count = tasks.len();
 
     let _ = tx.send(AsyncMessage::InstallProgress(format!(
-        "Downloading {} libraries...",
-        tasks.len()
+        "Downloading 0/{} libraries...",
+        lib_count
     )));
 
+    let tx_lib = tx.clone();
     let dm = DownloadManager::new(
         config.download_mirror.clone(),
         config.max_concurrent_downloads,
-    );
+    )
+    .with_progress_callback(std::sync::Arc::new(move |p| {
+        let _ = tx_lib.send(AsyncMessage::InstallProgress(format!(
+            "Libraries: {}/{}",
+            p.completed_files, p.total_files
+        )));
+    }));
     dm.download_all(tasks).await?;
 
     let asset_index_path = config
@@ -1157,16 +1173,24 @@ async fn do_create_instance_with_version(
             config,
             &config.download_mirror,
         );
+        let asset_count = asset_tasks.len();
 
         let _ = tx.send(AsyncMessage::InstallProgress(format!(
-            "Downloading {} assets...",
-            asset_tasks.len()
+            "Downloading 0/{} assets...",
+            asset_count
         )));
 
+        let tx_asset = tx.clone();
         let dm2 = DownloadManager::new(
             config.download_mirror.clone(),
             config.max_concurrent_downloads,
-        );
+        )
+        .with_progress_callback(std::sync::Arc::new(move |p| {
+            let _ = tx_asset.send(AsyncMessage::InstallProgress(format!(
+                "Assets: {}/{}",
+                p.completed_files, p.total_files
+            )));
+        }));
         dm2.download_all(asset_tasks).await?;
     }
 

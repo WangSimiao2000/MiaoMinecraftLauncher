@@ -698,8 +698,20 @@ impl MiaoApp {
                 let result =
                     match miao_core::java::download::fetch_latest_asset(&http, required).await {
                         Ok(asset) => {
-                            miao_core::java::download::download_and_extract_java(
-                                &http, &asset, &java_dir,
+                            let state_progress = state.clone();
+                            miao_core::java::download::download_and_extract_java_with_progress(
+                                &http,
+                                &asset,
+                                &java_dir,
+                                move |downloaded, total| {
+                                    let mut s = state_progress.lock().unwrap();
+                                    s.install_status = Some(format!(
+                                        "Java {}: {:.1}/{:.1} MB",
+                                        required,
+                                        downloaded as f64 / 1_000_000.0,
+                                        total as f64 / 1_000_000.0
+                                    ));
+                                },
                             )
                             .await
                         }
