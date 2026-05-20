@@ -68,6 +68,10 @@ async fn run_app(
                 InputMode::Settings => handle_settings(app, key.code),
                 InputMode::AccountView => handle_account_view(app, key.code),
                 InputMode::AccountInput => handle_account_input(app, key.code),
+                InputMode::ModSearchInput => handle_mod_search_input(app, key.code),
+                InputMode::ModSearchResults => handle_mod_search_results(app, key.code),
+                InputMode::ModSearchVersions => handle_mod_search_versions(app, key.code),
+                InputMode::ImportInput => handle_import_input(app, key.code),
             }
 
             if matches!(app.input_mode, InputMode::Normal) && key.code == KeyCode::Char('q') {
@@ -98,6 +102,9 @@ fn handle_normal(app: &mut app::App, key: KeyCode) {
             KeyCode::Char('L') => {
                 app.show_log = !app.show_log;
             }
+            KeyCode::Char('S') => app.start_mod_search(),
+            KeyCode::Char('E') => app.export_current_instance(),
+            KeyCode::Char('I') => app.start_import(),
             KeyCode::Char(',') => {
                 app.input_mode = InputMode::Settings;
             }
@@ -222,6 +229,86 @@ fn handle_account_input(app: &mut app::App, key: KeyCode) {
             app.input_buffer.pop();
         }
         KeyCode::Char(c) => app.input_buffer.push(c),
+        _ => {}
+    }
+}
+
+fn handle_mod_search_input(app: &mut app::App, key: KeyCode) {
+    match key {
+        KeyCode::Enter => app.execute_mod_search(),
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+            app.status_message = "Cancelled.".to_string();
+        }
+        KeyCode::Backspace => {
+            app.mod_search_query.pop();
+        }
+        KeyCode::Char(c) => app.mod_search_query.push(c),
+        _ => {}
+    }
+}
+
+fn handle_mod_search_results(app: &mut app::App, key: KeyCode) {
+    match key {
+        KeyCode::Up | KeyCode::Char('k') if !app.mod_search_results.is_empty() => {
+            app.mod_search_cursor = if app.mod_search_cursor == 0 {
+                app.mod_search_results.len() - 1
+            } else {
+                app.mod_search_cursor - 1
+            };
+        }
+        KeyCode::Down | KeyCode::Char('j') if !app.mod_search_results.is_empty() => {
+            app.mod_search_cursor = (app.mod_search_cursor + 1) % app.mod_search_results.len();
+        }
+        KeyCode::Enter => app.mod_search_select(),
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+            app.status_message =
+                "[n]ew [Enter]launch [d]elete [a]ccount [,]settings [q]uit".to_string();
+        }
+        _ => {}
+    }
+}
+
+fn handle_mod_search_versions(app: &mut app::App, key: KeyCode) {
+    match key {
+        KeyCode::Up | KeyCode::Char('k') if !app.mod_search_versions.is_empty() => {
+            app.mod_search_version_cursor = if app.mod_search_version_cursor == 0 {
+                app.mod_search_versions.len() - 1
+            } else {
+                app.mod_search_version_cursor - 1
+            };
+        }
+        KeyCode::Down | KeyCode::Char('j') if !app.mod_search_versions.is_empty() => {
+            app.mod_search_version_cursor =
+                (app.mod_search_version_cursor + 1) % app.mod_search_versions.len();
+        }
+        KeyCode::Enter => {
+            app.mod_install_selected_version();
+            app.input_mode = InputMode::Normal;
+        }
+        KeyCode::Esc => {
+            app.input_mode = InputMode::ModSearchResults;
+            app.status_message = format!(
+                "{} mods found. [j/k]nav [Enter]versions [Esc]back",
+                app.mod_search_results.len()
+            );
+        }
+        _ => {}
+    }
+}
+
+fn handle_import_input(app: &mut app::App, key: KeyCode) {
+    match key {
+        KeyCode::Enter => app.execute_import(),
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+            app.status_message = "Cancelled.".to_string();
+        }
+        KeyCode::Backspace => {
+            app.import_path_input.pop();
+        }
+        KeyCode::Char(c) => app.import_path_input.push(c),
         _ => {}
     }
 }

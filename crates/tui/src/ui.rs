@@ -37,6 +37,12 @@ pub fn render(frame: &mut Frame, app: &App) {
         InputMode::AccountInput | InputMode::AccountView => {
             render_accounts(frame, app, content_area);
         }
+        InputMode::ModSearchInput | InputMode::ModSearchResults | InputMode::ModSearchVersions => {
+            render_mod_search(frame, app, content_area);
+        }
+        InputMode::ImportInput => {
+            render_import(frame, app, content_area);
+        }
         _ => {
             render_main_layout(frame, app, content_area);
         }
@@ -461,6 +467,103 @@ fn render_log_panel(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             .title(" Log [L=close] "),
     );
     frame.render_widget(list, area);
+}
+
+fn render_mod_search(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let mut items: Vec<ListItem> = Vec::new();
+
+    items.push(ListItem::new("  ╭─ Modrinth Mod Search ─╮"));
+    items.push(ListItem::new("  │"));
+    items.push(ListItem::new(format!(
+        "  │ Query: {}_",
+        app.mod_search_query
+    )));
+    items.push(ListItem::new("  │"));
+
+    match app.input_mode {
+        InputMode::ModSearchResults => {
+            items.push(ListItem::new("  │ Results:"));
+            for (i, hit) in app.mod_search_results.iter().enumerate() {
+                let prefix = if i == app.mod_search_cursor {
+                    "  │ ▶ "
+                } else {
+                    "  │   "
+                };
+                let dl = format_downloads(hit.downloads);
+                let item = ListItem::new(format!("{}{} ({})", prefix, hit.title, dl));
+                items.push(if i == app.mod_search_cursor {
+                    item.style(Style::default().fg(Color::Cyan))
+                } else {
+                    item
+                });
+            }
+        }
+        InputMode::ModSearchVersions => {
+            let hit_title = app
+                .mod_search_results
+                .get(app.mod_search_cursor)
+                .map(|h| h.title.as_str())
+                .unwrap_or("?");
+            items.push(ListItem::new(format!("  │ Versions for '{}':", hit_title)));
+            for (i, ver) in app.mod_search_versions.iter().enumerate().take(15) {
+                let prefix = if i == app.mod_search_version_cursor {
+                    "  │ ▶ "
+                } else {
+                    "  │   "
+                };
+                let item = ListItem::new(format!("{}{} [{}]", prefix, ver.name, ver.version_type));
+                items.push(if i == app.mod_search_version_cursor {
+                    item.style(Style::default().fg(Color::Green))
+                } else {
+                    item
+                });
+            }
+        }
+        _ => {
+            if app.mod_searching {
+                items.push(ListItem::new("  │ Searching..."));
+            }
+        }
+    }
+
+    items.push(ListItem::new("  │"));
+    items.push(ListItem::new("  ╰──────────────────────╯"));
+
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Mod Search [Esc]back "),
+    );
+    frame.render_widget(list, area);
+}
+
+fn render_import(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let items = vec![
+        ListItem::new("  ╭─ Import .mrpack ─╮"),
+        ListItem::new("  │"),
+        ListItem::new(format!("  │ Path: {}_", app.import_path_input)),
+        ListItem::new("  │"),
+        ListItem::new("  │ [Enter] import  [Esc] cancel"),
+        ListItem::new("  │"),
+        ListItem::new("  ╰────────────────────╯"),
+    ];
+
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Import Modpack "),
+    );
+    frame.render_widget(list, area);
+}
+
+fn format_downloads(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.0}K", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
+    }
 }
 
 fn render_status_bar(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {

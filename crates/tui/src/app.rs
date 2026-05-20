@@ -8,6 +8,7 @@ use miao_core::java;
 use miao_core::launch::{LaunchOptions, build_launch_command};
 use miao_core::modloader::{ModLoaderType, ModLoaderVersion};
 use miao_core::modmanager::ModInfo;
+use miao_core::modrinth::api::{ProjectVersion, SearchHit};
 use miao_core::resource::{ResourcePack, ShaderPack};
 use miao_core::version::VersionInfo;
 use std::collections::HashMap;
@@ -25,6 +26,10 @@ pub enum InputMode {
     Settings,
     AccountView,
     AccountInput,
+    ModSearchInput,
+    ModSearchResults,
+    ModSearchVersions,
+    ImportInput,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,6 +52,14 @@ pub enum AsyncMessage {
     MsLoginSuccess(String),
     MsLoginError(String),
     JavaDownloadDone(String),
+    ModSearchDone(Vec<SearchHit>),
+    ModVersionsLoaded(Vec<ProjectVersion>),
+    ModInstallDone(String),
+    ModInstallError(String),
+    ImportDone(String),
+    ImportError(String),
+    ExportDone(String),
+    ExportError(String),
 }
 
 pub struct App {
@@ -77,6 +90,13 @@ pub struct App {
     pub manage_cursor: usize,
     pub log_messages: Vec<String>,
     pub show_log: bool,
+    pub mod_search_query: String,
+    pub mod_search_results: Vec<SearchHit>,
+    pub mod_search_cursor: usize,
+    pub mod_search_versions: Vec<ProjectVersion>,
+    pub mod_search_version_cursor: usize,
+    pub mod_searching: bool,
+    pub import_path_input: String,
 }
 
 impl App {
@@ -113,6 +133,13 @@ impl App {
             manage_cursor: 0,
             log_messages: Vec::new(),
             show_log: false,
+            mod_search_query: String::new(),
+            mod_search_results: Vec::new(),
+            mod_search_cursor: 0,
+            mod_search_versions: Vec::new(),
+            mod_search_version_cursor: 0,
+            mod_searching: false,
+            import_path_input: String::new(),
         })
     }
 
@@ -160,6 +187,65 @@ impl App {
                 }
                 AsyncMessage::JavaDownloadDone(msg) => {
                     self.installing = false;
+                    self.log_messages.push(msg.clone());
+                    self.status_message = msg;
+                }
+                AsyncMessage::ModSearchDone(hits) => {
+                    self.mod_searching = false;
+                    if hits.is_empty() {
+                        self.status_message = "No mods found.".to_string();
+                    } else {
+                        self.status_message = format!(
+                            "{} mods found. [j/k]nav [Enter]versions [Esc]back",
+                            hits.len()
+                        );
+                        self.mod_search_results = hits;
+                        self.mod_search_cursor = 0;
+                        self.input_mode = InputMode::ModSearchResults;
+                    }
+                }
+                AsyncMessage::ModVersionsLoaded(versions) => {
+                    self.mod_searching = false;
+                    if versions.is_empty() {
+                        self.status_message = "No compatible versions.".to_string();
+                    } else {
+                        self.status_message = format!(
+                            "{} versions. [j/k]nav [Enter]install [Esc]back",
+                            versions.len()
+                        );
+                        self.mod_search_versions = versions;
+                        self.mod_search_version_cursor = 0;
+                        self.input_mode = InputMode::ModSearchVersions;
+                    }
+                }
+                AsyncMessage::ModInstallDone(msg) => {
+                    self.log_messages.push(msg.clone());
+                    self.status_message = msg;
+                    self.refresh_instances();
+                }
+                AsyncMessage::ModInstallError(e) => {
+                    let msg = format!("✗ Mod install failed: {}", e);
+                    self.log_messages.push(msg.clone());
+                    self.status_message = msg;
+                }
+                AsyncMessage::ImportDone(msg) => {
+                    self.installing = false;
+                    self.log_messages.push(msg.clone());
+                    self.status_message = msg;
+                    self.refresh_instances();
+                }
+                AsyncMessage::ImportError(e) => {
+                    self.installing = false;
+                    let msg = format!("✗ Import failed: {}", e);
+                    self.log_messages.push(msg.clone());
+                    self.status_message = msg;
+                }
+                AsyncMessage::ExportDone(msg) => {
+                    self.log_messages.push(msg.clone());
+                    self.status_message = msg;
+                }
+                AsyncMessage::ExportError(e) => {
+                    let msg = format!("✗ Export failed: {}", e);
                     self.log_messages.push(msg.clone());
                     self.status_message = msg;
                 }
@@ -541,6 +627,198 @@ impl App {
                 self.manage_cursor - 1
             };
         }
+    }
+
+    pub fn start_mod_search(&mut self) {
+        if self.instances.is_empty() {
+            return;
+        }
+        self.mod_search_query.clear();
+        self.mod_search_results.clear();
+        self.mod_search_versions.clear();
+        self.input_mode = InputMode::ModSearchInput;
+        self.status_message = "Search Modrinth (Enter=search, Esc=cancel):".to_string();
+    }
+
+    pub fn execute_mod_search(&mut self) {
+        if self.mod_search_query.is_empty() {
+            return;
+        }
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            return;
+        };
+        let mc_version = inst.minecraft_version.clone();
+        let loader = inst
+            .mod_loader
+            .as_ref()
+            .map(|l| l.loader_type.as_str().to_string());
+        let query = self.mod_search_query.clone();
+        let tx = self.tx.clone();
+        self.mod_searching = true;
+        self.status_message = format!("Searching '{}'...", query);
+
+        tokio::spawn(async move {
+            match miao_core::modrinth::api::search_mods(
+                &query,
+                Some(&mc_version),
+                loader.as_deref(),
+                20,
+            )
+            .await
+            {
+                Ok(result) => {
+                    let _ = tx.send(AsyncMessage::ModSearchDone(result.hits));
+                }
+                Err(e) => {
+                    let _ = tx.send(AsyncMessage::ModInstallError(e.to_string()));
+                }
+            }
+        });
+    }
+
+    pub fn mod_search_select(&mut self) {
+        let Some(hit) = self.mod_search_results.get(self.mod_search_cursor) else {
+            return;
+        };
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            return;
+        };
+        let project_id = hit.slug.clone();
+        let mc_version = inst.minecraft_version.clone();
+        let loader = inst
+            .mod_loader
+            .as_ref()
+            .map(|l| l.loader_type.as_str().to_string());
+        let tx = self.tx.clone();
+        self.mod_searching = true;
+        self.status_message = format!("Loading versions for '{}'...", hit.title);
+
+        tokio::spawn(async move {
+            match miao_core::modrinth::api::get_project_versions(
+                &project_id,
+                Some(&mc_version),
+                loader.as_deref(),
+            )
+            .await
+            {
+                Ok(versions) => {
+                    let _ = tx.send(AsyncMessage::ModVersionsLoaded(versions));
+                }
+                Err(e) => {
+                    let _ = tx.send(AsyncMessage::ModInstallError(e.to_string()));
+                }
+            }
+        });
+    }
+
+    pub fn mod_install_selected_version(&mut self) {
+        let Some(version) = self.mod_search_versions.get(self.mod_search_version_cursor) else {
+            return;
+        };
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            return;
+        };
+        let file = match version
+            .files
+            .iter()
+            .find(|f| f.primary)
+            .or(version.files.first())
+        {
+            Some(f) => f.clone(),
+            None => {
+                self.status_message = "No files in version.".to_string();
+                return;
+            }
+        };
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
+        let mods_dir = Instance::mods_dir(&instance_dir);
+        let tx = self.tx.clone();
+        let version_name = version.name.clone();
+
+        self.status_message = format!("Installing {}...", file.filename);
+        tokio::spawn(async move {
+            match miao_core::modrinth::api::download_mod_file(&file, &mods_dir).await {
+                Ok(dest) => {
+                    let _ = tx.send(AsyncMessage::ModInstallDone(format!(
+                        "✓ Installed {} ({})",
+                        version_name,
+                        dest.file_name().unwrap_or_default().to_string_lossy()
+                    )));
+                }
+                Err(e) => {
+                    let _ = tx.send(AsyncMessage::ModInstallError(e.to_string()));
+                }
+            }
+        });
+    }
+
+    pub fn export_current_instance(&mut self) {
+        let Some(inst) = self.instances.get(self.selected_index) else {
+            return;
+        };
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
+        let inst_clone = inst.clone();
+        let tx = self.tx.clone();
+
+        self.status_message = format!("Exporting '{}'...", inst.name);
+        tokio::spawn(async move {
+            let output_path = std::env::current_dir().unwrap_or_default();
+            match miao_core::modrinth::mrpack::export_mrpack(
+                &instance_dir,
+                &inst_clone,
+                &output_path,
+            ) {
+                Ok(path) => {
+                    let _ = tx.send(AsyncMessage::ExportDone(format!(
+                        "✓ Exported to {}",
+                        path.display()
+                    )));
+                }
+                Err(e) => {
+                    let _ = tx.send(AsyncMessage::ExportError(e.to_string()));
+                }
+            }
+        });
+    }
+
+    pub fn start_import(&mut self) {
+        self.import_path_input.clear();
+        self.input_mode = InputMode::ImportInput;
+        self.status_message = "Enter .mrpack path (Enter=import, Esc=cancel):".to_string();
+    }
+
+    pub fn execute_import(&mut self) {
+        let path = self.import_path_input.clone();
+        let mrpack_path = std::path::PathBuf::from(&path);
+        if !mrpack_path.exists() {
+            self.status_message = format!("File not found: {}", path);
+            self.input_mode = InputMode::Normal;
+            return;
+        }
+        let config = self.config.clone();
+        let tx = self.tx.clone();
+        self.installing = true;
+        self.input_mode = InputMode::Normal;
+        self.status_message = format!("Importing {}...", path);
+
+        tokio::spawn(async move {
+            match miao_core::modrinth::mrpack::import_mrpack(&mrpack_path, &config, None).await {
+                Ok(inst) => {
+                    let loader_info = inst
+                        .mod_loader
+                        .as_ref()
+                        .map(|l| format!(" + {} {}", l.loader_type, l.version))
+                        .unwrap_or_default();
+                    let _ = tx.send(AsyncMessage::ImportDone(format!(
+                        "✓ Imported '{}' (MC {}{})",
+                        inst.name, inst.minecraft_version, loader_info
+                    )));
+                }
+                Err(e) => {
+                    let _ = tx.send(AsyncMessage::ImportError(e.to_string()));
+                }
+            }
+        });
     }
 
     pub fn download_java_for_instance(&mut self) {

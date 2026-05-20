@@ -24,6 +24,8 @@ struct AsyncState {
     ms_logging_in: bool,
     loader_versions: HashMap<ModLoaderType, Vec<ModLoaderVersion>>,
     loading_loader_versions: bool,
+    mod_search_hits: Option<Vec<miao_core::modrinth::api::SearchHit>>,
+    mod_versions: Option<Vec<miao_core::modrinth::api::ProjectVersion>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +34,8 @@ enum Dialog {
     NewInstance,
     Accounts,
     Settings,
+    ModSearch,
+    Import,
 }
 
 pub struct MiaoApp {
@@ -48,6 +52,12 @@ pub struct MiaoApp {
     new_instance_loader_version_idx: usize,
     log_messages: Vec<String>,
     show_log: bool,
+    mod_search_query: String,
+    mod_search_results: Vec<miao_core::modrinth::api::SearchHit>,
+    mod_search_versions: Vec<miao_core::modrinth::api::ProjectVersion>,
+    mod_search_selected: usize,
+    mod_searching: bool,
+    import_path_input: String,
 }
 
 impl MiaoApp {
@@ -100,6 +110,12 @@ impl MiaoApp {
             new_instance_loader_version_idx: 0,
             log_messages: Vec::new(),
             show_log: false,
+            mod_search_query: String::new(),
+            mod_search_results: Vec::new(),
+            mod_search_versions: Vec::new(),
+            mod_search_selected: 0,
+            mod_searching: false,
+            import_path_input: String::new(),
         }
     }
 }
@@ -128,7 +144,22 @@ impl eframe::App for MiaoApp {
             }
         }
 
-        if state.installing || state.ms_logging_in || state.loading_loader_versions {
+        if let Some(hits) = state.mod_search_hits.clone() {
+            self.mod_search_results = hits;
+            self.mod_searching = false;
+            self.async_state.lock().unwrap().mod_search_hits = None;
+        }
+        if let Some(versions) = state.mod_versions.clone() {
+            self.mod_search_versions = versions;
+            self.mod_searching = false;
+            self.async_state.lock().unwrap().mod_versions = None;
+        }
+
+        if state.installing
+            || state.ms_logging_in
+            || state.loading_loader_versions
+            || self.mod_searching
+        {
             ctx.request_repaint();
         }
 
@@ -210,6 +241,8 @@ impl eframe::App for MiaoApp {
             Dialog::NewInstance => self.render_new_instance_dialog(ctx, &state),
             Dialog::Accounts => self.render_accounts_dialog(ctx, &state),
             Dialog::Settings => self.render_settings_dialog(ctx),
+            Dialog::ModSearch => self.render_mod_search_dialog(ctx),
+            Dialog::Import => self.render_import_dialog(ctx),
             Dialog::None => {}
         }
     }
@@ -265,6 +298,24 @@ impl MiaoApp {
             }
             if ui.button("☕ Java").clicked() {
                 self.download_java_for_instance(idx);
+            }
+        });
+
+        ui.add_space(4.0);
+
+        ui.horizontal(|ui| {
+            if ui.button("🔍 Search Mods").clicked() {
+                self.active_dialog = Dialog::ModSearch;
+                self.mod_search_query.clear();
+                self.mod_search_results.clear();
+                self.mod_search_versions.clear();
+            }
+            if ui.button("📦 Export .mrpack").clicked() {
+                self.export_instance(idx);
+            }
+            if ui.button("📥 Import .mrpack").clicked() {
+                self.active_dialog = Dialog::Import;
+                self.import_path_input.clear();
             }
         });
 
@@ -930,6 +981,330 @@ impl MiaoApp {
                 }
             });
         });
+    }
+
+    fn render_mod_search_dialog(&mut self, ctx: &egui::Context) {
+        let mut open = true;
+        let mut do_search = false;
+        let mut do_install: Option<usize> = None;
+        let mut do_load_versions: Option<usize> = None;
+
+        egui::Window::new("Modrinth Mod Search")
+            .open(&mut open)
+            .resizable(true)
+            .default_width(500.0)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Search:");
+                    let response = ui.text_edit_singleline(&mut self.mod_search_query);
+                    if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        do_search = true;
+                    }
+                    if ui.button("Search").clicked() {
+                        do_search = true;
+                    }
+                });
+
+                if self.mod_searching {
+                    ui.spinner();
+                    ui.label("Searching...");
+                }
+
+                if !self.mod_search_results.is_empty() && self.mod_search_versions.is_empty() {
+                    ui.separator();
+                    ui.label("Results (click to select):");
+                    egui::ScrollArea::vertical()
+                        .max_height(200.0)
+                        .show(ui, |ui| {
+                            for (i, hit) in self.mod_search_results.iter().enumerate() {
+                                let dl = format_downloads_gui(hit.downloads);
+                                let label =
+                                    format!("{} — {} — ↓{}", hit.title, hit.description, dl);
+                                let truncated = if label.len() > 80 {
+                                    format!("{}…", &label[..79])
+                                } else {
+                                    label
+                                };
+                                if ui.selectable_label(false, &truncated).clicked() {
+                                    do_load_versions = Some(i);
+                                }
+                            }
+                        });
+                }
+
+                if !self.mod_search_versions.is_empty() {
+                    ui.separator();
+                    let hit_title = self
+                        .mod_search_results
+                        .get(self.mod_search_selected)
+                        .map(|h| h.title.as_str())
+                        .unwrap_or("?");
+                    ui.label(format!("Versions for '{}':", hit_title));
+                    egui::ScrollArea::vertical()
+                        .max_height(200.0)
+                        .show(ui, |ui| {
+                            for (i, ver) in self.mod_search_versions.iter().enumerate().take(15) {
+                                let label = format!("{} [{}]", ver.name, ver.version_type);
+                                if ui.button(&label).clicked() {
+                                    do_install = Some(i);
+                                }
+                            }
+                        });
+                    if ui.button("← Back to results").clicked() {
+                        self.mod_search_versions.clear();
+                    }
+                }
+            });
+
+        if !open {
+            self.active_dialog = Dialog::None;
+        }
+
+        if do_search && !self.mod_search_query.is_empty() {
+            self.do_mod_search(ctx);
+        }
+
+        if let Some(idx) = do_load_versions {
+            self.mod_search_selected = idx;
+            self.load_mod_versions(ctx, idx);
+        }
+
+        if let Some(idx) = do_install {
+            self.install_mod_version(ctx, idx);
+        }
+    }
+
+    fn do_mod_search(&mut self, ctx: &egui::Context) {
+        let Some(inst_idx) = self.selected_instance else {
+            return;
+        };
+        let inst = &self.instances[inst_idx];
+        let mc_version = inst.minecraft_version.clone();
+        let loader = inst
+            .mod_loader
+            .as_ref()
+            .map(|l| l.loader_type.as_str().to_string());
+        let query = self.mod_search_query.clone();
+        let state = self.async_state.clone();
+        let ctx = ctx.clone();
+        self.mod_searching = true;
+        self.mod_search_results.clear();
+        self.mod_search_versions.clear();
+
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let result = miao_core::modrinth::api::search_mods(
+                    &query,
+                    Some(&mc_version),
+                    loader.as_deref(),
+                    20,
+                )
+                .await;
+                let mut s = state.lock().unwrap();
+                match result {
+                    Ok(r) => {
+                        s.mod_search_hits = Some(r.hits);
+                    }
+                    Err(e) => {
+                        s.install_status = Some(format!("✗ Search failed: {}", e));
+                    }
+                }
+                ctx.request_repaint();
+            });
+        });
+    }
+
+    fn load_mod_versions(&mut self, ctx: &egui::Context, hit_idx: usize) {
+        let Some(hit) = self.mod_search_results.get(hit_idx) else {
+            return;
+        };
+        let Some(inst_idx) = self.selected_instance else {
+            return;
+        };
+        let inst = &self.instances[inst_idx];
+        let project_slug = hit.slug.clone();
+        let mc_version = inst.minecraft_version.clone();
+        let loader = inst
+            .mod_loader
+            .as_ref()
+            .map(|l| l.loader_type.as_str().to_string());
+        let state = self.async_state.clone();
+        let ctx = ctx.clone();
+        self.mod_searching = true;
+
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let result = miao_core::modrinth::api::get_project_versions(
+                    &project_slug,
+                    Some(&mc_version),
+                    loader.as_deref(),
+                )
+                .await;
+                let mut s = state.lock().unwrap();
+                match result {
+                    Ok(versions) => {
+                        s.mod_versions = Some(versions);
+                    }
+                    Err(e) => {
+                        s.install_status = Some(format!("✗ {}", e));
+                    }
+                }
+                ctx.request_repaint();
+            });
+        });
+    }
+
+    fn install_mod_version(&mut self, ctx: &egui::Context, ver_idx: usize) {
+        let Some(version) = self.mod_search_versions.get(ver_idx) else {
+            return;
+        };
+        let Some(inst_idx) = self.selected_instance else {
+            return;
+        };
+        let inst = &self.instances[inst_idx];
+        let file = match version
+            .files
+            .iter()
+            .find(|f| f.primary)
+            .or(version.files.first())
+        {
+            Some(f) => f.clone(),
+            None => {
+                self.status = "No files in version.".to_string();
+                return;
+            }
+        };
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
+        let mods_dir = Instance::mods_dir(&instance_dir);
+        let state = self.async_state.clone();
+        let ctx = ctx.clone();
+        let version_name = version.name.clone();
+
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                match miao_core::modrinth::api::download_mod_file(&file, &mods_dir).await {
+                    Ok(dest) => {
+                        let mut s = state.lock().unwrap();
+                        s.install_status = Some(format!(
+                            "✓ Installed {} ({})",
+                            version_name,
+                            dest.file_name().unwrap_or_default().to_string_lossy()
+                        ));
+                    }
+                    Err(e) => {
+                        let mut s = state.lock().unwrap();
+                        s.install_status = Some(format!("✗ Install failed: {}", e));
+                    }
+                }
+                ctx.request_repaint();
+            });
+        });
+    }
+
+    fn export_instance(&mut self, idx: usize) {
+        let inst = self.instances[idx].clone();
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
+        let state = self.async_state.clone();
+
+        std::thread::spawn(move || {
+            let output_path = std::env::current_dir().unwrap_or_default();
+            match miao_core::modrinth::mrpack::export_mrpack(&instance_dir, &inst, &output_path) {
+                Ok(path) => {
+                    let mut s = state.lock().unwrap();
+                    s.install_status = Some(format!("✓ Exported to {}", path.display()));
+                }
+                Err(e) => {
+                    let mut s = state.lock().unwrap();
+                    s.install_status = Some(format!("✗ Export failed: {}", e));
+                }
+            }
+        });
+    }
+
+    fn render_import_dialog(&mut self, ctx: &egui::Context) {
+        let mut open = true;
+        let mut do_import = false;
+
+        egui::Window::new("Import .mrpack")
+            .open(&mut open)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Path:");
+                    ui.text_edit_singleline(&mut self.import_path_input);
+                });
+                if ui.button("Import").clicked() && !self.import_path_input.is_empty() {
+                    do_import = true;
+                }
+            });
+
+        if !open {
+            self.active_dialog = Dialog::None;
+        }
+
+        if do_import {
+            self.do_import(ctx);
+            self.active_dialog = Dialog::None;
+        }
+    }
+
+    fn do_import(&mut self, ctx: &egui::Context) {
+        let path = self.import_path_input.clone();
+        let mrpack_path = std::path::PathBuf::from(&path);
+        if !mrpack_path.exists() {
+            self.status = format!("File not found: {}", path);
+            return;
+        }
+        let config = self.config.clone();
+        let state = self.async_state.clone();
+        let ctx = ctx.clone();
+
+        {
+            let mut s = state.lock().unwrap();
+            s.installing = true;
+            s.install_status = Some(format!("Importing {}...", path));
+        }
+
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                match miao_core::modrinth::mrpack::import_mrpack(&mrpack_path, &config, None).await
+                {
+                    Ok(inst) => {
+                        let loader_info = inst
+                            .mod_loader
+                            .as_ref()
+                            .map(|l| format!(" + {} {}", l.loader_type, l.version))
+                            .unwrap_or_default();
+                        let mut s = state.lock().unwrap();
+                        s.installing = false;
+                        s.install_status = Some(format!(
+                            "✓ Imported '{}' (MC {}{})",
+                            inst.name, inst.minecraft_version, loader_info
+                        ));
+                    }
+                    Err(e) => {
+                        let mut s = state.lock().unwrap();
+                        s.installing = false;
+                        s.install_status = Some(format!("✗ Import failed: {}", e));
+                    }
+                }
+                ctx.request_repaint();
+            });
+        });
+    }
+}
+
+fn format_downloads_gui(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.0}K", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
     }
 }
 
