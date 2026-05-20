@@ -10,6 +10,7 @@ use crossterm::{
 };
 use ratatui::prelude::*;
 use std::io::stdout;
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,7 +20,7 @@ async fn main() -> Result<()> {
 
     let mut app = app::App::new()?;
 
-    fetch_versions_async(&mut app).await;
+    fetch_versions(&mut app);
 
     let result = run_app(&mut terminal, &mut app).await;
 
@@ -29,23 +30,23 @@ async fn main() -> Result<()> {
     result
 }
 
-async fn fetch_versions_async(app: &mut app::App) {
-    app.loading = true;
-    let http = reqwest::Client::new();
-    if let Ok(versions) =
-        miao_core::version::manifest::fetch_version_manifest(&http, &app.config.download_mirror)
-            .await
-    {
-        let releases: Vec<_> = versions
-            .into_iter()
-            .filter(|v| v.is_release())
-            .take(50)
-            .collect();
-        app.set_versions(releases);
-    } else {
-        app.status_message = "Failed to fetch versions. Check network.".to_string();
-        app.loading = false;
-    }
+fn fetch_versions(app: &mut app::App) {
+    let tx = app.tx.clone();
+    let mirror = app.config.download_mirror.clone();
+
+    tokio::spawn(async move {
+        let http = reqwest::Client::new();
+        if let Ok(versions) =
+            miao_core::version::manifest::fetch_version_manifest(&http, &mirror).await
+        {
+            let releases: Vec<_> = versions
+                .into_iter()
+                .filter(|v| v.is_release())
+                .take(50)
+                .collect();
+            let _ = tx.send(app::AsyncMessage::VersionsLoaded(releases));
+        }
+    });
 }
 
 async fn run_app(
@@ -53,9 +54,12 @@ async fn run_app(
     app: &mut app::App,
 ) -> Result<()> {
     loop {
+        app.process_messages();
         terminal.draw(|frame| ui::render(frame, app))?;
 
-        if let Event::Key(key) = event::read()? {
+        if event::poll(Duration::from_millis(100))?
+            && let Event::Key(key) = event::read()?
+        {
             if key.kind != KeyEventKind::Press {
                 continue;
             }
@@ -81,8 +85,11 @@ async fn run_app(
                 KeyCode::Down | KeyCode::Char('j') => app.next_item(),
                 KeyCode::Enter => app.select_item(),
                 KeyCode::Char('h') | KeyCode::Left => app.go_back(),
-                KeyCode::Char('a') => app.add_offline_account(),
+                KeyCode::Char('a') => app.start_add_account(),
                 KeyCode::Char('r') => app.refresh_instances(),
+                KeyCode::Char('l') => app.launch_selected(),
+                KeyCode::Char('i') => app.install_selected(),
+                KeyCode::Char('m') => app.start_ms_login(),
                 _ => {}
             }
         }

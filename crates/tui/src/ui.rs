@@ -57,7 +57,9 @@ fn render_content(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
 
 fn render_instances(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     let items: Vec<ListItem> = if app.instances.is_empty() {
-        vec![ListItem::new("  No instances. Press 'n' to create one.")]
+        vec![ListItem::new(
+            "  No instances. Go to Versions tab and press 'i' to install.",
+        )]
     } else {
         app.instances
             .iter()
@@ -81,35 +83,11 @@ fn render_instances(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             .collect()
     };
 
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(" Instances "))
-        .highlight_style(Style::default().fg(Color::Yellow));
-
-    frame.render_widget(list, area);
-}
-
-fn render_accounts(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    let items: Vec<ListItem> = if app.config.accounts.is_empty() {
-        vec![ListItem::new("  No accounts. Press 'a' to add one.")]
-    } else {
-        app.config
-            .accounts
-            .iter()
-            .enumerate()
-            .map(|(i, acc)| {
-                let active = app
-                    .config
-                    .active_account_index
-                    .map(|idx| idx == i)
-                    .unwrap_or(false);
-                let marker = if active { "★" } else { " " };
-                let acc_type = if acc.is_microsoft() { "MS" } else { "Offline" };
-                ListItem::new(format!(" {} [{}] {}", marker, acc_type, acc.username()))
-            })
-            .collect()
-    };
-
-    let list = List::new(items).block(Block::default().borders(Borders::ALL).title(" Accounts "));
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Instances [l=launch] "),
+    );
 
     frame.render_widget(list, area);
 }
@@ -134,10 +112,57 @@ fn render_versions(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             .collect()
     };
 
-    let list = List::new(items).block(
+    let title = if app.installing {
+        " Versions [installing...] "
+    } else {
+        " Versions [i=install] "
+    };
+
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title(title));
+
+    frame.render_widget(list, area);
+}
+
+fn render_accounts(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let mut lines: Vec<ListItem> = Vec::new();
+
+    if app.config.accounts.is_empty() {
+        lines.push(ListItem::new(
+            "  No accounts. Press 'a' for offline, 'm' for Microsoft.",
+        ));
+    } else {
+        for (i, acc) in app.config.accounts.iter().enumerate() {
+            let active = app.config.active_account_index == Some(i);
+            let marker = if active { "★" } else { " " };
+            let acc_type = if acc.is_microsoft() { "MS" } else { "Offline" };
+            lines.push(ListItem::new(format!(
+                "  {} [{}] {}",
+                marker,
+                acc_type,
+                acc.username()
+            )));
+        }
+    }
+
+    if let Some(dc) = &app.ms_device_code {
+        lines.push(ListItem::new(""));
+        lines.push(ListItem::new(format!(
+            "  Microsoft Login: Go to {}",
+            dc.verification_uri
+        )));
+        lines.push(ListItem::new(format!("  Enter code: {}", dc.user_code)));
+        lines.push(ListItem::new("  Waiting for authorization..."));
+    }
+
+    if app.input_mode == crate::app::InputMode::Input {
+        lines.push(ListItem::new(""));
+        lines.push(ListItem::new(format!("  Username: {}_", app.input_buffer)));
+    }
+
+    let list = List::new(lines).block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" Available Versions (Enter=install) "),
+            .title(" Accounts [a=offline, m=microsoft] "),
     );
 
     frame.render_widget(list, area);
@@ -145,7 +170,7 @@ fn render_versions(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
 
 fn render_settings(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     let text = format!(
-        "\n  Data dir: {}\n  Mirror: {:?}\n  Concurrent downloads: {}\n  Java paths: {}",
+        "\n  Data dir: {}\n  Mirror: {:?}\n  Concurrent downloads: {}\n  Java: {}",
         app.config.data_dir.display(),
         app.config.download_mirror,
         app.config.max_concurrent_downloads,
@@ -167,17 +192,10 @@ fn render_settings(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
 }
 
 fn render_status_bar(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    let status = Paragraph::new(Line::from(vec![
-        Span::styled(" [Tab]", Style::default().fg(Color::Cyan)),
-        Span::raw(" Switch  "),
-        Span::styled("[↑↓/jk]", Style::default().fg(Color::Cyan)),
-        Span::raw(" Navigate  "),
-        Span::styled("[Enter]", Style::default().fg(Color::Cyan)),
-        Span::raw(" Select  "),
-        Span::styled("[q]", Style::default().fg(Color::Cyan)),
-        Span::raw(" Quit  │  "),
-        Span::styled(&app.status_message, Style::default().fg(Color::DarkGray)),
-    ]))
+    let status = Paragraph::new(Line::from(vec![Span::styled(
+        format!(" {}", &app.status_message),
+        Style::default().fg(Color::Yellow),
+    )]))
     .block(Block::default().borders(Borders::ALL));
 
     frame.render_widget(status, area);
