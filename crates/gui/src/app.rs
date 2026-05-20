@@ -748,14 +748,10 @@ impl MiaoApp {
         };
 
         match build_launch_command(&options) {
-            Ok(mut cmd) => {
-                cmd.stdout(std::process::Stdio::null());
-                cmd.stderr(std::process::Stdio::null());
-                match cmd.spawn() {
-                    Ok(_) => self.status = format!("Launched {}", inst.name),
-                    Err(e) => self.status = format!("Launch failed: {}", e),
-                }
-            }
+            Ok(mut cmd) => match cmd.spawn() {
+                Ok(_) => self.status = format!("Launched {}", inst.name),
+                Err(e) => self.status = format!("Launch failed: {}", e),
+            },
             Err(e) => self.status = format!("Command error: {}", e),
         }
     }
