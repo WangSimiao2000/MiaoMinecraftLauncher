@@ -360,15 +360,23 @@ impl App {
         };
 
         match build_launch_command(&options) {
-            Ok(mut cmd) => match cmd.spawn() {
-                Ok(_) => {
-                    self.status_message =
-                        format!("✓ Launched {} with {}", inst.name, java_path.display());
+            Ok(mut cmd) => {
+                cmd.stdout(std::process::Stdio::piped());
+                cmd.stderr(std::process::Stdio::piped());
+                match cmd.spawn() {
+                    Ok(child) => {
+                        self.status_message =
+                            format!("✓ Launched {} with {}", inst.name, java_path.display());
+                        let tx = self.tx.clone();
+                        tokio::spawn(async move {
+                            Self::stream_child_output(child, tx).await;
+                        });
+                    }
+                    Err(e) => {
+                        self.status_message = format!("✗ Launch failed: {}", e);
+                    }
                 }
-                Err(e) => {
-                    self.status_message = format!("✗ Launch failed: {}", e);
-                }
-            },
+            }
             Err(e) => {
                 self.status_message = format!("✗ Build command failed: {}", e);
             }
@@ -627,6 +635,42 @@ impl App {
                 self.manage_cursor - 1
             };
         }
+    }
+
+    async fn stream_child_output(
+        mut child: std::process::Child,
+        tx: mpsc::UnboundedSender<AsyncMessage>,
+    ) {
+        use tokio::io::{AsyncBufReadExt, BufReader};
+
+        let stderr = child.stderr.take();
+        let stdout = child.stdout.take();
+
+        let tx2 = tx.clone();
+        let stderr_task = tokio::spawn(async move {
+            if let Some(stderr) = stderr {
+                let reader = BufReader::new(tokio::process::ChildStderr::from_std(stderr).unwrap());
+                let mut lines = reader.lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let _ = tx2.send(AsyncMessage::InstallProgress(line));
+                }
+            }
+        });
+
+        let tx3 = tx.clone();
+        let stdout_task = tokio::spawn(async move {
+            if let Some(stdout) = stdout {
+                let reader = BufReader::new(tokio::process::ChildStdout::from_std(stdout).unwrap());
+                let mut lines = reader.lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let _ = tx3.send(AsyncMessage::InstallProgress(line));
+                }
+            }
+        });
+
+        let _ = stderr_task.await;
+        let _ = stdout_task.await;
+        let _ = child.wait();
     }
 
     pub fn start_mod_search(&mut self) {
