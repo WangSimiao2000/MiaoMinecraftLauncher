@@ -395,6 +395,14 @@ impl eframe::App for MiaoApp {
 
 impl MiaoApp {
     fn render_create_dialog(&mut self, ctx: &egui::Context, state: &AsyncState) {
+        if !state.versions.is_empty()
+            && state.loader_versions.is_empty()
+            && !state.loading_loader_versions
+        {
+            let mc_ver = state.versions[self.new_instance_version_idx].id.clone();
+            self.fetch_loader_versions_for_version(&mc_ver, ctx);
+        }
+
         let mut open = true;
         egui::Window::new("New Instance")
             .open(&mut open)
@@ -428,6 +436,7 @@ impl MiaoApp {
                             });
                         if self.new_instance_version_idx != prev_version_idx {
                             self.new_instance_loader_version_idx = 0;
+                            self.new_instance_loader = 0;
                             let mc_ver = state.versions[self.new_instance_version_idx].id.clone();
                             self.fetch_loader_versions_for_version(&mc_ver, ctx);
                         }
