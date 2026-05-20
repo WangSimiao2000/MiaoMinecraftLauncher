@@ -1020,8 +1020,9 @@ impl MiaoApp {
                                 let dl = format_downloads_gui(hit.downloads);
                                 let label =
                                     format!("{} — {} — ↓{}", hit.title, hit.description, dl);
-                                let truncated = if label.len() > 80 {
-                                    format!("{}…", &label[..79])
+                                let truncated = if label.chars().count() > 80 {
+                                    let s: String = label.chars().take(79).collect();
+                                    format!("{}…", s)
                                 } else {
                                     label
                                 };

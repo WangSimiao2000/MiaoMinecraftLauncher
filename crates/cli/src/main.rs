@@ -910,10 +910,11 @@ async fn cmd_import(config: &LauncherConfig, path: &str, name: Option<&str>) -> 
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
+    if s.chars().count() <= max {
         s.to_string()
     } else {
-        format!("{}…", &s[..max - 1])
+        let truncated: String = s.chars().take(max - 1).collect();
+        format!("{}…", truncated)
     }
 }
 
