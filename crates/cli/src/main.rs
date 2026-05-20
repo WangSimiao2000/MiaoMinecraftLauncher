@@ -147,6 +147,8 @@ async fn cmd_install(
     let meta =
         install::fetch_version_meta(&http, &version_info.url, &config.download_mirror).await?;
 
+    install::save_version_meta(&meta, config)?;
+
     println!("Collecting download tasks...");
     let tasks = install::all_download_tasks(&meta, config, &config.download_mirror);
 
