@@ -1,6 +1,9 @@
 use anyhow::Result;
+use miao_core::auth::offline::create_offline_account;
+use miao_core::auth::AuthMethod;
 use miao_core::config::LauncherConfig;
 use miao_core::instance::{self, Instance};
+use miao_core::version::VersionInfo;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -23,12 +26,22 @@ impl Tab {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputMode {
+    Normal,
+    Input,
+}
+
 pub struct App {
     pub config: LauncherConfig,
     pub current_tab: usize,
     pub selected_index: usize,
     pub instances: Vec<Instance>,
+    pub versions: Vec<VersionInfo>,
     pub status_message: String,
+    pub input_mode: InputMode,
+    pub input_buffer: String,
+    pub loading: bool,
 }
 
 impl App {
@@ -41,7 +54,11 @@ impl App {
             current_tab: 0,
             selected_index: 0,
             instances,
-            status_message: "Ready. Press 'q' to quit, Tab to switch panels.".to_string(),
+            versions: Vec::new(),
+            status_message: "[q]uit [Tab]switch [j/k]nav [Enter]select [a]ccount [r]efresh".to_string(),
+            input_mode: InputMode::Normal,
+            input_buffer: String::new(),
+            loading: false,
         })
     }
 
@@ -86,22 +103,65 @@ impl App {
             Tab::Instances => {
                 if let Some(inst) = self.instances.get(self.selected_index) {
                     self.status_message =
-                        format!("Selected: {} (MC {})", inst.name, inst.minecraft_version);
+                        format!("Launch '{}' (MC {})? Press 'l' to launch.", inst.name, inst.minecraft_version);
                 }
             }
+            Tab::Versions => {
+                if let Some(ver) = self.versions.get(self.selected_index) {
+                    self.status_message = format!("Install MC {}? Press 'i' to install.", ver.id);
+                }
+            }
+            Tab::Accounts => {
+                self.status_message = "Press 'a' to add offline account.".to_string();
+            }
             _ => {
-                self.status_message = "Action not yet implemented.".to_string();
+                self.status_message = "Not yet implemented.".to_string();
             }
         }
     }
 
     pub fn go_back(&mut self) {
-        self.status_message = "Ready.".to_string();
+        if self.input_mode == InputMode::Input {
+            self.input_mode = InputMode::Normal;
+            self.input_buffer.clear();
+            self.status_message = "Cancelled.".to_string();
+        }
+    }
+
+    pub fn add_offline_account(&mut self) {
+        self.input_mode = InputMode::Input;
+        self.input_buffer.clear();
+        self.status_message = "Enter username (Enter to confirm, Esc to cancel):".to_string();
+    }
+
+    pub fn confirm_input(&mut self) {
+        if self.input_mode == InputMode::Input && !self.input_buffer.is_empty() {
+            let username = self.input_buffer.clone();
+            let account = create_offline_account(&username);
+            self.status_message = format!("Added account: {} ({})", account.username, account.uuid);
+            self.config.accounts.push(AuthMethod::Offline(account));
+            if self.config.active_account_index.is_none() {
+                self.config.active_account_index = Some(0);
+            }
+            let _ = self.config.save();
+            self.input_mode = InputMode::Normal;
+            self.input_buffer.clear();
+        }
+    }
+
+    pub fn set_versions(&mut self, versions: Vec<VersionInfo>) {
+        self.versions = versions;
+        self.loading = false;
+    }
+
+    pub fn refresh_instances(&mut self) {
+        self.instances = instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
     }
 
     fn current_list_len(&self) -> usize {
         match self.active_tab() {
             Tab::Instances => self.instances.len(),
+            Tab::Versions => self.versions.len(),
             Tab::Accounts => self.config.accounts.len(),
             _ => 0,
         }

@@ -41,9 +41,9 @@ fn render_tabs(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
 fn render_content(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     match app.active_tab() {
         Tab::Instances => render_instances(frame, app, area),
-        Tab::Versions => render_placeholder(frame, "Versions", "Press Enter to browse available Minecraft versions.", area),
+        Tab::Versions => render_versions(frame, app, area),
         Tab::Accounts => render_accounts(frame, app, area),
-        Tab::Settings => render_placeholder(frame, "Settings", "Download mirror, Java paths, concurrent downloads.", area),
+        Tab::Settings => render_settings(frame, app, area),
     }
 }
 
@@ -103,9 +103,43 @@ fn render_accounts(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     frame.render_widget(list, area);
 }
 
-fn render_placeholder(frame: &mut Frame, title: &str, msg: &str, area: ratatui::layout::Rect) {
-    let paragraph = Paragraph::new(format!("\n  {}", msg))
-        .block(Block::default().borders(Borders::ALL).title(format!(" {} ", title)));
+fn render_versions(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let items: Vec<ListItem> = if app.loading {
+        vec![ListItem::new("  Loading versions...")]
+    } else if app.versions.is_empty() {
+        vec![ListItem::new("  No versions loaded. Check network.")]
+    } else {
+        app.versions
+            .iter()
+            .enumerate()
+            .map(|(i, ver)| {
+                let prefix = if i == app.selected_index { "▶ " } else { "  " };
+                ListItem::new(format!("{}{:<16} {}", prefix, ver.id, ver.release_time))
+            })
+            .collect()
+    };
+
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title(" Available Versions (Enter=install) "));
+
+    frame.render_widget(list, area);
+}
+
+fn render_settings(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let text = format!(
+        "\n  Data dir: {}\n  Mirror: {:?}\n  Concurrent downloads: {}\n  Java paths: {}",
+        app.config.data_dir.display(),
+        app.config.download_mirror,
+        app.config.max_concurrent_downloads,
+        if app.config.java_paths.is_empty() {
+            "auto-detect".to_string()
+        } else {
+            app.config.java_paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
+        }
+    );
+
+    let paragraph = Paragraph::new(text)
+        .block(Block::default().borders(Borders::ALL).title(" Settings "));
     frame.render_widget(paragraph, area);
 }
 

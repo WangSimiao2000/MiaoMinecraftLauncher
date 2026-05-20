@@ -1,6 +1,10 @@
 use eframe::egui;
+use miao_core::auth::offline::create_offline_account;
+use miao_core::auth::AuthMethod;
 use miao_core::config::LauncherConfig;
 use miao_core::instance::{self, Instance};
+use miao_core::version::VersionInfo;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Panel {
@@ -13,22 +17,51 @@ enum Panel {
 pub struct MiaoApp {
     config: LauncherConfig,
     instances: Vec<Instance>,
+    versions: Arc<Mutex<Vec<VersionInfo>>>,
     active_panel: Panel,
     selected_instance: Option<usize>,
     status: String,
+    offline_username_input: String,
+    versions_loading: bool,
 }
 
 impl MiaoApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let config = LauncherConfig::load().unwrap_or_default();
         let instances = instance::list_instances(&config.instances_dir()).unwrap_or_default();
+
+        let versions: Arc<Mutex<Vec<VersionInfo>>> = Arc::new(Mutex::new(Vec::new()));
+        let versions_clone = versions.clone();
+        let mirror = config.download_mirror.clone();
+        let ctx = cc.egui_ctx.clone();
+
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let http = reqwest::Client::new();
+                if let Ok(all_versions) =
+                    miao_core::version::manifest::fetch_version_manifest(&http, &mirror).await
+                {
+                    let releases: Vec<_> = all_versions
+                        .into_iter()
+                        .filter(|v| v.is_release())
+                        .take(50)
+                        .collect();
+                    *versions_clone.lock().unwrap() = releases;
+                    ctx.request_repaint();
+                }
+            });
+        });
 
         Self {
             config,
             instances,
+            versions,
             active_panel: Panel::Instances,
             selected_instance: None,
             status: "Ready".to_string(),
+            offline_username_input: String::new(),
+            versions_loading: true,
         }
     }
 }
@@ -102,8 +135,25 @@ impl MiaoApp {
     fn render_versions(&mut self, ui: &mut egui::Ui) {
         ui.heading("Available Versions");
         ui.separator();
-        ui.label("Version list loading not yet implemented.");
-        ui.label("Will show releases, snapshots, and mod loader versions.");
+
+        let versions = self.versions.lock().unwrap();
+        if versions.is_empty() {
+            if self.versions_loading {
+                ui.label("Loading versions from server...");
+            } else {
+                ui.label("No versions available. Check your network.");
+            }
+        } else {
+            self.versions_loading = false;
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                for ver in versions.iter() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{:<16}", ver.id));
+                        ui.label(&ver.release_time);
+                    });
+                }
+            });
+        }
     }
 
     fn render_accounts(&mut self, ui: &mut egui::Ui) {
@@ -115,21 +165,33 @@ impl MiaoApp {
         } else {
             for (i, acc) in self.config.accounts.iter().enumerate() {
                 let active = self.config.active_account_index == Some(i);
-                let prefix = if active { "★ " } else { "  " };
+                let marker = if active { "★" } else { " " };
                 let acc_type = if acc.is_microsoft() { "Microsoft" } else { "Offline" };
-                ui.label(format!("{}{} ({})", prefix, acc.username(), acc_type));
+                ui.label(format!(" {} [{}] {}", marker, acc_type, acc.username()));
             }
         }
 
         ui.separator();
+        ui.heading("Add Offline Account");
         ui.horizontal(|ui| {
-            if ui.button("Add Microsoft Account").clicked() {
-                self.status = "Microsoft login not yet implemented.".to_string();
-            }
-            if ui.button("Add Offline Account").clicked() {
-                self.status = "Offline account creation not yet implemented.".to_string();
+            ui.label("Username:");
+            ui.text_edit_singleline(&mut self.offline_username_input);
+            if ui.button("Add").clicked() && !self.offline_username_input.is_empty() {
+                let account = create_offline_account(&self.offline_username_input);
+                self.status = format!("Added: {} ({})", account.username, account.uuid);
+                self.config.accounts.push(AuthMethod::Offline(account));
+                if self.config.active_account_index.is_none() {
+                    self.config.active_account_index = Some(0);
+                }
+                let _ = self.config.save();
+                self.offline_username_input.clear();
             }
         });
+
+        ui.separator();
+        if ui.button("Microsoft Login (Device Code)").clicked() {
+            self.status = "Microsoft OAuth: open browser to login. (Not yet wired)".to_string();
+        }
     }
 
     fn render_settings(&mut self, ui: &mut egui::Ui) {
