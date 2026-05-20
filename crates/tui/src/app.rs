@@ -305,30 +305,6 @@ impl App {
         }
     }
 
-    pub fn install_selected(&mut self) {
-        if self.installing {
-            self.status_message = "Already installing...".to_string();
-            return;
-        }
-
-        let Some(ver) = self.versions.get(self.selected_index).cloned() else {
-            self.status_message = "No version selected.".to_string();
-            return;
-        };
-
-        self.installing = true;
-        self.status_message = format!("Installing MC {}...", ver.id);
-
-        let tx = self.tx.clone();
-        let config = self.config.clone();
-
-        tokio::spawn(async move {
-            if let Err(e) = do_install(&ver, &config, &tx).await {
-                let _ = tx.send(AsyncMessage::InstallError(e.to_string()));
-            }
-        });
-    }
-
     pub fn start_ms_login(&mut self) {
         let tx = self.tx.clone();
 
@@ -438,10 +414,10 @@ impl App {
     }
 
     pub fn create_name_confirm(&mut self) {
-        if self.create_name.is_empty() {
-            if let Some(ver) = self.versions.get(self.create_version_cursor) {
-                self.create_name = ver.id.clone();
-            }
+        if self.create_name.is_empty()
+            && let Some(ver) = self.versions.get(self.create_version_cursor)
+        {
+            self.create_name = ver.id.clone();
         }
         self.input_mode = InputMode::CreateSelectVersion;
         self.status_message = "Select MC version [j/k] navigate, [Enter] next:".to_string();
@@ -534,17 +510,6 @@ impl App {
         };
     }
 
-    pub fn start_loader_select(&mut self) {
-        if self.instances.is_empty() {
-            self.status_message = "No instance selected.".to_string();
-            return;
-        }
-        self.input_mode = InputMode::SelectLoader;
-        self.loader_cursor = 0;
-        self.status_message =
-            "Select loader: [j/k] navigate, [Enter] confirm, [Esc] cancel".to_string();
-    }
-
     pub fn loader_next(&mut self) {
         self.loader_cursor = (self.loader_cursor + 1) % LOADER_OPTIONS.len();
     }
@@ -597,75 +562,6 @@ impl App {
             _ => 0,
         }
     }
-}
-
-async fn do_install(
-    ver: &VersionInfo,
-    config: &LauncherConfig,
-    tx: &mpsc::UnboundedSender<AsyncMessage>,
-) -> anyhow::Result<()> {
-    let http = reqwest::Client::new();
-
-    let _ = tx.send(AsyncMessage::InstallProgress(format!(
-        "Fetching metadata for {}...",
-        ver.id
-    )));
-
-    let meta =
-        miao_core::version::install::fetch_version_meta(&http, &ver.url, &config.download_mirror)
-            .await?;
-
-    miao_core::version::install::save_version_meta(&meta, config)?;
-
-    let tasks =
-        miao_core::version::install::all_download_tasks(&meta, config, &config.download_mirror);
-    let task_count = tasks.len();
-
-    let _ = tx.send(AsyncMessage::InstallProgress(format!(
-        "Downloading {} libraries...",
-        task_count
-    )));
-
-    let dm = DownloadManager::new(
-        config.download_mirror.clone(),
-        config.max_concurrent_downloads,
-    );
-    dm.download_all(tasks).await?;
-
-    let asset_index_path = config
-        .assets_dir()
-        .join("indexes")
-        .join(format!("{}.json", &meta.asset_index.id));
-
-    if asset_index_path.exists() {
-        let asset_index = miao_core::version::assets::fetch_asset_index(&asset_index_path).await?;
-        let asset_tasks = miao_core::version::assets::collect_asset_downloads(
-            &asset_index,
-            config,
-            &config.download_mirror,
-        );
-        let asset_count = asset_tasks.len();
-
-        let _ = tx.send(AsyncMessage::InstallProgress(format!(
-            "Downloading {} assets...",
-            asset_count
-        )));
-
-        let dm2 = DownloadManager::new(
-            config.download_mirror.clone(),
-            config.max_concurrent_downloads,
-        );
-        dm2.download_all(asset_tasks).await?;
-    }
-
-    let instance_name = &ver.id;
-    let inst = Instance::new(instance_name, &ver.id);
-    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
-    inst.save_to(&instance_dir)?;
-    Instance::create_directories(&instance_dir)?;
-
-    let _ = tx.send(AsyncMessage::InstallDone(instance_name.to_string()));
-    Ok(())
 }
 
 async fn do_loader_install(
