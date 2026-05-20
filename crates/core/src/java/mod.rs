@@ -20,7 +20,39 @@ impl JavaInstallation {
 }
 
 pub fn detect_system_java() -> Vec<JavaInstallation> {
-    detect_java_in_paths(&["/usr/lib/jvm", "/usr/local/lib/jvm", "/usr/java"])
+    let mut installations =
+        detect_java_in_paths(&["/usr/lib/jvm", "/usr/local/lib/jvm", "/usr/java"]);
+
+    let launcher_java_dir = crate::config::LauncherConfig::default()
+        .data_dir
+        .join("java");
+    if launcher_java_dir.exists() {
+        installations.extend(detect_java_recursive(&launcher_java_dir));
+    }
+
+    installations.sort_by_key(|j| j.major_version);
+    installations.dedup_by(|a, b| a.path == b.path);
+    installations
+}
+
+fn detect_java_recursive(base: &Path) -> Vec<JavaInstallation> {
+    let mut installations = Vec::new();
+    let Ok(entries) = std::fs::read_dir(base) else {
+        return installations;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let java_bin = path.join("bin/java");
+        if java_bin.exists() {
+            if let Ok(info) = probe_java(&java_bin) {
+                installations.push(info);
+            }
+        } else if path.is_dir() {
+            installations.extend(detect_java_recursive(&path));
+        }
+    }
+    installations
 }
 
 pub fn detect_java_in_paths(search_paths: &[&str]) -> Vec<JavaInstallation> {

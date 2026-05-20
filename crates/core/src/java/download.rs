@@ -129,9 +129,14 @@ pub async fn download_and_extract_java_with_progress(
 
     on_progress(DownloadPhase::Extracting);
 
-    let tar_gz = flate2::read::GzDecoder::new(&all_bytes[..]);
-    let mut archive = tar::Archive::new(tar_gz);
-    archive.unpack(&dest_dir)?;
+    let extract_dir = dest_dir.clone();
+    tokio::task::spawn_blocking(move || -> Result<()> {
+        let tar_gz = flate2::read::GzDecoder::new(&all_bytes[..]);
+        let mut archive = tar::Archive::new(tar_gz);
+        archive.unpack(&extract_dir)?;
+        Ok(())
+    })
+    .await??;
 
     let java_bin = find_java_binary(&dest_dir)?;
     Ok(java_bin)
