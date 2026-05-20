@@ -29,13 +29,19 @@ enum Commands {
         #[arg(short, long)]
         snapshots: bool,
     },
-    /// Install a Minecraft version and create an instance
-    Install {
+    /// Create a new instance (MC version + optional mod loader)
+    New {
         /// Minecraft version (e.g. 1.20.4)
         version: String,
         /// Instance name (defaults to version)
         #[arg(short, long)]
         name: Option<String>,
+        /// Mod loader: fabric, quilt, neoforge, forge
+        #[arg(short, long)]
+        loader: Option<String>,
+        /// Mod loader version (uses latest stable if omitted)
+        #[arg(long)]
+        loader_version: Option<String>,
     },
     /// Launch an instance
     Launch {
@@ -49,13 +55,11 @@ enum Commands {
     },
     /// Detect installed Java versions
     Java,
-    /// Install a mod loader for an instance
-    Loader {
+    /// Upgrade the mod loader version for an instance (same loader type only)
+    UpgradeLoader {
         /// Instance name
         instance: String,
-        /// Loader type: fabric, quilt, neoforge, forge
-        loader: String,
-        /// Loader version (optional, uses latest stable if omitted)
+        /// Target loader version (uses latest stable if omitted)
         #[arg(short, long)]
         version: Option<String>,
     },
@@ -71,17 +75,27 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::List => cmd_list(&config)?,
         Commands::Versions { snapshots } => cmd_versions(&config, snapshots).await?,
-        Commands::Install { version, name } => {
-            cmd_install(&config, &version, name.as_deref()).await?
+        Commands::New {
+            version,
+            name,
+            loader,
+            loader_version,
+        } => {
+            cmd_new(
+                &config,
+                &version,
+                name.as_deref(),
+                loader.as_deref(),
+                loader_version.as_deref(),
+            )
+            .await?
         }
         Commands::Launch { instance } => cmd_launch(&config, &instance).await?,
         Commands::Account { username } => cmd_account(&config, &username)?,
         Commands::Java => cmd_java(),
-        Commands::Loader {
-            instance,
-            loader,
-            version,
-        } => cmd_loader(&config, &instance, &loader, version.as_deref()).await?,
+        Commands::UpgradeLoader { instance, version } => {
+            cmd_upgrade_loader(&config, &instance, version.as_deref()).await?
+        }
     }
 
     Ok(())
@@ -142,10 +156,12 @@ async fn cmd_versions(config: &LauncherConfig, show_snapshots: bool) -> anyhow::
     Ok(())
 }
 
-async fn cmd_install(
+async fn cmd_new(
     config: &LauncherConfig,
     version: &str,
     name: Option<&str>,
+    loader: Option<&str>,
+    loader_version: Option<&str>,
 ) -> anyhow::Result<()> {
     let instance_name = name.unwrap_or(version);
     let http = reqwest::Client::new();
@@ -195,18 +211,137 @@ async fn cmd_install(
     }
 
     println!("Creating instance '{}'...", instance_name);
-    let inst = Instance::new(instance_name, version);
+    let mut inst = Instance::new(instance_name, version);
+
+    if let Some(loader_type) = loader {
+        let loader_config =
+            install_loader_for_new_instance(&http, config, version, loader_type, loader_version)
+                .await?;
+        inst.mod_loader = Some(loader_config);
+    }
+
     let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
     inst.save_to(&instance_dir)?;
     Instance::create_directories(&instance_dir)?;
 
+    let loader_info = inst
+        .mod_loader
+        .as_ref()
+        .map(|l| format!(" + {} {}", l.loader_type, l.version))
+        .unwrap_or_default();
+
     println!(
-        "✓ Instance '{}' installed successfully! (MC {})",
-        instance_name, version
+        "✓ Instance '{}' created! (MC {}{})",
+        instance_name, version, loader_info
     );
     println!("  Run: miao launch {}", instance_name);
 
     Ok(())
+}
+
+async fn install_loader_for_new_instance(
+    http: &reqwest::Client,
+    config: &LauncherConfig,
+    mc_version: &str,
+    loader_type: &str,
+    loader_version: Option<&str>,
+) -> anyhow::Result<miao_core::instance::ModLoaderConfig> {
+    use miao_core::modloader::{ModLoaderType, fabric, forge, neoforge, quilt};
+
+    match loader_type {
+        "fabric" => {
+            let versions = fabric::fetch_loader_versions(http, mc_version).await?;
+            let ver = match loader_version {
+                Some(v) => v.to_string(),
+                None => versions
+                    .iter()
+                    .find(|v| v.loader.stable)
+                    .or(versions.first())
+                    .map(|v| v.loader.version.clone())
+                    .ok_or_else(|| anyhow::anyhow!("No Fabric versions for {}", mc_version))?,
+            };
+            println!("Installing Fabric {}...", ver);
+            let profile = fabric::fetch_profile(http, mc_version, &ver).await?;
+            let tasks = fabric::collect_fabric_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            Ok(miao_core::instance::ModLoaderConfig {
+                loader_type: ModLoaderType::Fabric,
+                version: ver,
+            })
+        }
+        "quilt" => {
+            let versions = quilt::fetch_loader_versions(http, mc_version).await?;
+            let ver = match loader_version {
+                Some(v) => v.to_string(),
+                None => versions
+                    .first()
+                    .map(|v| v.loader.version.clone())
+                    .ok_or_else(|| anyhow::anyhow!("No Quilt versions for {}", mc_version))?,
+            };
+            println!("Installing Quilt {}...", ver);
+            let profile = quilt::fetch_profile(http, mc_version, &ver).await?;
+            let tasks = quilt::collect_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            Ok(miao_core::instance::ModLoaderConfig {
+                loader_type: ModLoaderType::Quilt,
+                version: ver,
+            })
+        }
+        "neoforge" => {
+            let versions = neoforge::fetch_versions(http, mc_version).await?;
+            let ver = match loader_version {
+                Some(v) => v.to_string(),
+                None => versions
+                    .first()
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("No NeoForge versions for {}", mc_version))?,
+            };
+            println!("Installing NeoForge {}...", ver);
+            let profile = neoforge::fetch_profile(http, &ver).await?;
+            let tasks = neoforge::collect_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            Ok(miao_core::instance::ModLoaderConfig {
+                loader_type: ModLoaderType::NeoForge,
+                version: ver,
+            })
+        }
+        "forge" => {
+            let ver = match loader_version {
+                Some(v) => v.to_string(),
+                None => forge::fetch_recommended_version(http, mc_version)
+                    .await?
+                    .ok_or_else(|| anyhow::anyhow!("No Forge versions for {}", mc_version))?,
+            };
+            println!("Installing Forge {}...", ver);
+            let profile = forge::fetch_install_profile(http, mc_version, &ver).await?;
+            let tasks = forge::collect_library_downloads(&profile, config);
+            let dm = DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            dm.download_all(tasks).await?;
+            Ok(miao_core::instance::ModLoaderConfig {
+                loader_type: ModLoaderType::Forge,
+                version: ver,
+            })
+        }
+        _ => anyhow::bail!(
+            "Unknown loader '{}'. Use: fabric, quilt, neoforge, forge",
+            loader_type
+        ),
+    }
 }
 
 async fn cmd_launch(config: &LauncherConfig, instance_name: &str) -> anyhow::Result<()> {
@@ -315,136 +450,116 @@ fn cmd_java() {
     }
 }
 
-async fn cmd_loader(
+async fn cmd_upgrade_loader(
     config: &LauncherConfig,
     instance_name: &str,
-    loader: &str,
-    version: Option<&str>,
+    target_version: Option<&str>,
 ) -> anyhow::Result<()> {
-    use miao_core::download::manager::DownloadManager;
-    use miao_core::modloader::{fabric, forge, neoforge, quilt};
+    use miao_core::modloader::{ModLoaderType, fabric, forge, neoforge, quilt};
 
     let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
     let mut inst = Instance::load_from(&instance_dir)?;
     let mc_version = inst.minecraft_version.clone();
     let http = reqwest::Client::new();
 
-    match loader {
-        "fabric" => {
+    let Some(current_loader) = &inst.mod_loader else {
+        anyhow::bail!(
+            "Instance '{}' has no mod loader installed. Use 'miao new' with --loader to create a modded instance.",
+            instance_name
+        );
+    };
+
+    let current_type = current_loader.loader_type.clone();
+    let current_ver = current_loader.version.clone();
+
+    let new_ver = match &current_type {
+        ModLoaderType::Fabric => {
             let versions = fabric::fetch_loader_versions(&http, &mc_version).await?;
-            let loader_ver = match version {
+            let ver = match target_version {
                 Some(v) => v.to_string(),
                 None => versions
                     .iter()
                     .find(|v| v.loader.stable)
                     .or(versions.first())
                     .map(|v| v.loader.version.clone())
-                    .ok_or_else(|| anyhow::anyhow!("No Fabric versions for {}", mc_version))?,
+                    .ok_or_else(|| anyhow::anyhow!("No Fabric versions available"))?,
             };
-
-            println!("Installing Fabric {} for MC {}...", loader_ver, mc_version);
-            let profile = fabric::fetch_profile(&http, &mc_version, &loader_ver).await?;
+            println!("Upgrading Fabric {} → {}...", current_ver, ver);
+            let profile = fabric::fetch_profile(&http, &mc_version, &ver).await?;
             let tasks = fabric::collect_fabric_library_downloads(&profile, config);
-            println!("Downloading {} Fabric libraries...", tasks.len());
             let dm = DownloadManager::new(
                 config.download_mirror.clone(),
                 config.max_concurrent_downloads,
             );
             dm.download_all(tasks).await?;
-
-            inst.mod_loader = Some(miao_core::instance::ModLoaderConfig {
-                loader_type: miao_core::modloader::ModLoaderType::Fabric,
-                version: loader_ver.clone(),
-            });
-            inst.save_to(&instance_dir)?;
-            println!("✓ Fabric {} installed for '{}'", loader_ver, instance_name);
+            ver
         }
-        "quilt" => {
+        ModLoaderType::Quilt => {
             let versions = quilt::fetch_loader_versions(&http, &mc_version).await?;
-            let loader_ver = match version {
+            let ver = match target_version {
                 Some(v) => v.to_string(),
                 None => versions
                     .first()
                     .map(|v| v.loader.version.clone())
-                    .ok_or_else(|| anyhow::anyhow!("No Quilt versions for {}", mc_version))?,
+                    .ok_or_else(|| anyhow::anyhow!("No Quilt versions available"))?,
             };
-
-            println!("Installing Quilt {} for MC {}...", loader_ver, mc_version);
-            let profile = quilt::fetch_profile(&http, &mc_version, &loader_ver).await?;
+            println!("Upgrading Quilt {} → {}...", current_ver, ver);
+            let profile = quilt::fetch_profile(&http, &mc_version, &ver).await?;
             let tasks = quilt::collect_library_downloads(&profile, config);
-            println!("Downloading {} Quilt libraries...", tasks.len());
             let dm = DownloadManager::new(
                 config.download_mirror.clone(),
                 config.max_concurrent_downloads,
             );
             dm.download_all(tasks).await?;
-
-            inst.mod_loader = Some(miao_core::instance::ModLoaderConfig {
-                loader_type: miao_core::modloader::ModLoaderType::Quilt,
-                version: loader_ver.clone(),
-            });
-            inst.save_to(&instance_dir)?;
-            println!("✓ Quilt {} installed for '{}'", loader_ver, instance_name);
+            ver
         }
-        "neoforge" => {
+        ModLoaderType::NeoForge => {
             let versions = neoforge::fetch_versions(&http, &mc_version).await?;
-            let nf_ver = match version {
+            let ver = match target_version {
                 Some(v) => v.to_string(),
                 None => versions
                     .first()
                     .cloned()
-                    .ok_or_else(|| anyhow::anyhow!("No NeoForge versions for {}", mc_version))?,
+                    .ok_or_else(|| anyhow::anyhow!("No NeoForge versions available"))?,
             };
-
-            println!("Installing NeoForge {} for MC {}...", nf_ver, mc_version);
-            let profile = neoforge::fetch_profile(&http, &nf_ver).await?;
+            println!("Upgrading NeoForge {} → {}...", current_ver, ver);
+            let profile = neoforge::fetch_profile(&http, &ver).await?;
             let tasks = neoforge::collect_library_downloads(&profile, config);
-            println!("Downloading {} NeoForge libraries...", tasks.len());
             let dm = DownloadManager::new(
                 config.download_mirror.clone(),
                 config.max_concurrent_downloads,
             );
             dm.download_all(tasks).await?;
-
-            inst.mod_loader = Some(miao_core::instance::ModLoaderConfig {
-                loader_type: miao_core::modloader::ModLoaderType::NeoForge,
-                version: nf_ver.clone(),
-            });
-            inst.save_to(&instance_dir)?;
-            println!("✓ NeoForge {} installed for '{}'", nf_ver, instance_name);
+            ver
         }
-        "forge" => {
-            let forge_ver = match version {
+        ModLoaderType::Forge => {
+            let ver = match target_version {
                 Some(v) => v.to_string(),
                 None => forge::fetch_recommended_version(&http, &mc_version)
                     .await?
-                    .ok_or_else(|| anyhow::anyhow!("No Forge version for {}", mc_version))?,
+                    .ok_or_else(|| anyhow::anyhow!("No Forge versions available"))?,
             };
-
-            println!("Installing Forge {} for MC {}...", forge_ver, mc_version);
-            let profile = forge::fetch_install_profile(&http, &mc_version, &forge_ver).await?;
+            println!("Upgrading Forge {} → {}...", current_ver, ver);
+            let profile = forge::fetch_install_profile(&http, &mc_version, &ver).await?;
             let tasks = forge::collect_library_downloads(&profile, config);
-            println!("Downloading {} Forge libraries...", tasks.len());
             let dm = DownloadManager::new(
                 config.download_mirror.clone(),
                 config.max_concurrent_downloads,
             );
             dm.download_all(tasks).await?;
-
-            inst.mod_loader = Some(miao_core::instance::ModLoaderConfig {
-                loader_type: miao_core::modloader::ModLoaderType::Forge,
-                version: forge_ver.clone(),
-            });
-            inst.save_to(&instance_dir)?;
-            println!("✓ Forge {} installed for '{}'", forge_ver, instance_name);
+            ver
         }
-        _ => {
-            anyhow::bail!(
-                "Unknown loader '{}'. Use: fabric, quilt, neoforge, forge",
-                loader
-            );
-        }
-    }
+    };
 
+    inst.mod_loader = Some(miao_core::instance::ModLoaderConfig {
+        loader_type: current_type.clone(),
+        version: new_ver.clone(),
+    });
+    inst.save_to(&instance_dir)?;
+
+    println!(
+        "✓ {} upgraded to {} for '{}'",
+        current_type, new_ver, instance_name
+    );
     Ok(())
 }
