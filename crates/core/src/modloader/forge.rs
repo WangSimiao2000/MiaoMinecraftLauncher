@@ -1,8 +1,9 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::Deserialize;
 
 use crate::config::LauncherConfig;
 use crate::download::DownloadTask;
+use crate::http::HttpClient;
 
 const FORGE_MAVEN_URL: &str = "https://files.minecraftforge.net/maven";
 const FORGE_PROMO_URL: &str =
@@ -41,16 +42,10 @@ pub struct ForgeArtifact {
 }
 
 pub async fn fetch_recommended_version(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     minecraft_version: &str,
 ) -> Result<Option<String>> {
-    let promos: ForgePromotions = http
-        .get(FORGE_PROMO_URL)
-        .send()
-        .await?
-        .json()
-        .await
-        .context("Failed to fetch Forge promotions")?;
+    let promos: ForgePromotions = http.get_json(FORGE_PROMO_URL).await?;
 
     let recommended_key = format!("{}-recommended", minecraft_version);
     let latest_key = format!("{}-latest", minecraft_version);
@@ -133,7 +128,7 @@ pub fn collect_library_downloads(
 }
 
 pub async fn fetch_install_profile(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     minecraft_version: &str,
     forge_version: &str,
 ) -> Result<ForgeProfile> {
@@ -141,16 +136,7 @@ pub async fn fetch_install_profile(
         "{}/net/minecraftforge/forge/{}-{}/forge-{}-{}.json",
         FORGE_MAVEN_URL, minecraft_version, forge_version, minecraft_version, forge_version
     );
-
-    let profile: ForgeProfile = http
-        .get(&url)
-        .send()
-        .await?
-        .json()
-        .await
-        .context("Failed to fetch Forge install profile")?;
-
-    Ok(profile)
+    http.get_json(&url).await
 }
 
 #[cfg(test)]

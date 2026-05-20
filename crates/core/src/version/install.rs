@@ -3,17 +3,17 @@ use anyhow::Result;
 use crate::config::{DownloadMirror, LauncherConfig};
 use crate::download::DownloadTask;
 use crate::download::mirror::transform_url;
+use crate::http::HttpClient;
 
 use super::meta::VersionMeta;
 
 pub async fn fetch_version_meta(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     version_url: &str,
     mirror: &DownloadMirror,
 ) -> Result<VersionMeta> {
     let url = transform_url(version_url, mirror);
-    let meta: VersionMeta = http.get(&url).send().await?.json().await?;
-    Ok(meta)
+    http.get_json(&url).await
 }
 
 pub fn collect_library_downloads(

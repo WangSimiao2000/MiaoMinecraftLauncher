@@ -2,6 +2,7 @@ use anyhow::Result;
 use serde::Deserialize;
 
 use crate::config::DownloadMirror;
+use crate::http::HttpClient;
 
 use super::{VersionInfo, VersionType};
 
@@ -26,7 +27,7 @@ struct RawVersion {
 }
 
 pub async fn fetch_version_manifest(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     mirror: &DownloadMirror,
 ) -> Result<Vec<VersionInfo>> {
     let url = match mirror {
@@ -34,7 +35,7 @@ pub async fn fetch_version_manifest(
         _ => MOJANG_VERSION_MANIFEST,
     };
 
-    let manifest: RawManifest = http.get(url).send().await?.json().await?;
+    let manifest: RawManifest = http.get_json(url).await?;
 
     let versions = manifest
         .versions

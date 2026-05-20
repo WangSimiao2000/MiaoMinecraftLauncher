@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod config;
 pub mod download;
+pub mod http;
 pub mod instance;
 pub mod java;
 pub mod launch;

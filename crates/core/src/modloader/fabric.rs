@@ -1,7 +1,8 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::Deserialize;
 
 use crate::config::LauncherConfig;
+use crate::http::HttpClient;
 
 const FABRIC_META_URL: &str = "https://meta.fabricmc.net/v2";
 
@@ -31,22 +32,15 @@ pub struct FabricLibrary {
 }
 
 pub async fn fetch_loader_versions(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     minecraft_version: &str,
 ) -> Result<Vec<FabricLoaderVersion>> {
     let url = format!("{}/versions/loader/{}", FABRIC_META_URL, minecraft_version);
-    let versions: Vec<FabricLoaderVersion> = http
-        .get(&url)
-        .send()
-        .await?
-        .json()
-        .await
-        .context("Failed to fetch Fabric loader versions")?;
-    Ok(versions)
+    http.get_json(&url).await
 }
 
 pub async fn fetch_profile(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     minecraft_version: &str,
     loader_version: &str,
 ) -> Result<FabricProfile> {
@@ -54,14 +48,7 @@ pub async fn fetch_profile(
         "{}/versions/loader/{}/{}/profile/json",
         FABRIC_META_URL, minecraft_version, loader_version
     );
-    let profile: FabricProfile = http
-        .get(&url)
-        .send()
-        .await?
-        .json()
-        .await
-        .context("Failed to fetch Fabric profile")?;
-    Ok(profile)
+    http.get_json(&url).await
 }
 
 pub fn fabric_library_to_path(name: &str) -> Option<String> {

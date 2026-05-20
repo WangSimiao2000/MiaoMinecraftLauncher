@@ -1,8 +1,9 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::Deserialize;
 
 use crate::config::LauncherConfig;
 use crate::download::DownloadTask;
+use crate::http::HttpClient;
 
 const QUILT_META_URL: &str = "https://meta.quiltmc.org/v3";
 
@@ -31,22 +32,15 @@ pub struct QuiltLibrary {
 }
 
 pub async fn fetch_loader_versions(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     minecraft_version: &str,
 ) -> Result<Vec<QuiltLoaderVersion>> {
     let url = format!("{}/versions/loader/{}", QUILT_META_URL, minecraft_version);
-    let versions: Vec<QuiltLoaderVersion> = http
-        .get(&url)
-        .send()
-        .await?
-        .json()
-        .await
-        .context("Failed to fetch Quilt loader versions")?;
-    Ok(versions)
+    http.get_json(&url).await
 }
 
 pub async fn fetch_profile(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     minecraft_version: &str,
     loader_version: &str,
 ) -> Result<QuiltProfile> {
@@ -54,14 +48,7 @@ pub async fn fetch_profile(
         "{}/versions/loader/{}/{}/profile/json",
         QUILT_META_URL, minecraft_version, loader_version
     );
-    let profile: QuiltProfile = http
-        .get(&url)
-        .send()
-        .await?
-        .json()
-        .await
-        .context("Failed to fetch Quilt profile")?;
-    Ok(profile)
+    http.get_json(&url).await
 }
 
 fn maven_to_path(name: &str) -> Option<String> {

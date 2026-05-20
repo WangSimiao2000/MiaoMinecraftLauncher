@@ -1,8 +1,9 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::Deserialize;
 
 use crate::config::LauncherConfig;
 use crate::download::DownloadTask;
+use crate::http::HttpClient;
 
 const NEOFORGE_MAVEN_URL: &str = "https://maven.neoforged.net/releases";
 const NEOFORGE_META_URL: &str =
@@ -41,17 +42,10 @@ pub struct NeoForgeArtifact {
 }
 
 pub async fn fetch_versions(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     minecraft_version: &str,
 ) -> Result<Vec<String>> {
-    let url = NEOFORGE_META_URL;
-    let list: NeoForgeVersionList = http
-        .get(url)
-        .send()
-        .await?
-        .json()
-        .await
-        .context("Failed to fetch NeoForge versions")?;
+    let list: NeoForgeVersionList = http.get_json(NEOFORGE_META_URL).await?;
 
     let mc_prefix = minecraft_version
         .strip_prefix("1.")
@@ -68,23 +62,14 @@ pub async fn fetch_versions(
 }
 
 pub async fn fetch_profile(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     neoforge_version: &str,
 ) -> Result<NeoForgeProfile> {
-    let profile_url = format!(
+    let url = format!(
         "{}/net/neoforged/neoforge/{}/neoforge-{}.json",
         NEOFORGE_MAVEN_URL, neoforge_version, neoforge_version
     );
-
-    let profile: NeoForgeProfile = http
-        .get(&profile_url)
-        .send()
-        .await?
-        .json()
-        .await
-        .context("Failed to fetch NeoForge profile")?;
-
-    Ok(profile)
+    http.get_json(&url).await
 }
 
 fn maven_to_path(name: &str) -> Option<String> {

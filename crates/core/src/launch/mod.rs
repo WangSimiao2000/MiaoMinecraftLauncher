@@ -105,7 +105,6 @@ fn build_game_args(options: &LaunchOptions) -> Result<Vec<String>> {
 mod tests {
     use super::*;
     use crate::auth::offline::create_offline_account;
-    use crate::instance::Resolution;
     use crate::version::meta::*;
 
     fn make_test_options(with_resolution: bool) -> LaunchOptions {

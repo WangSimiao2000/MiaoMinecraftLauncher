@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn list_instances_empty_dir() {
         let dir = tempfile::tempdir().unwrap();
-        let result = list_instances(&dir.path().to_path_buf()).unwrap();
+        let result = list_instances(dir.path()).unwrap();
         assert!(result.is_empty());
     }
 
@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn delete_instance_nonexistent_ok() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(delete_instance(&dir.path().to_path_buf(), "nope").is_ok());
+        assert!(delete_instance(dir.path(), "nope").is_ok());
     }
 
     #[test]

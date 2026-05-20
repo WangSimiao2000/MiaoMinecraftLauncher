@@ -6,8 +6,10 @@ pub mod quilt;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+use crate::http::HttpClient;
+
 pub async fn fetch_all_loader_versions(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     minecraft_version: &str,
 ) -> Result<std::collections::HashMap<ModLoaderType, Vec<ModLoaderVersion>>> {
     let (fabric_result, quilt_result, neoforge_result, forge_result) = tokio::join!(
@@ -78,7 +80,7 @@ pub async fn fetch_all_loader_versions(
 }
 
 pub async fn install_loader(
-    http: &reqwest::Client,
+    http: &impl HttpClient,
     loader_type: &ModLoaderType,
     mc_version: &str,
     loader_version: &str,
