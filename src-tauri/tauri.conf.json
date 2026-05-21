@@ -1,0 +1,36 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicosalm/tauri/refs/heads/dev/crates/tauri-schema-generator/schemas/config.schema.json",
+  "productName": "MiaoMC",
+  "version": "0.1.0",
+  "identifier": "com.miao.mc",
+  "build": {
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "cd ui && npm run dev",
+    "beforeBuildCommand": "cd ui && npm run build"
+  },
+  "app": {
+    "title": "MiaoMC",
+    "windows": [
+      {
+        "title": "MiaoMC",
+        "width": 1024,
+        "height": 680,
+        "minWidth": 800,
+        "minHeight": 560,
+        "resizable": true,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["appimage", "deb"],
+    "icon": [
+      "icons/icon.png"
+    ]
+  }
+}
