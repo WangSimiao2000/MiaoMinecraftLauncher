@@ -149,6 +149,110 @@ pub struct InstalledMod {
     pub is_dependency: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct ResolvedDep {
+    pub project_id: String,
+    pub name: String,
+    pub filename: String,
+    pub file_size: u64,
+    pub is_dependency: bool,
+}
+
+pub async fn resolve_dependencies(
+    project_id: &str,
+    mc_version: &str,
+    loader: &str,
+) -> Result<Vec<ResolvedDep>> {
+    let mut deps = Vec::new();
+    let mut visited = std::collections::HashSet::new();
+    resolve_recursive(
+        project_id,
+        mc_version,
+        loader,
+        &mut deps,
+        &mut visited,
+        false,
+    )
+    .await?;
+    Ok(deps)
+}
+
+#[async_recursion::async_recursion]
+async fn resolve_recursive(
+    project_id: &str,
+    mc_version: &str,
+    loader: &str,
+    deps: &mut Vec<ResolvedDep>,
+    visited: &mut std::collections::HashSet<String>,
+    is_dependency: bool,
+) -> Result<()> {
+    if visited.contains(project_id) {
+        return Ok(());
+    }
+    visited.insert(project_id.to_string());
+
+    let versions = get_project_versions(project_id, Some(mc_version), Some(loader)).await?;
+    let Some(version) = versions.first() else {
+        return Ok(());
+    };
+
+    let Some(file) = version
+        .files
+        .iter()
+        .find(|f| f.primary)
+        .or(version.files.first())
+    else {
+        return Ok(());
+    };
+
+    deps.push(ResolvedDep {
+        project_id: project_id.to_string(),
+        name: version.name.clone(),
+        filename: file.filename.clone(),
+        file_size: file.size,
+        is_dependency,
+    });
+
+    for dep in &version.dependencies {
+        if dep.dependency_type == "required"
+            && let Some(ref dep_project_id) = dep.project_id
+        {
+            resolve_recursive(dep_project_id, mc_version, loader, deps, visited, true).await?;
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn install_mod_only(
+    project_id: &str,
+    mc_version: &str,
+    loader: &str,
+    mods_dir: &std::path::Path,
+) -> Result<Vec<InstalledMod>> {
+    let versions = get_project_versions(project_id, Some(mc_version), Some(loader)).await?;
+    let Some(version) = versions.first() else {
+        return Ok(Vec::new());
+    };
+    let Some(file) = version
+        .files
+        .iter()
+        .find(|f| f.primary)
+        .or(version.files.first())
+    else {
+        return Ok(Vec::new());
+    };
+    let dest = mods_dir.join(&file.filename);
+    if !dest.exists() {
+        download_mod_file(file, mods_dir).await?;
+    }
+    Ok(vec![InstalledMod {
+        name: version.name.clone(),
+        filename: file.filename.clone(),
+        is_dependency: false,
+    }])
+}
+
 pub async fn install_mod_with_dependencies(
     project_id: &str,
     mc_version: &str,
