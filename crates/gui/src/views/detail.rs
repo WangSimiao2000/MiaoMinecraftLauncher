@@ -21,17 +21,11 @@ impl MiaoApp {
         ui.separator();
         ui.add_space(theme::Spacing::SMALL_GAP);
 
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            let content_width = ui.available_width() - 12.0;
-            ui.allocate_ui(
-                egui::vec2(content_width, ui.available_height()),
-                |ui| match self.active_tab {
-                    DetailTab::Mods => self.render_mods_tab(ui, &instance_dir),
-                    DetailTab::Resources => self.render_resources_tab(ui, &instance_dir),
-                    DetailTab::Worlds => self.render_worlds_tab(ui, &instance_dir),
-                    DetailTab::Log => self.render_log_tab(ui, &instance_dir),
-                },
-            );
+        egui::ScrollArea::vertical().show(ui, |ui| match self.active_tab {
+            DetailTab::Mods => self.render_mods_tab(ui, &instance_dir),
+            DetailTab::Resources => self.render_resources_tab(ui, &instance_dir),
+            DetailTab::Worlds => self.render_worlds_tab(ui, &instance_dir),
+            DetailTab::Log => self.render_log_tab(ui, &instance_dir),
         });
     }
 
