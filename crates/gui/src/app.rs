@@ -37,6 +37,7 @@ pub struct MiaoApp {
     pub ctx: egui::Context,
     pub cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
     pub refresh_counter: u32,
+    #[allow(dead_code)]
     pub theme_preset: crate::theme::ThemePreset,
 }
 

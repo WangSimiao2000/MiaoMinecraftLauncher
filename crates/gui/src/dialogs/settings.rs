@@ -14,13 +14,13 @@ impl MiaoApp {
                 ui.add_space(theme::Spacing::SECTION_GAP);
 
                 theme::section_frame().show(ui, |ui| {
-                    self.render_settings_general(ui);
+                    self.render_settings_accounts(ui, state);
                 });
 
                 ui.add_space(theme::Spacing::SECTION_GAP);
 
                 theme::section_frame().show(ui, |ui| {
-                    self.render_settings_theme(ui);
+                    self.render_settings_general(ui);
                 });
 
                 ui.add_space(theme::Spacing::SECTION_GAP);
@@ -32,7 +32,7 @@ impl MiaoApp {
                 ui.add_space(theme::Spacing::SECTION_GAP);
 
                 theme::section_frame().show(ui, |ui| {
-                    self.render_settings_accounts(ui, state);
+                    self.render_settings_about(ui);
                 });
 
                 ui.add_space(theme::Spacing::SECTION_GAP);
@@ -89,28 +89,21 @@ impl MiaoApp {
         });
     }
 
-    fn render_settings_theme(&mut self, ui: &mut egui::Ui) {
-        ui.label(theme::subheading("Appearance"));
+    fn render_settings_about(&mut self, ui: &mut egui::Ui) {
+        ui.label(theme::subheading("About"));
         ui.add_space(theme::Spacing::SMALL_GAP);
 
+        ui.label(theme::body("MiaoMC Launcher v0.1.0"));
+        ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.label(theme::body("Theme:"));
-            for preset in theme::ThemePreset::ALL {
-                let selected = self.theme_preset == preset;
-                if ui.selectable_label(selected, preset.name()).clicked() {
-                    self.theme_preset = preset;
-                    theme::apply_theme(&self.ctx, preset);
-                }
-            }
+            ui.label(theme::muted("GitHub:"));
+            ui.hyperlink_to(
+                "WangSimiao2000/MiaoMinecraftLauncher",
+                "https://github.com/WangSimiao2000/MiaoMinecraftLauncher",
+            );
         });
-
-        ui.add_space(theme::Spacing::SMALL_GAP);
-        ui.horizontal(|ui| {
-            ui.label(theme::body("Accent preview:"));
-            let color = self.theme_preset.accent_light();
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(60.0, 16.0), egui::Sense::hover());
-            ui.painter().rect_filled(rect, theme::Radii::WIDGET, color);
-        });
+        ui.add_space(4.0);
+        ui.label(theme::muted("License: GPL-3.0-or-later"));
     }
 
     fn render_settings_java(&mut self, ui: &mut egui::Ui) {

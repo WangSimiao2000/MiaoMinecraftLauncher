@@ -179,6 +179,7 @@ pub fn section_frame() -> egui::Frame {
         .inner_margin(Margin::same(16.0))
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ThemePreset {
     Dark,
@@ -187,6 +188,7 @@ pub enum ThemePreset {
     Warm,
 }
 
+#[allow(dead_code)]
 impl ThemePreset {
     pub const ALL: [ThemePreset; 4] = [
         ThemePreset::Dark,
@@ -223,6 +225,7 @@ impl ThemePreset {
     }
 }
 
+#[allow(dead_code)]
 pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
     let accent = preset.accent();
     let mut style = (*ctx.style()).clone();
