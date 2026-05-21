@@ -34,6 +34,7 @@ pub struct MiaoApp {
     pub new_instance: NewInstanceInput,
     pub mod_search: ModSearchState,
 
+    pub confirm_delete: Option<usize>,
     pub settings_tab: SettingsTab,
     pub ctx: egui::Context,
     pub cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
@@ -101,6 +102,7 @@ impl MiaoApp {
             data_dir_input,
             new_instance: NewInstanceInput::default(),
             mod_search: ModSearchState::default(),
+            confirm_delete: None,
             settings_tab: SettingsTab::default(),
             ctx: cc.egui_ctx.clone(),
             cached_javas: None,

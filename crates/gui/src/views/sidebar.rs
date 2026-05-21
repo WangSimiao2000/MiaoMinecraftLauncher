@@ -82,6 +82,7 @@ impl MiaoApp {
                             if response.clicked() {
                                 self.selected_instance = Some(i);
                                 self.active_tab = DetailTab::Mods;
+                                self.confirm_delete = None;
                             }
                         }
                     });

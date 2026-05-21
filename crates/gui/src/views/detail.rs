@@ -83,21 +83,34 @@ impl MiaoApp {
                             let _ = miao_core::instance::open_folder(&dir);
                         }
                         ui.add_space(8.0);
-                        if ui.add(theme::danger_button("Delete")).clicked() {
-                            let name = inst.name.clone();
-                            if let Err(e) = miao_core::instance::delete_instance(
-                                &self.config.instances_dir(),
-                                &name,
-                            ) {
-                                self.status = format!("Delete failed: {}", e);
-                            } else {
-                                self.status = format!("Deleted '{}'", name);
-                                self.instances = miao_core::instance::list_instances(
+                        if self.confirm_delete == Some(idx) {
+                            ui.label(
+                                egui::RichText::new("Confirm?")
+                                    .color(theme::Colors::DANGER)
+                                    .size(12.0),
+                            );
+                            if ui.add(theme::danger_button("Yes")).clicked() {
+                                let name = inst.name.clone();
+                                if let Err(e) = miao_core::instance::delete_instance(
                                     &self.config.instances_dir(),
-                                )
-                                .unwrap_or_default();
-                                self.selected_instance = None;
+                                    &name,
+                                ) {
+                                    self.status = format!("Delete failed: {}", e);
+                                } else {
+                                    self.status = format!("Deleted '{}'", name);
+                                    self.instances = miao_core::instance::list_instances(
+                                        &self.config.instances_dir(),
+                                    )
+                                    .unwrap_or_default();
+                                    self.selected_instance = None;
+                                }
+                                self.confirm_delete = None;
                             }
+                            if ui.button("No").clicked() {
+                                self.confirm_delete = None;
+                            }
+                        } else if ui.add(theme::danger_button("Delete")).clicked() {
+                            self.confirm_delete = Some(idx);
                         }
                     });
                 });
