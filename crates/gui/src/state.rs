@@ -68,7 +68,7 @@ pub struct ModSearchState {
     pub query: String,
     pub results: Vec<SearchHit>,
     pub versions: Vec<ProjectVersion>,
-    pub selected: usize,
+    pub selected: Option<usize>,
     pub searching: bool,
     pub active: bool,
 }

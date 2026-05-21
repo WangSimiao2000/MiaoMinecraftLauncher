@@ -131,13 +131,12 @@ impl MiaoApp {
             ui.add_space(8.0);
             let mut clicked_idx = None;
             for (i, hit) in self.mod_search.results.iter().enumerate() {
-                let is_selected = self.mod_search.selected == i;
+                let is_selected = self.mod_search.selected == Some(i);
+                let card_id = egui::Id::new(("mod_hit", i));
+                let pointer_pos = ui.ctx().input(|inp| inp.pointer.hover_pos());
+
                 let frame_response = egui::Frame::none()
-                    .fill(if is_selected {
-                        theme::Colors::BG_WIDGET_HOVER
-                    } else {
-                        theme::Colors::BG_ELEVATED
-                    })
+                    .fill(theme::Colors::BG_ELEVATED)
                     .rounding(egui::Rounding::same(6.0))
                     .inner_margin(egui::Margin::symmetric(12.0, 8.0))
                     .show(ui, |ui| {
@@ -164,20 +163,30 @@ impl MiaoApp {
                     });
 
                 let card_rect = frame_response.response.rect;
-                if ui
-                    .interact(
-                        card_rect,
-                        egui::Id::new(("mod_hit", i)),
-                        egui::Sense::click(),
-                    )
-                    .clicked()
-                {
+                let is_hovered = pointer_pos.is_some_and(|pos| card_rect.contains(pos));
+
+                if is_selected || is_hovered {
+                    let fill = if is_selected {
+                        theme::Colors::BG_WIDGET_HOVER
+                    } else {
+                        egui::Color32::from_white_alpha(8)
+                    };
+                    ui.painter()
+                        .rect_filled(card_rect, egui::Rounding::same(6.0), fill);
+                }
+
+                let response = ui.interact(card_rect, card_id, egui::Sense::click());
+                if is_hovered {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                }
+
+                if response.clicked() {
                     clicked_idx = Some(i);
                 }
                 ui.add_space(4.0);
             }
             if let Some(i) = clicked_idx {
-                self.mod_search.selected = i;
+                self.mod_search.selected = Some(i);
                 self.load_mod_versions_from_tab(i);
             }
         }
@@ -187,7 +196,7 @@ impl MiaoApp {
             let hit_title = self
                 .mod_search
                 .results
-                .get(self.mod_search.selected)
+                .get(self.mod_search.selected.unwrap_or(0))
                 .map(|h| h.title.as_str())
                 .unwrap_or("?");
             ui.label(theme::subheading(&format!("Versions for '{}'", hit_title)));
@@ -369,7 +378,10 @@ impl MiaoApp {
     }
 
     fn install_mod_from_tab(&mut self, instance_dir: &Path) {
-        let Some(hit) = self.mod_search.results.get(self.mod_search.selected) else {
+        let Some(selected) = self.mod_search.selected else {
+            return;
+        };
+        let Some(hit) = self.mod_search.results.get(selected) else {
             return;
         };
         let Some(idx) = self.selected_instance else {
