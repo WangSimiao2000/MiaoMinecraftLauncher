@@ -53,7 +53,9 @@ pub async fn cmd_mod_search(
     mc_version: Option<&str>,
     loader: Option<&str>,
 ) -> Result<()> {
-    let result = miao_core::modrinth::api::search_mods(query, mc_version, loader, 15).await?;
+    let http = reqwest::Client::new();
+    let result =
+        miao_core::modrinth::api::search_mods(&http, query, mc_version, loader, 15).await?;
 
     if result.hits.is_empty() {
         println!("No mods found for '{}'.", query);
@@ -94,7 +96,9 @@ pub async fn cmd_mod_install(
     );
 
     let mods_dir = Instance::mods_dir(&instance_dir);
+    let http = reqwest::Client::new();
     let results = miao_core::modrinth::api::install_mod_with_dependencies(
+        &http,
         project,
         &inst.minecraft_version,
         loader,

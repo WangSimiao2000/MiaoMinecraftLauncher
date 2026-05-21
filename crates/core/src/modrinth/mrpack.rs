@@ -290,6 +290,7 @@ fn add_directory_to_zip(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Read;
 
     #[test]
     fn mrpack_index_deserializes() {
@@ -335,5 +336,237 @@ mod tests {
         let json = serde_json::to_string(&index).unwrap();
         assert!(json.contains("\"formatVersion\":1"));
         assert!(json.contains("\"name\":\"My Pack\""));
+    }
+
+    #[test]
+    fn mrpack_index_with_env_field() {
+        let json = r#"{
+            "formatVersion": 1,
+            "game": "minecraft",
+            "versionId": "1.0.0",
+            "name": "Env Pack",
+            "files": [{
+                "path": "mods/client-only.jar",
+                "hashes": {"sha1": "abc", "sha512": "def"},
+                "env": {"client": "required", "server": "unsupported"},
+                "downloads": ["https://example.com/mod.jar"],
+                "fileSize": 100
+            }],
+            "dependencies": {"minecraft": "1.20.4"}
+        }"#;
+
+        let index: MrpackIndex = serde_json::from_str(json).unwrap();
+        let env = index.files[0].env.as_ref().unwrap();
+        assert_eq!(env.client, "required");
+        assert_eq!(env.server, "unsupported");
+    }
+
+    fn setup_instance_for_export(dir: &Path) -> Instance {
+        let mods_dir = dir.join("mods");
+        std::fs::create_dir_all(&mods_dir).unwrap();
+        std::fs::write(mods_dir.join("sodium.jar"), b"sodium mod data").unwrap();
+        std::fs::write(mods_dir.join("iris.jar"), b"iris mod data").unwrap();
+        std::fs::write(mods_dir.join("disabled.jar.disabled"), b"disabled").unwrap();
+
+        let mut inst = Instance::new("test-instance", "1.20.4");
+        inst.mod_loader = Some(crate::instance::ModLoaderConfig {
+            loader_type: crate::modloader::ModLoaderType::Fabric,
+            version: "0.15.6".to_string(),
+            main_class: None,
+            extra_libraries: Vec::new(),
+        });
+        inst.save_to(dir).unwrap();
+        inst
+    }
+
+    #[test]
+    fn export_mrpack_creates_valid_zip() {
+        let tmp = tempfile::tempdir().unwrap();
+        let instance_dir = tmp.path().join("instance");
+        std::fs::create_dir_all(&instance_dir).unwrap();
+        let inst = setup_instance_for_export(&instance_dir);
+
+        let output_dir = tmp.path().join("output");
+        std::fs::create_dir_all(&output_dir).unwrap();
+
+        let result = export_mrpack(&instance_dir, &inst, &output_dir).unwrap();
+        assert!(result.exists());
+        assert_eq!(
+            result.file_name().unwrap().to_str().unwrap(),
+            "test-instance.mrpack"
+        );
+
+        let file = std::fs::File::open(&result).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+
+        let mut index_content = String::new();
+        archive
+            .by_name("modrinth.index.json")
+            .unwrap()
+            .read_to_string(&mut index_content)
+            .unwrap();
+
+        let index: MrpackIndex = serde_json::from_str(&index_content).unwrap();
+        assert_eq!(index.name, "test-instance");
+        assert_eq!(index.dependencies["minecraft"], "1.20.4");
+        assert_eq!(index.dependencies["fabric-loader"], "0.15.6");
+        assert_eq!(index.files.len(), 2);
+    }
+
+    #[test]
+    fn export_mrpack_computes_hashes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let instance_dir = tmp.path().join("instance");
+        std::fs::create_dir_all(&instance_dir).unwrap();
+        let inst = setup_instance_for_export(&instance_dir);
+
+        let output = tmp.path().join("out.mrpack");
+        export_mrpack(&instance_dir, &inst, &output).unwrap();
+
+        let file = std::fs::File::open(&output).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+
+        let mut index_content = String::new();
+        archive
+            .by_name("modrinth.index.json")
+            .unwrap()
+            .read_to_string(&mut index_content)
+            .unwrap();
+
+        let index: MrpackIndex = serde_json::from_str(&index_content).unwrap();
+        for f in &index.files {
+            assert!(!f.hashes.sha1.is_empty());
+            assert!(!f.hashes.sha512.is_empty());
+            assert!(f.file_size > 0);
+        }
+    }
+
+    #[test]
+    fn export_mrpack_excludes_disabled_mods() {
+        let tmp = tempfile::tempdir().unwrap();
+        let instance_dir = tmp.path().join("instance");
+        std::fs::create_dir_all(&instance_dir).unwrap();
+        let inst = setup_instance_for_export(&instance_dir);
+
+        let output = tmp.path().join("test.mrpack");
+        export_mrpack(&instance_dir, &inst, &output).unwrap();
+
+        let file = std::fs::File::open(&output).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+
+        let mut index_content = String::new();
+        archive
+            .by_name("modrinth.index.json")
+            .unwrap()
+            .read_to_string(&mut index_content)
+            .unwrap();
+
+        let index: MrpackIndex = serde_json::from_str(&index_content).unwrap();
+        for f in &index.files {
+            assert!(!f.path.contains("disabled"));
+        }
+    }
+
+    #[test]
+    fn export_mrpack_includes_overrides() {
+        let tmp = tempfile::tempdir().unwrap();
+        let instance_dir = tmp.path().join("instance");
+        std::fs::create_dir_all(&instance_dir).unwrap();
+        let inst = setup_instance_for_export(&instance_dir);
+
+        std::fs::write(instance_dir.join("options.txt"), b"fov:90").unwrap();
+        let config_dir = instance_dir.join("config");
+        std::fs::create_dir_all(&config_dir).unwrap();
+        std::fs::write(config_dir.join("mod.toml"), b"setting=true").unwrap();
+
+        let output = tmp.path().join("override.mrpack");
+        export_mrpack(&instance_dir, &inst, &output).unwrap();
+
+        let file = std::fs::File::open(&output).unwrap();
+        let archive = zip::ZipArchive::new(file).unwrap();
+
+        let names: Vec<String> = (0..archive.len())
+            .map(|i| archive.name_for_index(i).unwrap().to_string())
+            .collect();
+
+        assert!(names.contains(&"overrides/options.txt".to_string()));
+        assert!(names.contains(&"overrides/config/mod.toml".to_string()));
+    }
+
+    #[test]
+    fn export_mrpack_no_loader_only_minecraft_dep() {
+        let tmp = tempfile::tempdir().unwrap();
+        let instance_dir = tmp.path().join("instance");
+        std::fs::create_dir_all(&instance_dir).unwrap();
+
+        let mods_dir = instance_dir.join("mods");
+        std::fs::create_dir_all(&mods_dir).unwrap();
+
+        let inst = Instance::new("vanilla", "1.20.4");
+        inst.save_to(&instance_dir).unwrap();
+
+        let output = tmp.path().join("vanilla.mrpack");
+        export_mrpack(&instance_dir, &inst, &output).unwrap();
+
+        let file = std::fs::File::open(&output).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        let mut content = String::new();
+        archive
+            .by_name("modrinth.index.json")
+            .unwrap()
+            .read_to_string(&mut content)
+            .unwrap();
+
+        let index: MrpackIndex = serde_json::from_str(&content).unwrap();
+        assert_eq!(index.dependencies.len(), 1);
+        assert_eq!(index.dependencies["minecraft"], "1.20.4");
+    }
+
+    #[test]
+    fn export_mrpack_all_loader_types_in_deps() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        let loaders = [
+            (crate::modloader::ModLoaderType::Fabric, "fabric-loader"),
+            (crate::modloader::ModLoaderType::Quilt, "quilt-loader"),
+            (crate::modloader::ModLoaderType::NeoForge, "neoforge"),
+            (crate::modloader::ModLoaderType::Forge, "forge"),
+        ];
+
+        for (loader_type, expected_key) in &loaders {
+            let instance_dir = tmp.path().join(format!("inst-{}", expected_key));
+            std::fs::create_dir_all(&instance_dir).unwrap();
+            let mods_dir = instance_dir.join("mods");
+            std::fs::create_dir_all(&mods_dir).unwrap();
+
+            let mut inst = Instance::new("test", "1.20.4");
+            inst.mod_loader = Some(crate::instance::ModLoaderConfig {
+                loader_type: loader_type.clone(),
+                version: "1.0.0".to_string(),
+                main_class: None,
+                extra_libraries: Vec::new(),
+            });
+            inst.save_to(&instance_dir).unwrap();
+
+            let output = tmp.path().join(format!("{}.mrpack", expected_key));
+            export_mrpack(&instance_dir, &inst, &output).unwrap();
+
+            let file = std::fs::File::open(&output).unwrap();
+            let mut archive = zip::ZipArchive::new(file).unwrap();
+            let mut content = String::new();
+            archive
+                .by_name("modrinth.index.json")
+                .unwrap()
+                .read_to_string(&mut content)
+                .unwrap();
+
+            let index: MrpackIndex = serde_json::from_str(&content).unwrap();
+            assert!(
+                index.dependencies.contains_key(*expected_key),
+                "Expected key '{}' in dependencies",
+                expected_key
+            );
+            assert_eq!(index.dependencies[*expected_key], "1.0.0");
+        }
     }
 }

@@ -248,7 +248,9 @@ impl MiaoApp {
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
+                let http = reqwest::Client::new();
                 let result = miao_core::modrinth::api::search_mods(
+                    &http,
                     &query,
                     Some(&mc_version),
                     loader.as_deref(),
@@ -290,7 +292,9 @@ impl MiaoApp {
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
+                let http = reqwest::Client::new();
                 let result = miao_core::modrinth::api::get_project_versions(
+                    &http,
                     &project_slug,
                     Some(&mc_version),
                     loader.as_deref(),
@@ -405,7 +409,9 @@ impl MiaoApp {
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
+                let http = reqwest::Client::new();
                 match miao_core::modrinth::api::resolve_dependencies(
+                    &http,
                     &project_slug,
                     &mc_version,
                     &loader,
@@ -451,8 +457,10 @@ impl MiaoApp {
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
+                let http = reqwest::Client::new();
                 let result = if include_deps {
                     miao_core::modrinth::api::install_mod_with_dependencies(
+                        &http,
                         &pending.project_slug,
                         &pending.mc_version,
                         &pending.loader,
@@ -461,6 +469,7 @@ impl MiaoApp {
                     .await
                 } else {
                     miao_core::modrinth::api::install_mod_only(
+                        &http,
                         &pending.project_slug,
                         &pending.mc_version,
                         &pending.loader,

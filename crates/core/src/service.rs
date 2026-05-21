@@ -316,7 +316,7 @@ impl LauncherService {
         loader: Option<&str>,
         limit: u32,
     ) -> Result<modrinth::api::SearchResult> {
-        modrinth::api::search_mods(query, mc_version, loader, limit).await
+        modrinth::api::search_mods(&self.http, query, mc_version, loader, limit).await
     }
 
     pub async fn install_mod(
@@ -335,6 +335,7 @@ impl LauncherService {
 
         let mods_dir = Instance::mods_dir(&instance_dir);
         modrinth::api::install_mod_with_dependencies(
+            &self.http,
             project_id,
             &inst.minecraft_version,
             loader,
@@ -405,8 +406,6 @@ impl LauncherService {
     }
 }
 
-// ─── Account Helpers ─────────────────────────────────────────────────────
-
 impl LauncherService {
     pub fn add_offline_account(&mut self, username: &str) -> Result<()> {
         let account = create_offline_account(username);
@@ -422,5 +421,147 @@ impl LauncherService {
         self.config
             .active_account_index
             .and_then(|idx| self.config.accounts.get(idx))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_config(tmp: &std::path::Path) -> LauncherConfig {
+        let mut config = LauncherConfig::default();
+        config.data_dir = tmp.to_path_buf();
+        config
+    }
+
+    #[test]
+    fn new_service_holds_config() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_config(tmp.path());
+        let service = LauncherService::new(config.clone());
+        assert_eq!(service.config().data_dir, tmp.path());
+    }
+
+    #[test]
+    fn config_mut_allows_modification() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_config(tmp.path());
+        let mut service = LauncherService::new(config);
+        service.config_mut().max_concurrent_downloads = 16;
+        assert_eq!(service.config().max_concurrent_downloads, 16);
+    }
+
+    #[test]
+    fn update_config_replaces() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_config(tmp.path());
+        let mut service = LauncherService::new(config);
+
+        let tmp2 = tempfile::tempdir().unwrap();
+        let new_config = make_config(tmp2.path());
+        service.update_config(new_config);
+        assert_eq!(service.config().data_dir, tmp2.path());
+    }
+
+    #[test]
+    fn active_account_none_by_default() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_config(tmp.path());
+        let service = LauncherService::new(config);
+        assert!(service.active_account().is_none());
+    }
+
+    #[test]
+    fn add_offline_account_and_retrieve() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut config = make_config(tmp.path());
+        config.data_dir = tmp.path().to_path_buf();
+        let mut service = LauncherService::new(config);
+        service.add_offline_account("TestPlayer").unwrap();
+
+        let account = service.active_account().unwrap();
+        assert_eq!(account.username(), "TestPlayer");
+        assert!(account.is_offline());
+    }
+
+    #[test]
+    fn list_instances_empty_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_config(tmp.path());
+        let service = LauncherService::new(config);
+        let instances = service.list_instances().unwrap();
+        assert!(instances.is_empty());
+    }
+
+    #[test]
+    fn list_and_load_instance() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_config(tmp.path());
+        let service = LauncherService::new(config);
+
+        let inst_dir = Instance::instance_dir(&tmp.path().join("instances"), "my-server");
+        std::fs::create_dir_all(&inst_dir).unwrap();
+        let inst = Instance::new("my-server", "1.20.4");
+        inst.save_to(&inst_dir).unwrap();
+
+        let instances = service.list_instances().unwrap();
+        assert_eq!(instances.len(), 1);
+        assert_eq!(instances[0].name, "my-server");
+
+        let loaded = service.load_instance("my-server").unwrap();
+        assert_eq!(loaded.minecraft_version, "1.20.4");
+    }
+
+    #[test]
+    fn delete_instance_removes_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_config(tmp.path());
+        let service = LauncherService::new(config);
+
+        let inst_dir = Instance::instance_dir(&tmp.path().join("instances"), "to-delete");
+        std::fs::create_dir_all(&inst_dir).unwrap();
+        let inst = Instance::new("to-delete", "1.20.4");
+        inst.save_to(&inst_dir).unwrap();
+
+        assert!(inst_dir.exists());
+        service.delete_instance("to-delete").unwrap();
+        assert!(!inst_dir.exists());
+    }
+
+    #[test]
+    fn detect_java_returns_vec() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_config(tmp.path());
+        let service = LauncherService::new(config);
+        let _ = service.detect_java();
+    }
+
+    #[test]
+    fn load_version_meta_missing_returns_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_config(tmp.path());
+        let service = LauncherService::new(config);
+        let result = service.load_version_meta("1.99.99");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn export_instance_roundtrip() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_config(tmp.path());
+        let service = LauncherService::new(config);
+
+        let inst_dir = Instance::instance_dir(&tmp.path().join("instances"), "export-test");
+        std::fs::create_dir_all(&inst_dir).unwrap();
+        Instance::create_directories(&inst_dir).unwrap();
+        let inst = Instance::new("export-test", "1.20.4");
+        inst.save_to(&inst_dir).unwrap();
+
+        let output_dir = tmp.path().join("exports");
+        std::fs::create_dir_all(&output_dir).unwrap();
+
+        let mrpack_path = service.export_instance("export-test", &output_dir).unwrap();
+        assert!(mrpack_path.exists());
+        assert!(mrpack_path.to_str().unwrap().ends_with(".mrpack"));
     }
 }
