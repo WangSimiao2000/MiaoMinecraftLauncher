@@ -13,6 +13,15 @@ pub enum AppView {
     Welcome,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SettingsTab {
+    #[default]
+    Account,
+    Data,
+    Java,
+    About,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DetailTab {
     Mods,

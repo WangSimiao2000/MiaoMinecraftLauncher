@@ -12,8 +12,8 @@ use miao_core::version::VersionInfo;
 use std::sync::{Arc, Mutex};
 
 pub use crate::state::{
-    AppView, AsyncState, DetailTab, Dialog, ModSearchState, NewInstanceInput, SharedAsyncState,
-    VersionsState,
+    AppView, AsyncState, DetailTab, Dialog, ModSearchState, NewInstanceInput, SettingsTab,
+    SharedAsyncState, VersionsState,
 };
 use crate::theme;
 
@@ -34,6 +34,7 @@ pub struct MiaoApp {
     pub new_instance: NewInstanceInput,
     pub mod_search: ModSearchState,
 
+    pub settings_tab: SettingsTab,
     pub ctx: egui::Context,
     pub cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
     pub refresh_counter: u32,
@@ -100,6 +101,7 @@ impl MiaoApp {
             data_dir_input,
             new_instance: NewInstanceInput::default(),
             mod_search: ModSearchState::default(),
+            settings_tab: SettingsTab::default(),
             ctx: cc.egui_ctx.clone(),
             cached_javas: None,
             refresh_counter: 0,

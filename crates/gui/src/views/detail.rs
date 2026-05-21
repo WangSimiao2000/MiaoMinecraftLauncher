@@ -71,7 +71,7 @@ impl MiaoApp {
                         if ui.add(theme::launch_button()).clicked() {
                             self.launch_instance(idx);
                         }
-                        ui.add_space(4.0);
+                        ui.add_space(8.0);
                         if ui.button("Export").clicked() {
                             self.export_instance_with_dialog(idx);
                         }
@@ -82,7 +82,8 @@ impl MiaoApp {
                             );
                             let _ = miao_core::instance::open_folder(&dir);
                         }
-                        if ui.button("Delete").clicked() {
+                        ui.add_space(8.0);
+                        if ui.add(theme::danger_button("Delete")).clicked() {
                             let name = inst.name.clone();
                             if let Err(e) = miao_core::instance::delete_instance(
                                 &self.config.instances_dir(),
