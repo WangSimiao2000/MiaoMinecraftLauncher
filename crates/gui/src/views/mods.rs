@@ -62,46 +62,39 @@ impl MiaoApp {
             });
         } else {
             for mut m in mods {
-                egui::Frame::none()
-                    .fill(theme::Colors::BG_ELEVATED)
-                    .rounding(egui::Rounding::same(6.0))
-                    .inner_margin(egui::Margin::symmetric(10.0, 6.0))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            if m.enabled {
-                                let btn = egui::Button::new(
-                                    egui::RichText::new("ON")
-                                        .color(theme::Colors::SUCCESS)
-                                        .size(12.0),
-                                );
-                                if ui.add(btn).clicked() {
-                                    let _ = m.toggle();
-                                }
-                                ui.label(theme::body(&m.name));
-                            } else {
-                                let btn = egui::Button::new(
-                                    egui::RichText::new("OFF")
-                                        .color(theme::Colors::TEXT_MUTED)
-                                        .size(12.0),
-                                );
-                                if ui.add(btn).clicked() {
-                                    let _ = m.toggle();
-                                }
-                                ui.label(
-                                    egui::RichText::new(&m.name)
-                                        .color(theme::Colors::TEXT_DISABLED),
-                                );
-                            }
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    if ui.small_button("Del").clicked() {
-                                        let _ = m.delete();
-                                    }
-                                },
+                theme::list_item_card().show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        if m.enabled {
+                            let btn = egui::Button::new(
+                                egui::RichText::new("ON")
+                                    .color(theme::Colors::SUCCESS)
+                                    .size(12.0),
                             );
+                            if ui.add(btn).clicked() {
+                                let _ = m.toggle();
+                            }
+                            ui.label(theme::body(&m.name));
+                        } else {
+                            let btn = egui::Button::new(
+                                egui::RichText::new("OFF")
+                                    .color(theme::Colors::TEXT_MUTED)
+                                    .size(12.0),
+                            );
+                            if ui.add(btn).clicked() {
+                                let _ = m.toggle();
+                            }
+                            ui.label(
+                                egui::RichText::new(&m.name).color(theme::Colors::TEXT_DISABLED),
+                            );
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.small_button("Del").clicked() {
+                                let _ = m.delete();
+                            }
                         });
                     });
+                });
                 ui.add_space(2.0);
             }
         }
@@ -148,6 +141,7 @@ impl MiaoApp {
                     .rounding(egui::Rounding::same(6.0))
                     .inner_margin(egui::Margin::symmetric(12.0, 8.0))
                     .show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
                         ui.horizontal(|ui| {
                             ui.vertical(|ui| {
                                 ui.label(
@@ -200,24 +194,18 @@ impl MiaoApp {
             ui.add_space(6.0);
             let mut do_install = false;
             for ver in self.mod_search.versions.iter().take(10) {
-                egui::Frame::none()
-                    .fill(theme::Colors::BG_ELEVATED)
-                    .rounding(egui::Rounding::same(4.0))
-                    .inner_margin(egui::Margin::symmetric(10.0, 6.0))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(theme::body(&ver.name));
-                            ui.label(theme::small(&format!("[{}]", ver.version_type)));
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    if ui.button("Install").clicked() {
-                                        do_install = true;
-                                    }
-                                },
-                            );
+                theme::list_item_card().show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.label(theme::body(&ver.name));
+                        ui.label(theme::small(&format!("[{}]", ver.version_type)));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Install").clicked() {
+                                do_install = true;
+                            }
                         });
                     });
+                });
                 ui.add_space(3.0);
             }
             if do_install {
@@ -328,6 +316,7 @@ impl MiaoApp {
             .inner_margin(egui::Margin::same(14.0))
             .stroke(egui::Stroke::new(1.5, theme::Colors::ACCENT))
             .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
                 ui.label(theme::subheading("Confirm Installation"));
                 ui.add_space(8.0);
 

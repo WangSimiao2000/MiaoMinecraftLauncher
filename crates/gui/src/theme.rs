@@ -179,6 +179,13 @@ pub fn section_frame() -> egui::Frame {
         .inner_margin(Margin::same(16.0))
 }
 
+pub fn list_item_card() -> egui::Frame {
+    egui::Frame::none()
+        .fill(Colors::BG_ELEVATED)
+        .rounding(Rounding::same(6.0))
+        .inner_margin(Margin::symmetric(12.0, 8.0))
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ThemePreset {

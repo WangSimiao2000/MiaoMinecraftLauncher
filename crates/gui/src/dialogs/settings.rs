@@ -103,6 +103,7 @@ impl MiaoApp {
                     .rounding(egui::Rounding::same(6.0))
                     .inner_margin(egui::Margin::symmetric(12.0, 8.0))
                     .show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
                         ui.horizontal(|ui| {
                             let dot = if active { "●" } else { "○" };
                             ui.label(egui::RichText::new(dot).color(if active {
@@ -132,6 +133,7 @@ impl MiaoApp {
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.label(theme::body("Offline Account"));
             ui.add_space(6.0);
             ui.horizontal(|ui| {
@@ -157,6 +159,7 @@ impl MiaoApp {
         ui.add_space(12.0);
 
         theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.label(theme::body("Microsoft Account"));
             ui.add_space(6.0);
             if state.auth.logging_in {
@@ -197,6 +200,7 @@ impl MiaoApp {
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.label(theme::muted(
                 "Where game files are stored (instances, libraries, assets).",
             ));
@@ -239,6 +243,7 @@ impl MiaoApp {
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
                 ui.label(theme::body("Mirror:"));
                 ui.label(theme::muted(&format!("{:?}", self.config.download_mirror)));
@@ -271,6 +276,7 @@ impl MiaoApp {
         if let Some(ref javas) = self.cached_javas {
             if javas.is_empty() {
                 theme::section_frame().show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
                     ui.label(theme::muted("No Java installations detected."));
                     ui.add_space(4.0);
                     ui.label(theme::small(
@@ -279,21 +285,18 @@ impl MiaoApp {
                 });
             } else {
                 for j in javas {
-                    egui::Frame::none()
-                        .fill(theme::Colors::BG_ELEVATED)
-                        .rounding(egui::Rounding::same(6.0))
-                        .inner_margin(egui::Margin::symmetric(12.0, 8.0))
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    egui::RichText::new(format!("Java {}", j.major_version))
-                                        .strong()
-                                        .color(theme::Colors::TEXT_PRIMARY),
-                                );
-                                ui.label(theme::muted(&format!("({})", j.version)));
-                            });
-                            ui.label(theme::small(&j.path.display().to_string()));
+                    theme::list_item_card().show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new(format!("Java {}", j.major_version))
+                                    .strong()
+                                    .color(theme::Colors::TEXT_PRIMARY),
+                            );
+                            ui.label(theme::muted(&format!("({})", j.version)));
                         });
+                        ui.label(theme::small(&j.path.display().to_string()));
+                    });
                     ui.add_space(4.0);
                 }
             }
@@ -305,6 +308,7 @@ impl MiaoApp {
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.label(
                 egui::RichText::new("MMCL")
                     .size(24.0)
@@ -321,6 +325,7 @@ impl MiaoApp {
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.label(theme::body("MickeyMiao"));
             ui.add_space(8.0);
             ui.horizontal(|ui| {
@@ -343,6 +348,7 @@ impl MiaoApp {
         ui.add_space(16.0);
 
         theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.label(theme::muted("License: GPL-3.0-or-later"));
         });
     }
