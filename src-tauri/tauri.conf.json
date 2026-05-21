@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/nicosalm/tauri/refs/heads/dev/crates/tauri-schema-generator/schemas/config.schema.json",
   "productName": "MiaoMC",
   "version": "0.1.0",
   "identifier": "com.miao.mc",
@@ -9,6 +10,7 @@
     "beforeBuildCommand": "cd ui && npm run build"
   },
   "app": {
+    "title": "MiaoMC",
     "windows": [
       {
         "title": "MiaoMC",
