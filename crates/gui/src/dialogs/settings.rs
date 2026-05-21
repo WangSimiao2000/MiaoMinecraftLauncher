@@ -7,20 +7,36 @@ use crate::theme;
 
 impl MiaoApp {
     pub fn render_settings_page(&mut self, ui: &mut egui::Ui, state: &AsyncState) {
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            ui.add_space(theme::Spacing::SECTION_GAP);
+        let available_width = ui.available_width().min(600.0);
+        ui.vertical_centered(|ui| {
+            ui.set_max_width(available_width);
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.add_space(theme::Spacing::SECTION_GAP);
 
-            self.render_settings_general(ui);
-            ui.add_space(theme::Spacing::SECTION_GAP);
-            ui.separator();
-            ui.add_space(theme::Spacing::SECTION_GAP);
+                theme::section_frame().show(ui, |ui| {
+                    self.render_settings_general(ui);
+                });
 
-            self.render_settings_java(ui);
-            ui.add_space(theme::Spacing::SECTION_GAP);
-            ui.separator();
-            ui.add_space(theme::Spacing::SECTION_GAP);
+                ui.add_space(theme::Spacing::SECTION_GAP);
 
-            self.render_settings_accounts(ui, state);
+                theme::section_frame().show(ui, |ui| {
+                    self.render_settings_theme(ui);
+                });
+
+                ui.add_space(theme::Spacing::SECTION_GAP);
+
+                theme::section_frame().show(ui, |ui| {
+                    self.render_settings_java(ui);
+                });
+
+                ui.add_space(theme::Spacing::SECTION_GAP);
+
+                theme::section_frame().show(ui, |ui| {
+                    self.render_settings_accounts(ui, state);
+                });
+
+                ui.add_space(theme::Spacing::SECTION_GAP);
+            });
         });
     }
 
@@ -38,14 +54,21 @@ impl MiaoApp {
             {
                 self.data_dir_input = folder.display().to_string();
             }
-            if ui.button("Apply").clicked() {
-                let path = std::path::PathBuf::from(&self.data_dir_input);
-                let _ = std::fs::create_dir_all(&path);
-                self.config.data_dir = path;
-                let _ = self.config.save();
-                self.instances = miao_core::instance::list_instances(&self.config.instances_dir())
-                    .unwrap_or_default();
-                self.status = "Data directory updated.".to_string();
+            if ui.button("Apply & Migrate").clicked() {
+                let new_path = std::path::PathBuf::from(&self.data_dir_input);
+                let old_path = self.config.data_dir.clone();
+                if new_path != old_path {
+                    let _ = std::fs::create_dir_all(&new_path);
+                    if old_path.exists() {
+                        migrate_data_dir(&old_path, &new_path);
+                    }
+                    self.config.data_dir = new_path;
+                    let _ = self.config.save();
+                    self.instances =
+                        miao_core::instance::list_instances(&self.config.instances_dir())
+                            .unwrap_or_default();
+                    self.status = "Data directory migrated.".to_string();
+                }
             }
         });
 
@@ -59,6 +82,30 @@ impl MiaoApp {
             ui.label(theme::muted(
                 &self.config.max_concurrent_downloads.to_string(),
             ));
+        });
+    }
+
+    fn render_settings_theme(&mut self, ui: &mut egui::Ui) {
+        ui.label(theme::subheading("Appearance"));
+        ui.add_space(theme::Spacing::SMALL_GAP);
+
+        ui.horizontal(|ui| {
+            ui.label(theme::body("Theme:"));
+            for preset in theme::ThemePreset::ALL {
+                let selected = self.theme_preset == preset;
+                if ui.selectable_label(selected, preset.name()).clicked() {
+                    self.theme_preset = preset;
+                    theme::apply_theme(&self.ctx, preset);
+                }
+            }
+        });
+
+        ui.add_space(theme::Spacing::SMALL_GAP);
+        ui.horizontal(|ui| {
+            ui.label(theme::body("Accent preview:"));
+            let color = self.theme_preset.accent_light();
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(60.0, 16.0), egui::Sense::hover());
+            ui.painter().rect_filled(rect, theme::Radii::WIDGET, color);
         });
     }
 
@@ -148,5 +195,21 @@ impl MiaoApp {
         } else if ui.button("Microsoft Login").clicked() {
             self.start_ms_login();
         }
+    }
+}
+
+fn migrate_data_dir(old: &std::path::Path, new: &std::path::Path) {
+    let subdirs = ["instances", "versions", "libraries", "assets", "java"];
+    for dir in &subdirs {
+        let src = old.join(dir);
+        let dst = new.join(dir);
+        if src.exists() && !dst.exists() {
+            let _ = std::fs::rename(&src, &dst);
+        }
+    }
+    let config_src = old.join("config.toml");
+    let config_dst = new.join("config.toml");
+    if config_src.exists() && !config_dst.exists() {
+        let _ = std::fs::rename(&config_src, &config_dst);
     }
 }

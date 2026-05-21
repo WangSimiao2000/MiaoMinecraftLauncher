@@ -133,6 +133,95 @@ pub fn bottom_bar_frame() -> egui::Frame {
         .inner_margin(Margin::symmetric(12.0, 6.0))
 }
 
+pub fn section_frame() -> egui::Frame {
+    egui::Frame::none()
+        .fill(Colors::BG_ELEVATED)
+        .rounding(Radii::WINDOW)
+        .inner_margin(Margin::same(16.0))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThemePreset {
+    Dark,
+    Ocean,
+    Forest,
+    Warm,
+}
+
+impl ThemePreset {
+    pub const ALL: [ThemePreset; 4] = [
+        ThemePreset::Dark,
+        ThemePreset::Ocean,
+        ThemePreset::Forest,
+        ThemePreset::Warm,
+    ];
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            ThemePreset::Dark => "Dark (Default)",
+            ThemePreset::Ocean => "Ocean Blue",
+            ThemePreset::Forest => "Forest Green",
+            ThemePreset::Warm => "Warm Amber",
+        }
+    }
+
+    pub fn accent(&self) -> Color32 {
+        match self {
+            ThemePreset::Dark => Color32::from_rgb(75, 130, 195),
+            ThemePreset::Ocean => Color32::from_rgb(60, 150, 220),
+            ThemePreset::Forest => Color32::from_rgb(70, 160, 90),
+            ThemePreset::Warm => Color32::from_rgb(210, 150, 60),
+        }
+    }
+
+    pub fn accent_light(&self) -> Color32 {
+        match self {
+            ThemePreset::Dark => Color32::from_rgb(120, 180, 255),
+            ThemePreset::Ocean => Color32::from_rgb(100, 200, 255),
+            ThemePreset::Forest => Color32::from_rgb(120, 220, 130),
+            ThemePreset::Warm => Color32::from_rgb(255, 200, 100),
+        }
+    }
+}
+
+pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
+    let accent = preset.accent();
+    let mut style = (*ctx.style()).clone();
+
+    style.spacing.item_spacing = Spacing::ITEM;
+    style.spacing.button_padding = Spacing::BUTTON_PADDING;
+    style.spacing.window_margin = Spacing::WINDOW_MARGIN;
+
+    style.visuals.widgets.inactive.rounding = Radii::WIDGET;
+    style.visuals.widgets.hovered.rounding = Radii::WIDGET;
+    style.visuals.widgets.active.rounding = Radii::WIDGET;
+
+    style.visuals.widgets.inactive.bg_fill = Colors::BG_WIDGET;
+    style.visuals.widgets.hovered.bg_fill = Colors::BG_WIDGET_HOVER;
+    style.visuals.widgets.active.bg_fill = accent;
+
+    style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Colors::TEXT_PRIMARY);
+    style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+    style.visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+
+    style.visuals.selection.bg_fill = accent;
+    style.visuals.selection.stroke = Stroke::new(1.0, Color32::WHITE);
+
+    style.visuals.window_rounding = Radii::WINDOW;
+    style.visuals.window_shadow = egui::epaint::Shadow {
+        offset: Vec2::new(0.0, 4.0),
+        blur: 12.0,
+        spread: 0.0,
+        color: Color32::from_black_alpha(60),
+    };
+
+    style.visuals.panel_fill = Colors::BG_MAIN;
+    style.visuals.extreme_bg_color = Colors::BG_DARK;
+    style.visuals.faint_bg_color = Colors::BG_ELEVATED;
+
+    ctx.set_style(style);
+}
+
 pub fn apply_global_style(ctx: &egui::Context) {
     let mut style = (*ctx.style()).clone();
 

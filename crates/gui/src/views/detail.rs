@@ -82,9 +82,6 @@ impl MiaoApp {
                             );
                             let _ = miao_core::instance::open_folder(&dir);
                         }
-                        if ui.button("Java").clicked() {
-                            self.download_java_for_instance(idx);
-                        }
                         if ui.button("Delete").clicked() {
                             let name = inst.name.clone();
                             if let Err(e) = miao_core::instance::delete_instance(

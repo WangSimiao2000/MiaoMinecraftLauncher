@@ -81,6 +81,7 @@ pub struct MiaoApp {
     pub ctx: egui::Context,
     pub cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
     pub refresh_counter: u32,
+    pub theme_preset: crate::theme::ThemePreset,
 }
 
 impl MiaoApp {
@@ -150,6 +151,7 @@ impl MiaoApp {
             ctx: cc.egui_ctx.clone(),
             cached_javas: None,
             refresh_counter: 0,
+            theme_preset: crate::theme::ThemePreset::Dark,
         }
     }
 
@@ -333,7 +335,8 @@ impl MiaoApp {
         });
 
         let Some(java_path) = java_path else {
-            self.status = format!("No Java {} found! Click 'Java' to download.", required_java);
+            self.status = format!("Java {} not found, downloading...", required_java);
+            self.download_java_for_instance(idx);
             return;
         };
 
