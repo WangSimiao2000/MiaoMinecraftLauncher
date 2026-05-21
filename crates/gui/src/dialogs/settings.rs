@@ -7,28 +7,41 @@ use crate::theme;
 
 impl MiaoApp {
     pub fn render_settings_page(&mut self, ui: &mut egui::Ui, state: &AsyncState) {
+        let total_rect = ui.available_rect_before_wrap();
         let nav_width = 150.0;
 
-        ui.horizontal(|ui| {
-            ui.allocate_ui(egui::vec2(nav_width, ui.available_height()), |ui| {
-                self.render_settings_nav(ui);
+        let nav_rect =
+            egui::Rect::from_min_size(total_rect.min, egui::vec2(nav_width, total_rect.height()));
+        let content_rect = egui::Rect::from_min_max(
+            egui::pos2(total_rect.min.x + nav_width + 1.0, total_rect.min.y),
+            total_rect.max,
+        );
+
+        let mut nav_ui = ui.new_child(egui::UiBuilder::new().max_rect(nav_rect));
+        self.render_settings_nav(&mut nav_ui);
+
+        ui.painter().vline(
+            nav_rect.right(),
+            total_rect.y_range(),
+            egui::Stroke::new(1.0, theme::Colors::BG_WIDGET),
+        );
+
+        let mut content_ui = ui.new_child(egui::UiBuilder::new().max_rect(content_rect));
+        egui::ScrollArea::vertical()
+            .id_salt("settings_content")
+            .show(&mut content_ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.add_space(12.0);
+                match self.settings_tab {
+                    SettingsTab::Account => self.render_tab_account(ui, state),
+                    SettingsTab::Data => self.render_tab_data(ui),
+                    SettingsTab::Java => self.render_tab_java(ui),
+                    SettingsTab::About => self.render_tab_about(ui),
+                }
+                ui.add_space(16.0);
             });
-            ui.separator();
-            ui.vertical(|ui| {
-                egui::ScrollArea::vertical()
-                    .id_salt("settings_content")
-                    .show(ui, |ui| {
-                        ui.add_space(8.0);
-                        match self.settings_tab {
-                            SettingsTab::Account => self.render_tab_account(ui, state),
-                            SettingsTab::Data => self.render_tab_data(ui),
-                            SettingsTab::Java => self.render_tab_java(ui),
-                            SettingsTab::About => self.render_tab_about(ui),
-                        }
-                        ui.add_space(16.0);
-                    });
-            });
-        });
+
+        ui.allocate_rect(total_rect, egui::Sense::hover());
     }
 
     fn render_settings_nav(&mut self, ui: &mut egui::Ui) {
