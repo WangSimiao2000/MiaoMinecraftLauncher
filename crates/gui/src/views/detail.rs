@@ -119,10 +119,25 @@ impl MiaoApp {
                 } else {
                     egui::RichText::new(label).color(theme::Colors::TEXT_SECONDARY)
                 };
-                if ui.selectable_label(selected, text).clicked() {
+
+                let response = ui.selectable_label(false, text);
+
+                if selected {
+                    let rect = response.rect;
+                    let bottom = rect.bottom();
+                    ui.painter().rect_filled(
+                        egui::Rect::from_min_max(
+                            egui::pos2(rect.left() + 2.0, bottom - theme::TAB_UNDERLINE_HEIGHT),
+                            egui::pos2(rect.right() - 2.0, bottom),
+                        ),
+                        egui::Rounding::same(1.5),
+                        theme::Colors::ACCENT,
+                    );
+                }
+
+                if response.clicked() {
                     self.active_tab = tab;
                 }
-                ui.add_space(4.0);
             }
         });
     }

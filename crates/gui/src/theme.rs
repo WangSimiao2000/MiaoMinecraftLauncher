@@ -27,12 +27,13 @@ impl Colors {
 pub struct Spacing;
 
 impl Spacing {
-    pub const ITEM: Vec2 = Vec2::new(8.0, 6.0);
-    pub const BUTTON_PADDING: Vec2 = Vec2::new(10.0, 4.0);
-    pub const WINDOW_MARGIN: Margin = Margin::same(12.0);
-    pub const PANEL_MARGIN: Margin = Margin::same(10.0);
-    pub const SECTION_GAP: f32 = 12.0;
-    pub const SMALL_GAP: f32 = 4.0;
+    pub const ITEM: Vec2 = Vec2::new(8.0, 8.0);
+    pub const BUTTON_PADDING: Vec2 = Vec2::new(12.0, 6.0);
+    pub const INTERACT_SIZE: Vec2 = Vec2::new(40.0, 28.0);
+    pub const WINDOW_MARGIN: Margin = Margin::same(14.0);
+    pub const PANEL_MARGIN: Margin = Margin::same(12.0);
+    pub const SECTION_GAP: f32 = 16.0;
+    pub const SMALL_GAP: f32 = 6.0;
 }
 
 pub struct Radii;
@@ -102,17 +103,55 @@ pub fn status_text(text: &str) -> RichText {
         .color(Colors::TEXT_SECONDARY)
 }
 
+pub const LIST_ITEM_ROUNDING: Rounding = Rounding::same(6.0);
+pub const TAB_UNDERLINE_HEIGHT: f32 = 2.5;
+
+pub fn list_item_frame(hovered: bool, selected: bool) -> egui::Frame {
+    let fill = if selected {
+        Colors::BG_WIDGET_ACTIVE.gamma_multiply(0.3)
+    } else if hovered {
+        Colors::BG_WIDGET_HOVER
+    } else {
+        Color32::TRANSPARENT
+    };
+    egui::Frame::none()
+        .fill(fill)
+        .rounding(LIST_ITEM_ROUNDING)
+        .inner_margin(Margin::symmetric(10.0, 6.0))
+}
+
 pub fn launch_button() -> egui::Button<'static> {
-    egui::Button::new(RichText::new("Launch").size(Fonts::BUTTON).strong())
+    egui::Button::new(RichText::new("▶ Launch").size(Fonts::BUTTON).strong())
         .fill(Colors::SUCCESS)
-        .rounding(Radii::WIDGET)
+        .rounding(Rounding::same(6.0))
 }
 
 #[allow(dead_code)]
 pub fn danger_button(text: &str) -> egui::Button<'_> {
     egui::Button::new(RichText::new(text).size(Fonts::BODY))
         .fill(Colors::DANGER)
-        .rounding(Radii::WIDGET)
+        .rounding(Rounding::same(6.0))
+}
+
+#[allow(dead_code)]
+pub fn card_frame() -> egui::Frame {
+    egui::Frame::none()
+        .fill(Colors::BG_ELEVATED)
+        .rounding(Rounding::same(8.0))
+        .inner_margin(Margin::same(14.0))
+        .stroke(Stroke::new(1.0, Color32::from_white_alpha(6)))
+}
+
+#[allow(dead_code)]
+pub fn subtle_separator(ui: &mut egui::Ui) {
+    ui.add_space(4.0);
+    let rect = ui.available_rect_before_wrap();
+    let y = rect.top();
+    ui.painter().line_segment(
+        [egui::pos2(rect.left(), y), egui::pos2(rect.right(), y)],
+        Stroke::new(0.5, Color32::from_white_alpha(15)),
+    );
+    ui.add_space(4.0);
 }
 
 pub fn panel_frame() -> egui::Frame {
@@ -189,6 +228,7 @@ pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
     let mut style = (*ctx.style()).clone();
 
     style.spacing.item_spacing = Spacing::ITEM;
+    style.spacing.interact_size = Spacing::INTERACT_SIZE;
     style.spacing.button_padding = Spacing::BUTTON_PADDING;
     style.spacing.window_margin = Spacing::WINDOW_MARGIN;
 
@@ -219,6 +259,9 @@ pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
     style.visuals.extreme_bg_color = Colors::BG_DARK;
     style.visuals.faint_bg_color = Colors::BG_ELEVATED;
 
+    style.visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);
+    style.visuals.slider_trailing_fill = true;
+
     ctx.set_style(style);
 }
 
@@ -227,6 +270,7 @@ pub fn apply_global_style(ctx: &egui::Context) {
 
     style.spacing.item_spacing = Spacing::ITEM;
     style.spacing.button_padding = Spacing::BUTTON_PADDING;
+    style.spacing.interact_size = Spacing::INTERACT_SIZE;
     style.spacing.window_margin = Spacing::WINDOW_MARGIN;
 
     style.visuals.widgets.inactive.rounding = Radii::WIDGET;
@@ -246,15 +290,24 @@ pub fn apply_global_style(ctx: &egui::Context) {
 
     style.visuals.window_rounding = Radii::WINDOW;
     style.visuals.window_shadow = egui::epaint::Shadow {
-        offset: Vec2::new(0.0, 4.0),
-        blur: 12.0,
+        offset: Vec2::new(0.0, 6.0),
+        blur: 20.0,
         spread: 0.0,
-        color: Color32::from_black_alpha(60),
+        color: Color32::from_black_alpha(80),
+    };
+    style.visuals.popup_shadow = egui::epaint::Shadow {
+        offset: Vec2::new(0.0, 8.0),
+        blur: 24.0,
+        spread: 0.0,
+        color: Color32::from_black_alpha(100),
     };
 
     style.visuals.panel_fill = Colors::BG_MAIN;
     style.visuals.extreme_bg_color = Colors::BG_DARK;
     style.visuals.faint_bg_color = Colors::BG_ELEVATED;
+
+    style.visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);
+    style.visuals.slider_trailing_fill = true;
 
     ctx.set_style(style);
 }

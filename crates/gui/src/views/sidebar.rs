@@ -37,18 +37,49 @@ impl MiaoApp {
                         for i in 0..self.instances.len() {
                             let selected = self.selected_instance == Some(i);
                             let inst = &self.instances[i];
-                            let loader_badge = inst
-                                .mod_loader
-                                .as_ref()
-                                .map(|l| format!(" [{}]", l.loader_type))
-                                .unwrap_or_default();
-                            let label = format!("{}{}", inst.name, loader_badge);
-                            let text = if selected {
-                                egui::RichText::new(&label).color(egui::Color32::WHITE)
-                            } else {
-                                egui::RichText::new(&label).color(theme::Colors::TEXT_PRIMARY)
-                            };
-                            if ui.selectable_label(selected, text).clicked() {
+
+                            let response = ui
+                                .scope(|ui| {
+                                    let rect = ui.available_rect_before_wrap();
+                                    let sense = egui::Sense::click();
+                                    let (rect, response) =
+                                        ui.allocate_at_least(egui::vec2(rect.width(), 36.0), sense);
+
+                                    let hovered = response.hovered();
+                                    let frame = theme::list_item_frame(hovered, selected);
+                                    let painter = ui.painter_at(rect);
+                                    let visuals = frame.fill;
+                                    painter.rect_filled(rect, theme::LIST_ITEM_ROUNDING, visuals);
+
+                                    let text_rect = rect.shrink2(egui::vec2(10.0, 0.0));
+                                    painter.text(
+                                        text_rect.left_center(),
+                                        egui::Align2::LEFT_CENTER,
+                                        &inst.name,
+                                        egui::FontId::proportional(13.0),
+                                        if selected {
+                                            egui::Color32::WHITE
+                                        } else {
+                                            theme::Colors::TEXT_PRIMARY
+                                        },
+                                    );
+
+                                    if let Some(loader) = &inst.mod_loader {
+                                        let badge = format!("[{}]", loader.loader_type);
+                                        painter.text(
+                                            text_rect.right_center(),
+                                            egui::Align2::RIGHT_CENTER,
+                                            &badge,
+                                            egui::FontId::proportional(11.0),
+                                            theme::Colors::TEXT_MUTED,
+                                        );
+                                    }
+
+                                    response
+                                })
+                                .inner;
+
+                            if response.clicked() {
                                 self.selected_instance = Some(i);
                                 self.active_tab = DetailTab::Mods;
                             }
