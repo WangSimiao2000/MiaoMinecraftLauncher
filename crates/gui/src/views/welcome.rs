@@ -8,7 +8,7 @@ impl MiaoApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add_space(80.0);
             ui.vertical_centered(|ui| {
-                ui.label(theme::heading("Welcome to MiaoMC"));
+                ui.label(theme::heading("Welcome to MMCL"));
                 ui.add_space(theme::Spacing::SECTION_GAP);
                 ui.label(theme::body("A lightweight Minecraft launcher for Linux"));
                 ui.add_space(40.0);

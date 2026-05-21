@@ -93,7 +93,7 @@ impl MiaoApp {
         ui.label(theme::subheading("About"));
         ui.add_space(theme::Spacing::SMALL_GAP);
 
-        ui.label(theme::body("MiaoMC Launcher v0.1.0"));
+        ui.label(theme::body("MMCL v0.1.0"));
         ui.label(theme::muted("by MickeyMiao"));
         ui.add_space(8.0);
 

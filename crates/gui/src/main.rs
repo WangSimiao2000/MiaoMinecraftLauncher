@@ -11,12 +11,12 @@ fn main() -> Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([960.0, 640.0])
             .with_min_inner_size([720.0, 480.0])
-            .with_title("MiaoMC"),
+            .with_title("MMCL"),
         ..Default::default()
     };
 
     eframe::run_native(
-        "MiaoMC",
+        "MMCL",
         options,
         Box::new(|cc| {
             let mut fonts = egui::FontDefinitions::default();

@@ -191,9 +191,9 @@ impl eframe::App for MiaoApp {
                     .frame(theme::top_bar_frame())
                     .show(ctx, |ui| {
                         ui.horizontal(|ui| {
-                            ui.label(theme::heading("MiaoMC"));
+                            ui.label(theme::heading("MMCL"));
                             ui.add_space(8.0);
-                            ui.label(theme::small("Minecraft Launcher"));
+                            ui.label(theme::small("MiaoMinecraftLauncher"));
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {

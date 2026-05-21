@@ -32,7 +32,7 @@ impl MiaoApp {
     fn render_welcome(&self, ui: &mut egui::Ui) {
         ui.add_space(100.0);
         ui.vertical_centered(|ui| {
-            ui.label(theme::heading("Welcome to MiaoMC"));
+            ui.label(theme::heading("Welcome to MMCL"));
             ui.add_space(theme::Spacing::SECTION_GAP);
             ui.label(theme::muted(
                 "Select an instance from the left panel,\nor click '+ New' to create one.",
