@@ -12,7 +12,7 @@ impl MiaoApp {
         ui.horizontal(|ui| {
             ui.label(theme::subheading(&format!("Worlds ({})", saves.len())));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("Open folder").clicked() {
+                if ui.button("Open folder").clicked() {
                     let _ = miao_core::instance::open_folder(&saves_dir);
                 }
             });

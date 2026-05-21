@@ -46,7 +46,11 @@ impl MiaoApp {
 
         ui.horizontal(|ui| {
             ui.label(theme::body("Data directory:"));
-            ui.text_edit_singleline(&mut self.data_dir_input);
+            ui.add(
+                egui::TextEdit::singleline(&mut self.data_dir_input)
+                    .vertical_align(egui::Align::Center)
+                    .min_size(ui.spacing().interact_size),
+            );
             if ui.button("Browse").clicked()
                 && let Some(folder) = rfd::FileDialog::new()
                     .set_title("Select data directory")
@@ -113,7 +117,7 @@ impl MiaoApp {
         ui.horizontal(|ui| {
             ui.label(theme::subheading("Java Installations"));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("Refresh").clicked() {
+                if ui.button("Refresh").clicked() {
                     self.cached_javas = None;
                 }
             });
@@ -166,7 +170,11 @@ impl MiaoApp {
 
         ui.horizontal(|ui| {
             ui.label("Username:");
-            ui.text_edit_singleline(&mut self.offline_username_input);
+            ui.add(
+                egui::TextEdit::singleline(&mut self.offline_username_input)
+                    .vertical_align(egui::Align::Center)
+                    .min_size(ui.spacing().interact_size),
+            );
             if ui.button("Add Offline").clicked() && !self.offline_username_input.is_empty() {
                 let account = create_offline_account(&self.offline_username_input);
                 self.config.accounts.push(AuthMethod::Offline(account));
@@ -181,8 +189,8 @@ impl MiaoApp {
 
         ui.add_space(theme::Spacing::SMALL_GAP);
 
-        if state.ms_logging_in {
-            if let Some(ref dc) = state.ms_device_code {
+        if state.auth.logging_in {
+            if let Some(ref dc) = state.auth.device_code {
                 ui.label(theme::body(&format!(
                     "Go to: {} and enter code: {}",
                     dc.verification_uri, dc.user_code

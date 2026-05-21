@@ -2,7 +2,93 @@
 
 ## Overview
 
-A feature-rich Minecraft launcher for Linux, built in Rust with dual interface support (TUI via ratatui, GUI via egui).
+A feature-rich Minecraft launcher for Linux, built in Rust with CLI and GUI (egui) interfaces.
+
+---
+
+## UI Design Rules
+
+### 1. Control Height — The Fundamental Rule
+
+All interactive controls on the same horizontal row MUST share the same total height.
+
+| Token | Height | Use Case |
+|-------|--------|----------|
+| `CONTROL_HEIGHT` | **28px** | All buttons, text inputs, combo boxes |
+| `CONTROL_HEIGHT_SMALL` | 22px | Only for inline list actions (Del in table rows) |
+
+### 2. Grid System — 4px Base
+
+Every dimension (height, width, padding, margin, gap) must be a multiple of 4px.
+
+```
+Scale: 4, 8, 12, 16, 20, 24, 28, 32, 40, 48
+```
+
+### 3. Spacing Tokens
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `ITEM_SPACING` | 8×8 | Default gap between adjacent widgets |
+| `BUTTON_PADDING` | 12×6 | Internal padding for buttons |
+| `SECTION_GAP` | 16 | Between section cards |
+| `SMALL_GAP` | 6 | Between related items |
+| `PANEL_MARGIN` | 12 | Panel internal margin |
+| `WINDOW_MARGIN` | 14 | Window internal margin |
+
+### 4. Horizontal Row Alignment Rules
+
+**Rule A**: All widgets in `ui.horizontal()` resolve to the same height via `interact_size.y = 28px`.
+
+**Rule B**: TextEdit must match button height:
+```rust
+egui::TextEdit::singleline(&mut text)
+    .min_size(ui.spacing().interact_size)
+    .margin(ui.spacing().button_padding)
+```
+
+**Rule C**: No mixing `small_button` and `button` in same row. Use consistent sizing, differentiate by text color if needed.
+
+**Rule D**: Label-to-control gap = 8px (1 item_spacing unit).
+
+### 5. Typography
+
+| Style | Size | Use |
+|-------|------|-----|
+| Title | 22px Bold | Instance name, page title |
+| Heading | 20px Bold | Section heading |
+| Subheading | 14px Bold | Card headers |
+| Body | 13px | Primary content |
+| Small | 11px | Hints, secondary info |
+| Button | 14px | Button labels |
+
+### 6. Color Layers (Dark Theme)
+
+| Layer | RGB | Use |
+|-------|-----|-----|
+| BG_DARK | 22,24,30 | Top/bottom bars |
+| BG_PANEL | 26,29,36 | Sidebar |
+| BG_MAIN | 30,33,40 | Central panel |
+| BG_ELEVATED | 38,42,52 | Cards |
+| BG_WIDGET | 45,50,60 | Inputs, inactive buttons |
+| BG_WIDGET_HOVER | 60,70,85 | Hover state |
+
+### 7. Corner Radius
+
+| Element | Radius |
+|---------|--------|
+| Widgets | 4px |
+| Cards | 8px |
+| List items | 6px |
+
+### 8. Shadow
+
+| Element | Offset | Blur | Alpha |
+|---------|--------|------|-------|
+| Window | 0,6 | 20 | 80 |
+| Popup | 0,8 | 24 | 100 |
+
+---
 
 ## Architecture
 

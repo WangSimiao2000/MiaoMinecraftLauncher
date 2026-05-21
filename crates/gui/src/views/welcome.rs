@@ -21,7 +21,11 @@ impl MiaoApp {
                 ui.add_space(8.0);
 
                 ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut self.data_dir_input);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.data_dir_input)
+                            .vertical_align(egui::Align::Center)
+                            .min_size(ui.spacing().interact_size),
+                    );
                     if ui.button("Browse").clicked()
                         && let Some(folder) = rfd::FileDialog::new()
                             .set_title("Select data directory")

@@ -11,7 +11,7 @@ impl MiaoApp {
         ui.horizontal(|ui| {
             ui.label(theme::subheading("Game Log"));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if log_path.exists() && ui.small_button("Open in editor").clicked() {
+                if log_path.exists() && ui.button("Open in editor").clicked() {
                     let _ = open::that(&log_path);
                 }
             });
