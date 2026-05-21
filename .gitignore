@@ -4,4 +4,3 @@ Cargo.lock
 *.swo
 .idea/
 .vscode/
-node_modules/
