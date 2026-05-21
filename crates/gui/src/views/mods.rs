@@ -63,7 +63,7 @@ impl MiaoApp {
         } else {
             for mut m in mods {
                 theme::list_item_card().show(ui, |ui| {
-                    ui.set_min_width(ui.available_width() - 10.0);
+                    ui.set_min_width(ui.available_width());
                     ui.horizontal(|ui| {
                         if m.enabled {
                             let btn = egui::Button::new(
@@ -141,7 +141,7 @@ impl MiaoApp {
                     .rounding(egui::Rounding::same(6.0))
                     .inner_margin(egui::Margin::symmetric(12.0, 8.0))
                     .show(ui, |ui| {
-                        ui.set_min_width(ui.available_width() - 10.0);
+                        ui.set_min_width(ui.available_width());
                         ui.horizontal(|ui| {
                             ui.vertical(|ui| {
                                 ui.label(
@@ -195,7 +195,7 @@ impl MiaoApp {
             let mut do_install = false;
             for ver in self.mod_search.versions.iter().take(10) {
                 theme::list_item_card().show(ui, |ui| {
-                    ui.set_min_width(ui.available_width() - 10.0);
+                    ui.set_min_width(ui.available_width());
                     ui.horizontal(|ui| {
                         ui.label(theme::body(&ver.name));
                         ui.label(theme::small(&format!("[{}]", ver.version_type)));
@@ -316,7 +316,7 @@ impl MiaoApp {
             .inner_margin(egui::Margin::same(14.0))
             .stroke(egui::Stroke::new(1.5, theme::Colors::ACCENT))
             .show(ui, |ui| {
-                ui.set_min_width(ui.available_width() - 10.0);
+                ui.set_min_width(ui.available_width());
                 ui.label(theme::subheading("Confirm Installation"));
                 ui.add_space(8.0);
 
