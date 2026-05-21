@@ -25,7 +25,10 @@ impl From<&Instance> for InstanceInfo {
         Self {
             name: inst.name.clone(),
             minecraft_version: inst.minecraft_version.clone(),
-            loader_type: inst.mod_loader.as_ref().map(|l| l.loader_type.as_str().to_string()),
+            loader_type: inst
+                .mod_loader
+                .as_ref()
+                .map(|l| l.loader_type.as_str().to_string()),
             loader_version: inst.mod_loader.as_ref().map(|l| l.version.clone()),
         }
     }
@@ -80,9 +83,10 @@ pub async fn create_instance(
     let config = load_config();
     let http = reqwest::Client::new();
 
-    let versions = miao_core::version::manifest::fetch_version_manifest(&http, &config.download_mirror)
-        .await
-        .map_err(|e| e.to_string())?;
+    let versions =
+        miao_core::version::manifest::fetch_version_manifest(&http, &config.download_mirror)
+            .await
+            .map_err(|e| e.to_string())?;
 
     let ver = versions
         .iter()
@@ -91,12 +95,14 @@ pub async fn create_instance(
 
     let instance_name = name.unwrap_or_else(|| version.clone());
 
-    let meta = miao_core::version::install::fetch_version_meta(&http, &ver.url, &config.download_mirror)
-        .await
-        .map_err(|e| e.to_string())?;
+    let meta =
+        miao_core::version::install::fetch_version_meta(&http, &ver.url, &config.download_mirror)
+            .await
+            .map_err(|e| e.to_string())?;
     miao_core::version::install::save_version_meta(&meta, &config).map_err(|e| e.to_string())?;
 
-    let tasks = miao_core::version::install::all_download_tasks(&meta, &config, &config.download_mirror);
+    let tasks =
+        miao_core::version::install::all_download_tasks(&meta, &config, &config.download_mirror);
     let dm = miao_core::download::manager::DownloadManager::new(
         config.download_mirror.clone(),
         config.max_concurrent_downloads,
@@ -112,13 +118,17 @@ pub async fn create_instance(
             .await
             .map_err(|e| e.to_string())?;
         let asset_tasks = miao_core::version::assets::collect_asset_downloads(
-            &asset_index, &config, &config.download_mirror,
+            &asset_index,
+            &config,
+            &config.download_mirror,
         );
         let dm2 = miao_core::download::manager::DownloadManager::new(
             config.download_mirror.clone(),
             config.max_concurrent_downloads,
         );
-        dm2.download_all(asset_tasks).await.map_err(|e| e.to_string())?;
+        dm2.download_all(asset_tasks)
+            .await
+            .map_err(|e| e.to_string())?;
     }
 
     let mut inst = Instance::new(&instance_name, &version);
@@ -129,9 +139,10 @@ pub async fn create_instance(
             .find(|t| t.as_str() == lt_str)
             .cloned()
             .ok_or_else(|| format!("Unknown loader: {}", lt_str))?;
-        let loader_config = miao_core::modloader::install_loader(&http, &lt, &version, &lv, &config)
-            .await
-            .map_err(|e| e.to_string())?;
+        let loader_config =
+            miao_core::modloader::install_loader(&http, &lt, &version, &lv, &config)
+                .await
+                .map_err(|e| e.to_string())?;
         inst.mod_loader = Some(loader_config);
     }
 
@@ -171,13 +182,15 @@ pub fn launch_instance(name: String) -> Result<String, String> {
 
     let required_java = meta.required_java_major();
     let java_installations = java::detect_system_java();
-    let java_path = inst
-        .java_path
-        .clone()
-        .or_else(|| java::find_compatible_java(&java_installations, required_java).map(|j| j.path.clone()));
+    let java_path = inst.java_path.clone().or_else(|| {
+        java::find_compatible_java(&java_installations, required_java).map(|j| j.path.clone())
+    });
 
     let Some(java_path) = java_path else {
-        return Err(format!("Java {} not found. Please download it first.", required_java));
+        return Err(format!(
+            "Java {} not found. Please download it first.",
+            required_java
+        ));
     };
 
     let options = LaunchOptions {
@@ -213,10 +226,7 @@ pub async fn search_mods(
 }
 
 #[tauri::command]
-pub async fn install_mod(
-    instance_name: String,
-    project_id: String,
-) -> Result<Vec<String>, String> {
+pub async fn install_mod(instance_name: String, project_id: String) -> Result<Vec<String>, String> {
     let config = load_config();
     let instance_dir = Instance::instance_dir(&config.instances_dir(), &instance_name);
     let inst = Instance::load_from(&instance_dir).map_err(|e| e.to_string())?;

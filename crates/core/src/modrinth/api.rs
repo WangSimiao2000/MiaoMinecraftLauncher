@@ -5,13 +5,13 @@ const MODRINTH_API: &str = "https://api.modrinth.com/v2";
 const USER_AGENT: &str =
     "MiaoMinecraftLauncher/0.1.0 (github.com/WangSimiao2000/MiaoMinecraftLauncher)";
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct SearchResult {
     pub hits: Vec<SearchHit>,
     pub total_hits: u32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct SearchHit {
     pub project_id: String,
     pub slug: String,
@@ -24,7 +24,7 @@ pub struct SearchHit {
     pub icon_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct ProjectVersion {
     pub id: String,
     pub project_id: String,
@@ -39,7 +39,7 @@ pub struct ProjectVersion {
     pub date_published: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct VersionFile {
     pub url: String,
     pub filename: String,
@@ -48,13 +48,13 @@ pub struct VersionFile {
     pub hashes: FileHashes,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct FileHashes {
     pub sha1: Option<String>,
     pub sha512: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct Dependency {
     pub project_id: Option<String>,
     pub version_id: Option<String>,
