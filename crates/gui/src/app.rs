@@ -231,9 +231,15 @@ impl eframe::App for MiaoApp {
 
                 self.render_sidebar(ctx);
 
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    self.render_detail(ui);
-                });
+                egui::CentralPanel::default()
+                    .frame(
+                        egui::Frame::none()
+                            .fill(theme::Colors::BG_MAIN)
+                            .inner_margin(egui::Margin::same(12.0)),
+                    )
+                    .show(ctx, |ui| {
+                        self.render_detail(ui);
+                    });
 
                 match self.active_dialog {
                     Dialog::NewInstance => self.render_new_instance_dialog(ctx, &state),
