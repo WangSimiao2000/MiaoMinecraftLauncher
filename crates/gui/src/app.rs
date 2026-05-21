@@ -12,7 +12,7 @@ use miao_core::version::VersionInfo;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-const MS_CLIENT_ID: &str = "00000000-0000-0000-0000-000000000000";
+const MS_CLIENT_ID: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
 
 #[derive(Debug, Clone, Default)]
 struct AsyncState {
