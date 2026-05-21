@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_DIR/target/appimage"
-APP_DIR="$BUILD_DIR/MiaoMC.AppDir"
+APP_DIR="$BUILD_DIR/MMCL.AppDir"
 
 echo "Building release binary..."
 cargo build --release -p miao-gui --manifest-path "$PROJECT_DIR/Cargo.toml"
@@ -48,6 +48,6 @@ if [ ! -f "$APPIMAGETOOL" ]; then
 fi
 
 echo "Building AppImage..."
-ARCH=$(uname -m) "$APPIMAGETOOL" "$APP_DIR" "$BUILD_DIR/MiaoMC-$ARCH.AppImage"
+ARCH=$(uname -m) "$APPIMAGETOOL" "$APP_DIR" "$BUILD_DIR/MMCL-$ARCH.AppImage"
 
-echo "Done: $BUILD_DIR/MiaoMC-$ARCH.AppImage"
+echo "Done: $BUILD_DIR/MMCL-$ARCH.AppImage"

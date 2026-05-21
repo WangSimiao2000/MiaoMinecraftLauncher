@@ -1,7 +1,7 @@
 [Desktop Entry]
-Name=MiaoMC
+Name=MMCL
 Exec=miao-gui
 Icon=miao-mc
 Type=Application
 Categories=Game;
-Comment=A lightweight Minecraft launcher for Linux
+Comment=A feature-rich Minecraft launcher for Linux
