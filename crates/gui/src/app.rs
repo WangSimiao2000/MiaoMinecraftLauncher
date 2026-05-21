@@ -59,6 +59,8 @@ pub struct MiaoApp {
     mod_search_selected: usize,
     mod_searching: bool,
     ctx: egui::Context,
+    cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
+    refresh_counter: u32,
 }
 
 impl MiaoApp {
@@ -116,19 +118,24 @@ impl MiaoApp {
             mod_search_selected: 0,
             mod_searching: false,
             ctx: cc.egui_ctx.clone(),
+            cached_javas: None,
+            refresh_counter: 0,
         }
     }
 }
 
 impl eframe::App for MiaoApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let fresh = instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
-        if fresh.len() != self.instances.len() {
-            self.instances = fresh;
-            if let Some(idx) = self.selected_instance
-                && idx >= self.instances.len()
-            {
-                self.selected_instance = None;
+        self.refresh_counter += 1;
+        if self.refresh_counter.is_multiple_of(60) {
+            let fresh = instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
+            if fresh.len() != self.instances.len() {
+                self.instances = fresh;
+                if let Some(idx) = self.selected_instance
+                    && idx >= self.instances.len()
+                {
+                    self.selected_instance = None;
+                }
             }
         }
 
@@ -164,69 +171,96 @@ impl eframe::App for MiaoApp {
             ctx.request_repaint();
         }
 
-        egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("🐱 MiaoMC");
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("⚙ Settings").clicked() {
-                        self.active_dialog = Dialog::Settings;
-                    }
-                    if ui.button("👤 Accounts").clicked() {
-                        self.active_dialog = Dialog::Accounts;
-                    }
+        egui::TopBottomPanel::top("top_bar")
+            .frame(crate::theme::top_bar_frame())
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(crate::theme::heading("MiaoMC"));
+                    ui.add_space(8.0);
+                    ui.label(crate::theme::small("Minecraft Launcher"));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("Settings").clicked() {
+                            self.active_dialog = Dialog::Settings;
+                        }
+                        if ui.button("Accounts").clicked() {
+                            self.active_dialog = Dialog::Accounts;
+                        }
+                    });
                 });
             });
-        });
 
-        egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
-            if state.installing && state.progress_total > 0 {
-                let fraction = state.progress_completed as f32 / state.progress_total.max(1) as f32;
-                let text = format!(
-                    "{} ({}/{})",
-                    state.progress_label, state.progress_completed, state.progress_total
-                );
-                ui.add(egui::ProgressBar::new(fraction).text(text));
-            } else {
-                ui.label(&self.status);
-            }
-        });
+        egui::TopBottomPanel::bottom("status_bar")
+            .frame(crate::theme::bottom_bar_frame())
+            .show(ctx, |ui| {
+                if state.installing && state.progress_total > 0 {
+                    let fraction =
+                        state.progress_completed as f32 / state.progress_total.max(1) as f32;
+                    let text = format!(
+                        "{} ({}/{})",
+                        state.progress_label, state.progress_completed, state.progress_total
+                    );
+                    ui.add(
+                        egui::ProgressBar::new(fraction)
+                            .text(text)
+                            .fill(crate::theme::Colors::ACCENT),
+                    );
+                } else {
+                    ui.label(crate::theme::status_text(&self.status));
+                }
+            });
 
         egui::SidePanel::left("instance_list")
             .resizable(true)
-            .default_width(220.0)
+            .default_width(240.0)
+            .frame(crate::theme::panel_frame())
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.strong("Instances");
-                    if ui.button("+ New").clicked() {
-                        self.active_dialog = Dialog::NewInstance;
-                        self.new_instance_name.clear();
-                        self.new_instance_version_idx = 0;
-                        self.new_instance_loader = 0;
-                        self.new_instance_loader_version_idx = 0;
-                    }
-                    if ui.button("Import").clicked() {
-                        self.import_with_dialog();
-                    }
+                    ui.label(crate::theme::subheading("Instances"));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.small_button("Import").clicked() {
+                            self.import_with_dialog();
+                        }
+                        if ui.small_button("+ New").clicked() {
+                            self.active_dialog = Dialog::NewInstance;
+                            self.new_instance_name.clear();
+                            self.new_instance_version_idx = 0;
+                            self.new_instance_loader = 0;
+                            self.new_instance_loader_version_idx = 0;
+                        }
+                    });
                 });
+                ui.add_space(crate::theme::Spacing::SMALL_GAP);
                 ui.separator();
+                ui.add_space(crate::theme::Spacing::SMALL_GAP);
 
                 if self.instances.is_empty() {
-                    ui.label("No instances yet.");
+                    ui.add_space(20.0);
+                    ui.vertical_centered(|ui| {
+                        ui.label(crate::theme::muted("No instances yet"));
+                        ui.add_space(8.0);
+                        ui.label(crate::theme::small("Click '+ New' to create one"));
+                    });
                 } else {
-                    for (i, inst) in self.instances.iter().enumerate() {
-                        let selected = self.selected_instance == Some(i);
-                        let label = format!(
-                            "{}{}",
-                            inst.name,
-                            inst.mod_loader
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        for (i, inst) in self.instances.iter().enumerate() {
+                            let selected = self.selected_instance == Some(i);
+                            let loader_badge = inst
+                                .mod_loader
                                 .as_ref()
                                 .map(|l| format!(" [{}]", l.loader_type))
-                                .unwrap_or_default()
-                        );
-                        if ui.selectable_label(selected, &label).clicked() {
-                            self.selected_instance = Some(i);
+                                .unwrap_or_default();
+                            let label = format!("{}{}", inst.name, loader_badge);
+                            let text = if selected {
+                                egui::RichText::new(&label).color(egui::Color32::WHITE)
+                            } else {
+                                egui::RichText::new(&label)
+                                    .color(crate::theme::Colors::TEXT_PRIMARY)
+                            };
+                            if ui.selectable_label(selected, text).clicked() {
+                                self.selected_instance = Some(i);
+                            }
                         }
-                    }
+                    });
                 }
             });
 
@@ -247,32 +281,40 @@ impl eframe::App for MiaoApp {
 impl MiaoApp {
     fn render_detail(&mut self, ui: &mut egui::Ui) {
         let Some(idx) = self.selected_instance else {
-            ui.centered_and_justified(|ui| {
-                ui.label("Select an instance or click '+ New' to create one.");
+            ui.add_space(80.0);
+            ui.vertical_centered(|ui| {
+                ui.label(crate::theme::body("Welcome to MiaoMC"));
+                ui.add_space(crate::theme::Spacing::SECTION_GAP);
+                ui.label(crate::theme::muted(
+                    "Select an instance from the left panel,\nor click '+ New' to create one.",
+                ));
             });
             return;
         };
 
         let inst = self.instances[idx].clone();
 
-        ui.heading(&inst.name);
-        ui.separator();
+        ui.add_space(crate::theme::Spacing::SMALL_GAP);
+        ui.label(crate::theme::title(&inst.name));
+        ui.add_space(2.0);
 
         ui.horizontal(|ui| {
-            ui.label(format!("MC: {}", inst.minecraft_version));
-            ui.separator();
+            ui.label(crate::theme::badge_mc(&inst.minecraft_version));
+            ui.add_space(8.0);
             let loader = inst
                 .mod_loader
                 .as_ref()
                 .map(|l| format!("{} {}", l.loader_type, l.version))
                 .unwrap_or_else(|| "Vanilla".to_string());
-            ui.label(format!("Loader: {}", loader));
+            ui.label(crate::theme::badge_loader(&loader));
         });
 
+        ui.add_space(crate::theme::Spacing::SECTION_GAP);
+        ui.separator();
         ui.add_space(8.0);
 
         ui.horizontal(|ui| {
-            if ui.button("▶ Launch").clicked() {
+            if ui.add(crate::theme::launch_button()).clicked() {
                 self.launch_instance(idx);
             }
             if ui.button("🗑 Delete").clicked() {
@@ -645,23 +687,31 @@ impl MiaoApp {
                 ));
                 ui.separator();
                 ui.label("Java installations:");
-                let javas = java::detect_system_java();
-                if javas.is_empty() {
-                    ui.label("  None detected");
-                } else {
-                    for j in &javas {
-                        ui.label(format!(
-                            "  Java {} ({}) - {}",
-                            j.major_version,
-                            j.version,
-                            j.path.display()
-                        ));
+                if self.cached_javas.is_none() {
+                    self.cached_javas = Some(java::detect_system_java());
+                }
+                if let Some(ref javas) = self.cached_javas {
+                    if javas.is_empty() {
+                        ui.label("  None detected");
+                    } else {
+                        for j in javas {
+                            ui.label(format!(
+                                "  Java {} ({}) - {}",
+                                j.major_version,
+                                j.version,
+                                j.path.display()
+                            ));
+                        }
                     }
+                }
+                if ui.small_button("Refresh").clicked() {
+                    self.cached_javas = None;
                 }
             });
 
         if !open {
             self.active_dialog = Dialog::None;
+            self.cached_javas = None;
         }
     }
 }
