@@ -33,6 +33,28 @@ fn main() -> Result<()> {
                 .or_default()
                 .insert(0, "inter".to_owned());
 
+            let cjk_paths = [
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            ];
+            for path in &cjk_paths {
+                if let Ok(data) = std::fs::read(path) {
+                    let mut font_data = egui::FontData::from_owned(data);
+                    font_data.index = 2;
+                    fonts
+                        .font_data
+                        .insert("cjk".to_owned(), std::sync::Arc::new(font_data));
+                    fonts
+                        .families
+                        .entry(egui::FontFamily::Proportional)
+                        .or_default()
+                        .push("cjk".to_owned());
+                    break;
+                }
+            }
+
             cc.egui_ctx.set_fonts(fonts);
 
             egui_extras::install_image_loaders(&cc.egui_ctx);
