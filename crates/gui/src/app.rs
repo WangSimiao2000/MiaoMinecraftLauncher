@@ -82,18 +82,13 @@ impl MiaoApp {
             });
         });
 
-        let is_first_run = !config.data_dir.join("config.toml").exists() && instances.is_empty();
         let data_dir_input = config.data_dir.display().to_string();
 
         Self {
             config,
             instances,
             async_state,
-            app_view: if is_first_run {
-                AppView::Welcome
-            } else {
-                AppView::Main
-            },
+            app_view: AppView::Main,
             active_dialog: Dialog::None,
             active_tab: DetailTab::Mods,
             selected_instance: None,
@@ -171,9 +166,6 @@ impl eframe::App for MiaoApp {
         }
 
         match self.app_view {
-            AppView::Welcome => {
-                self.render_welcome_setup(ctx);
-            }
             AppView::Settings => {
                 egui::TopBottomPanel::top("top_bar")
                     .frame(theme::top_bar_frame())

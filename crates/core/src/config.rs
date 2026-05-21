@@ -25,9 +25,14 @@ pub enum DownloadMirror {
 
 impl Default for LauncherConfig {
     fn default() -> Self {
-        let data_dir = dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("~/.local/share"))
-            .join("miao-minecraft-launcher");
+        let data_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("mmcl-data")))
+            .unwrap_or_else(|| {
+                dirs::data_dir()
+                    .unwrap_or_else(|| PathBuf::from("~/.local/share"))
+                    .join("miao-minecraft-launcher")
+            });
 
         Self {
             data_dir,

@@ -10,7 +10,6 @@ use miao_core::version::VersionInfo;
 pub enum AppView {
     Main,
     Settings,
-    Welcome,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
