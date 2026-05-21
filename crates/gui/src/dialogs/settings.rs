@@ -7,23 +7,27 @@ use crate::theme;
 
 impl MiaoApp {
     pub fn render_settings_page(&mut self, ui: &mut egui::Ui, state: &AsyncState) {
-        ui.horizontal(|ui| {
-            self.render_settings_nav(ui);
-            ui.separator();
-            egui::ScrollArea::vertical()
-                .id_salt("settings_content")
-                .show(ui, |ui| {
-                    ui.add_space(8.0);
-                    let max_width = ui.available_width().min(520.0);
-                    ui.set_min_width(max_width);
+        let nav_width = 150.0;
 
-                    match self.settings_tab {
-                        SettingsTab::Account => self.render_tab_account(ui, state),
-                        SettingsTab::Data => self.render_tab_data(ui),
-                        SettingsTab::Java => self.render_tab_java(ui),
-                        SettingsTab::About => self.render_tab_about(ui),
-                    }
-                });
+        ui.horizontal(|ui| {
+            ui.allocate_ui(egui::vec2(nav_width, ui.available_height()), |ui| {
+                self.render_settings_nav(ui);
+            });
+            ui.separator();
+            ui.vertical(|ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("settings_content")
+                    .show(ui, |ui| {
+                        ui.add_space(8.0);
+                        match self.settings_tab {
+                            SettingsTab::Account => self.render_tab_account(ui, state),
+                            SettingsTab::Data => self.render_tab_data(ui),
+                            SettingsTab::Java => self.render_tab_java(ui),
+                            SettingsTab::About => self.render_tab_about(ui),
+                        }
+                        ui.add_space(16.0);
+                    });
+            });
         });
     }
 
