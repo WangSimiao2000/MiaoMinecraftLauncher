@@ -234,17 +234,19 @@ impl MicrosoftAuth {
             token_type: "JWT".to_string(),
         };
 
-        let resp: XboxAuthResponse = self
-            .http
-            .post(XBOX_AUTH_URL)
-            .json(&request)
-            .send()
-            .await?
-            .json()
-            .await
-            .context("Xbox Live authentication failed")?;
+        let resp = self.http.post(XBOX_AUTH_URL).json(&request).send().await?;
 
-        Ok(resp.token)
+        let status = resp.status();
+        let text = resp.text().await?;
+
+        if !status.is_success() {
+            anyhow::bail!("Xbox Live auth failed ({}): {}", status, text);
+        }
+
+        let parsed: XboxAuthResponse =
+            serde_json::from_str(&text).context("Failed to parse Xbox auth response")?;
+
+        Ok(parsed.token)
     }
 
     async fn xsts_authenticate(&self, xbox_token: &str) -> Result<(String, String)> {
@@ -257,24 +259,26 @@ impl MicrosoftAuth {
             token_type: "JWT".to_string(),
         };
 
-        let resp: XboxAuthResponse = self
-            .http
-            .post(XSTS_AUTH_URL)
-            .json(&request)
-            .send()
-            .await?
-            .json()
-            .await
-            .context("XSTS authentication failed")?;
+        let resp = self.http.post(XSTS_AUTH_URL).json(&request).send().await?;
 
-        let user_hash = resp
+        let status = resp.status();
+        let text = resp.text().await?;
+
+        if !status.is_success() {
+            anyhow::bail!("XSTS auth failed ({}): {}", status, text);
+        }
+
+        let parsed: XboxAuthResponse =
+            serde_json::from_str(&text).context("Failed to parse XSTS response")?;
+
+        let user_hash = parsed
             .display_claims
             .xui
             .first()
             .map(|x| x.uhs.clone())
             .unwrap_or_default();
 
-        Ok((resp.token, user_hash))
+        Ok((parsed.token, user_hash))
     }
 
     async fn minecraft_authenticate(&self, xsts_token: &str, user_hash: &str) -> Result<String> {
@@ -282,31 +286,45 @@ impl MicrosoftAuth {
             identity_token: format!("XBL3.0 x={};{}", user_hash, xsts_token),
         };
 
-        let resp: MinecraftAuthResponse = self
+        let resp = self
             .http
             .post(MINECRAFT_AUTH_URL)
             .json(&request)
             .send()
-            .await?
-            .json()
-            .await
-            .context("Minecraft authentication failed")?;
+            .await?;
 
-        Ok(resp.access_token)
+        let status = resp.status();
+        let text = resp.text().await?;
+
+        if !status.is_success() {
+            anyhow::bail!("Minecraft auth failed ({}): {}", status, text);
+        }
+
+        let parsed: MinecraftAuthResponse =
+            serde_json::from_str(&text).context("Failed to parse Minecraft auth response")?;
+
+        Ok(parsed.access_token)
     }
 
     async fn get_minecraft_profile(&self, mc_token: &str) -> Result<MinecraftProfile> {
-        let resp: MinecraftProfile = self
+        let resp = self
             .http
             .get(MINECRAFT_PROFILE_URL)
             .bearer_auth(mc_token)
             .send()
-            .await?
-            .json()
-            .await
-            .context("Failed to get Minecraft profile")?;
+            .await?;
 
-        Ok(resp)
+        let status = resp.status();
+        let text = resp.text().await?;
+
+        if !status.is_success() {
+            anyhow::bail!("Minecraft profile failed ({}): {}", status, text);
+        }
+
+        let parsed: MinecraftProfile =
+            serde_json::from_str(&text).context("Failed to parse Minecraft profile")?;
+
+        Ok(parsed)
     }
 }
 
