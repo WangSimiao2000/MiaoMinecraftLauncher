@@ -94,7 +94,9 @@ impl MiaoApp {
         ui.add_space(theme::Spacing::SMALL_GAP);
 
         ui.label(theme::body("MiaoMC Launcher v0.1.0"));
-        ui.add_space(4.0);
+        ui.label(theme::muted("by MickeyMiao"));
+        ui.add_space(8.0);
+
         ui.horizontal(|ui| {
             ui.label(theme::muted("GitHub:"));
             ui.hyperlink_to(
@@ -102,6 +104,15 @@ impl MiaoApp {
                 "https://github.com/WangSimiao2000/MiaoMinecraftLauncher",
             );
         });
+        ui.horizontal(|ui| {
+            ui.label(theme::muted("Blog:"));
+            ui.hyperlink_to("blog.mickeymiao.cn", "https://blog.mickeymiao.cn");
+        });
+        ui.horizontal(|ui| {
+            ui.label(theme::muted("Bilibili:"));
+            ui.hyperlink_to("鄙人米奇喵", "https://space.bilibili.com/36913332");
+        });
+
         ui.add_space(4.0);
         ui.label(theme::muted("License: GPL-3.0-or-later"));
     }
