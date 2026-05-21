@@ -1,5 +1,7 @@
 mod app;
+mod dialogs;
 mod theme;
+mod views;
 
 use anyhow::Result;
 

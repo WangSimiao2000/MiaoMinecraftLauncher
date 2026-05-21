@@ -12,55 +12,68 @@ use miao_core::version::VersionInfo;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-const MS_CLIENT_ID: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
+use crate::theme;
 
-#[derive(Debug, Clone, Default)]
-struct AsyncState {
-    versions: Vec<VersionInfo>,
-    versions_loading: bool,
-    install_status: Option<String>,
-    installing: bool,
-    ms_device_code: Option<DeviceCodeResponse>,
-    ms_logging_in: bool,
-    loader_versions: HashMap<ModLoaderType, Vec<ModLoaderVersion>>,
-    loading_loader_versions: bool,
-    mod_search_hits: Option<Vec<miao_core::modrinth::api::SearchHit>>,
-    mod_versions: Option<Vec<miao_core::modrinth::api::ProjectVersion>>,
-    progress_total: usize,
-    progress_completed: usize,
-    progress_label: String,
+pub const MS_CLIENT_ID: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DetailTab {
+    Mods,
+    Resources,
+    Worlds,
+    Log,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Dialog {
+pub enum Dialog {
     None,
     NewInstance,
     Accounts,
     Settings,
-    ModSearch,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AsyncState {
+    pub versions: Vec<VersionInfo>,
+    pub versions_loading: bool,
+    pub install_status: Option<String>,
+    pub installing: bool,
+    pub ms_device_code: Option<DeviceCodeResponse>,
+    pub ms_logging_in: bool,
+    pub loader_versions: HashMap<ModLoaderType, Vec<ModLoaderVersion>>,
+    pub loading_loader_versions: bool,
+    pub mod_search_hits: Option<Vec<miao_core::modrinth::api::SearchHit>>,
+    pub mod_versions: Option<Vec<miao_core::modrinth::api::ProjectVersion>>,
+    pub progress_total: usize,
+    pub progress_completed: usize,
+    pub progress_label: String,
 }
 
 pub struct MiaoApp {
-    config: LauncherConfig,
-    instances: Vec<Instance>,
-    async_state: Arc<Mutex<AsyncState>>,
-    active_dialog: Dialog,
-    selected_instance: Option<usize>,
-    status: String,
-    offline_username_input: String,
-    new_instance_name: String,
-    new_instance_version_idx: usize,
-    new_instance_loader: usize,
-    new_instance_loader_version_idx: usize,
+    pub config: LauncherConfig,
+    pub instances: Vec<Instance>,
+    pub async_state: Arc<Mutex<AsyncState>>,
+    pub active_dialog: Dialog,
+    pub active_tab: DetailTab,
+    pub selected_instance: Option<usize>,
+    pub status: String,
 
-    mod_search_query: String,
-    mod_search_results: Vec<miao_core::modrinth::api::SearchHit>,
-    mod_search_versions: Vec<miao_core::modrinth::api::ProjectVersion>,
-    mod_search_selected: usize,
-    mod_searching: bool,
-    ctx: egui::Context,
-    cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
-    refresh_counter: u32,
+    pub offline_username_input: String,
+    pub new_instance_name: String,
+    pub new_instance_version_idx: usize,
+    pub new_instance_loader: usize,
+    pub new_instance_loader_version_idx: usize,
+
+    pub mod_search_query: String,
+    pub mod_search_results: Vec<miao_core::modrinth::api::SearchHit>,
+    pub mod_search_versions: Vec<miao_core::modrinth::api::ProjectVersion>,
+    pub mod_search_selected: usize,
+    pub mod_searching: bool,
+    pub mod_search_active: bool,
+
+    pub ctx: egui::Context,
+    pub cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
+    pub refresh_counter: u32,
 }
 
 impl MiaoApp {
@@ -104,6 +117,7 @@ impl MiaoApp {
             instances,
             async_state,
             active_dialog: Dialog::None,
+            active_tab: DetailTab::Mods,
             selected_instance: None,
             status: "Ready".to_string(),
             offline_username_input: String::new(),
@@ -111,16 +125,24 @@ impl MiaoApp {
             new_instance_version_idx: 0,
             new_instance_loader: 0,
             new_instance_loader_version_idx: 0,
-
             mod_search_query: String::new(),
             mod_search_results: Vec::new(),
             mod_search_versions: Vec::new(),
             mod_search_selected: 0,
             mod_searching: false,
+            mod_search_active: false,
             ctx: cc.egui_ctx.clone(),
             cached_javas: None,
             refresh_counter: 0,
         }
+    }
+
+    pub fn open_new_instance_dialog(&mut self) {
+        self.active_dialog = Dialog::NewInstance;
+        self.new_instance_name.clear();
+        self.new_instance_version_idx = 0;
+        self.new_instance_loader = 0;
+        self.new_instance_loader_version_idx = 0;
     }
 }
 
@@ -143,12 +165,15 @@ impl eframe::App for MiaoApp {
 
         if let Some(ref s) = state.install_status {
             self.status = s.clone();
-            if s.starts_with('✓') {
-                self.instances =
-                    instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
+            if s.starts_with('✓')
+                || s.starts_with('✗')
+                || (!state.installing && !state.ms_logging_in)
+            {
                 self.async_state.lock().unwrap().install_status = None;
-            } else if s.starts_with('✗') || (!state.installing && !state.ms_logging_in) {
-                self.async_state.lock().unwrap().install_status = None;
+                if s.starts_with('✓') {
+                    self.instances =
+                        instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
+                }
             }
         }
 
@@ -172,12 +197,12 @@ impl eframe::App for MiaoApp {
         }
 
         egui::TopBottomPanel::top("top_bar")
-            .frame(crate::theme::top_bar_frame())
+            .frame(theme::top_bar_frame())
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(crate::theme::heading("MiaoMC"));
+                    ui.label(theme::heading("MiaoMC"));
                     ui.add_space(8.0);
-                    ui.label(crate::theme::small("Minecraft Launcher"));
+                    ui.label(theme::small("Minecraft Launcher"));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("Settings").clicked() {
                             self.active_dialog = Dialog::Settings;
@@ -190,7 +215,7 @@ impl eframe::App for MiaoApp {
             });
 
         egui::TopBottomPanel::bottom("status_bar")
-            .frame(crate::theme::bottom_bar_frame())
+            .frame(theme::bottom_bar_frame())
             .show(ctx, |ui| {
                 if state.installing && state.progress_total > 0 {
                     let fraction =
@@ -202,67 +227,14 @@ impl eframe::App for MiaoApp {
                     ui.add(
                         egui::ProgressBar::new(fraction)
                             .text(text)
-                            .fill(crate::theme::Colors::ACCENT),
+                            .fill(theme::Colors::ACCENT),
                     );
                 } else {
-                    ui.label(crate::theme::status_text(&self.status));
+                    ui.label(theme::status_text(&self.status));
                 }
             });
 
-        egui::SidePanel::left("instance_list")
-            .resizable(true)
-            .default_width(240.0)
-            .frame(crate::theme::panel_frame())
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(crate::theme::subheading("Instances"));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Import").clicked() {
-                            self.import_with_dialog();
-                        }
-                        if ui.small_button("+ New").clicked() {
-                            self.active_dialog = Dialog::NewInstance;
-                            self.new_instance_name.clear();
-                            self.new_instance_version_idx = 0;
-                            self.new_instance_loader = 0;
-                            self.new_instance_loader_version_idx = 0;
-                        }
-                    });
-                });
-                ui.add_space(crate::theme::Spacing::SMALL_GAP);
-                ui.separator();
-                ui.add_space(crate::theme::Spacing::SMALL_GAP);
-
-                if self.instances.is_empty() {
-                    ui.add_space(20.0);
-                    ui.vertical_centered(|ui| {
-                        ui.label(crate::theme::muted("No instances yet"));
-                        ui.add_space(8.0);
-                        ui.label(crate::theme::small("Click '+ New' to create one"));
-                    });
-                } else {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        for (i, inst) in self.instances.iter().enumerate() {
-                            let selected = self.selected_instance == Some(i);
-                            let loader_badge = inst
-                                .mod_loader
-                                .as_ref()
-                                .map(|l| format!(" [{}]", l.loader_type))
-                                .unwrap_or_default();
-                            let label = format!("{}{}", inst.name, loader_badge);
-                            let text = if selected {
-                                egui::RichText::new(&label).color(egui::Color32::WHITE)
-                            } else {
-                                egui::RichText::new(&label)
-                                    .color(crate::theme::Colors::TEXT_PRIMARY)
-                            };
-                            if ui.selectable_label(selected, text).clicked() {
-                                self.selected_instance = Some(i);
-                            }
-                        }
-                    });
-                }
-            });
+        self.render_sidebar(ctx);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             self.render_detail(ui);
@@ -272,505 +244,13 @@ impl eframe::App for MiaoApp {
             Dialog::NewInstance => self.render_new_instance_dialog(ctx, &state),
             Dialog::Accounts => self.render_accounts_dialog(ctx, &state),
             Dialog::Settings => self.render_settings_dialog(ctx),
-            Dialog::ModSearch => self.render_mod_search_dialog(ctx),
             Dialog::None => {}
         }
     }
 }
 
 impl MiaoApp {
-    fn render_detail(&mut self, ui: &mut egui::Ui) {
-        let Some(idx) = self.selected_instance else {
-            ui.add_space(80.0);
-            ui.vertical_centered(|ui| {
-                ui.label(crate::theme::body("Welcome to MiaoMC"));
-                ui.add_space(crate::theme::Spacing::SECTION_GAP);
-                ui.label(crate::theme::muted(
-                    "Select an instance from the left panel,\nor click '+ New' to create one.",
-                ));
-            });
-            return;
-        };
-
-        let inst = self.instances[idx].clone();
-
-        ui.add_space(crate::theme::Spacing::SMALL_GAP);
-        ui.label(crate::theme::title(&inst.name));
-        ui.add_space(2.0);
-
-        ui.horizontal(|ui| {
-            ui.label(crate::theme::badge_mc(&inst.minecraft_version));
-            ui.add_space(8.0);
-            let loader = inst
-                .mod_loader
-                .as_ref()
-                .map(|l| format!("{} {}", l.loader_type, l.version))
-                .unwrap_or_else(|| "Vanilla".to_string());
-            ui.label(crate::theme::badge_loader(&loader));
-        });
-
-        ui.add_space(crate::theme::Spacing::SECTION_GAP);
-        ui.separator();
-        ui.add_space(8.0);
-
-        ui.horizontal(|ui| {
-            if ui.add(crate::theme::launch_button()).clicked() {
-                self.launch_instance(idx);
-            }
-            if ui.button("🗑 Delete").clicked() {
-                let name = inst.name.clone();
-                if let Err(e) =
-                    miao_core::instance::delete_instance(&self.config.instances_dir(), &name)
-                {
-                    self.status = format!("✗ Delete failed: {}", e);
-                } else {
-                    self.status = format!("✓ Deleted '{}'", name);
-                    self.instances =
-                        instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
-                    self.selected_instance = None;
-                }
-            }
-            if ui.button("📂 Open").clicked() {
-                let dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
-                let _ = instance::open_folder(&dir);
-            }
-            if ui.button("☕ Java").clicked() {
-                self.download_java_for_instance(idx);
-            }
-        });
-
-        ui.add_space(4.0);
-
-        ui.horizontal(|ui| {
-            if ui.button("🔍 Search Mods").clicked() {
-                self.active_dialog = Dialog::ModSearch;
-                self.mod_search_query.clear();
-                self.mod_search_results.clear();
-                self.mod_search_versions.clear();
-            }
-            if ui.button("📦 Export .mrpack").clicked() {
-                self.export_instance_with_dialog(idx);
-            }
-        });
-
-        ui.add_space(12.0);
-
-        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
-
-        egui::CollapsingHeader::new("Mods")
-            .default_open(true)
-            .show(ui, |ui| {
-                let mods_dir = Instance::mods_dir(&instance_dir);
-                let mods = miao_core::modmanager::scan_mods_dir(&mods_dir);
-                if mods.is_empty() {
-                    ui.label("No mods.");
-                } else {
-                    for mut m in mods {
-                        ui.horizontal(|ui| {
-                            if m.enabled {
-                                let btn = egui::Button::new(
-                                    egui::RichText::new("ON").color(egui::Color32::GREEN),
-                                );
-                                if ui.add(btn).clicked() {
-                                    let _ = m.toggle();
-                                }
-                                ui.label(&m.name);
-                            } else {
-                                let btn = egui::Button::new(
-                                    egui::RichText::new("OFF").color(egui::Color32::GRAY),
-                                );
-                                if ui.add(btn).clicked() {
-                                    let _ = m.toggle();
-                                }
-                                ui.label(
-                                    egui::RichText::new(&m.name).color(egui::Color32::DARK_GRAY),
-                                );
-                            }
-                            if ui.small_button("Del").clicked() {
-                                let _ = m.delete();
-                            }
-                        });
-                    }
-                }
-                if ui.small_button("Open folder").clicked() {
-                    let _ = instance::open_folder(&mods_dir);
-                }
-            });
-
-        egui::CollapsingHeader::new("Resource Packs").show(ui, |ui| {
-            let dir = Instance::resourcepacks_dir(&instance_dir);
-            let packs = miao_core::resource::scan_resourcepacks(&dir);
-            if packs.is_empty() {
-                ui.label("None.");
-            } else {
-                for p in &packs {
-                    ui.horizontal(|ui| {
-                        ui.label(&p.name);
-                        if ui.small_button("🗑").clicked() {
-                            let _ = p.delete();
-                        }
-                    });
-                }
-            }
-            if ui.small_button("Open folder").clicked() {
-                let _ = instance::open_folder(&dir);
-            }
-        });
-
-        egui::CollapsingHeader::new("Shaders").show(ui, |ui| {
-            let dir = Instance::shaderpacks_dir(&instance_dir);
-            let shaders = miao_core::resource::scan_shaderpacks(&dir);
-            if shaders.is_empty() {
-                ui.label("None.");
-            } else {
-                for s in &shaders {
-                    ui.horizontal(|ui| {
-                        ui.label(&s.name);
-                        if ui.small_button("🗑").clicked() {
-                            let _ = s.delete();
-                        }
-                    });
-                }
-            }
-            if ui.small_button("Open folder").clicked() {
-                let _ = instance::open_folder(&dir);
-            }
-        });
-
-        egui::CollapsingHeader::new("Worlds").show(ui, |ui| {
-            let saves = instance::list_saves(&instance_dir);
-            if saves.is_empty() {
-                ui.label("None.");
-            } else {
-                for s in &saves {
-                    ui.horizontal(|ui| {
-                        ui.label(&s.name);
-                        if ui.small_button("Del").clicked() {
-                            let _ = s.delete();
-                        }
-                    });
-                }
-            }
-            let saves_dir = Instance::saves_dir(&instance_dir);
-            if ui.small_button("Open folder").clicked() {
-                let _ = instance::open_folder(&saves_dir);
-            }
-        });
-
-        egui::CollapsingHeader::new("Game Log").show(ui, |ui| {
-            let log_path = instance_dir.join("logs").join("latest.log");
-            if log_path.exists() {
-                if ui.button("Open log file").clicked() {
-                    let _ = open::that(&log_path);
-                }
-                ui.separator();
-                let content = std::fs::read_to_string(&log_path).unwrap_or_default();
-                let tail: String = content
-                    .lines()
-                    .rev()
-                    .take(50)
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    .rev()
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                egui::ScrollArea::vertical()
-                    .max_height(200.0)
-                    .stick_to_bottom(true)
-                    .show(ui, |ui| {
-                        ui.monospace(&tail);
-                    });
-            } else {
-                ui.label("No log yet. Launch the game first.");
-            }
-        });
-    }
-
-    fn render_new_instance_dialog(&mut self, ctx: &egui::Context, state: &AsyncState) {
-        if !state.versions.is_empty()
-            && state.loader_versions.is_empty()
-            && !state.loading_loader_versions
-        {
-            let mc_ver = state.versions[self.new_instance_version_idx].id.clone();
-            self.fetch_loader_versions(ctx, &mc_ver);
-        }
-
-        let mut open = true;
-        egui::Window::new("New Instance")
-            .open(&mut open)
-            .resizable(false)
-            .collapsible(false)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Name:");
-                    ui.text_edit_singleline(&mut self.new_instance_name);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("MC Version:");
-                    if !state.versions.is_empty() {
-                        let current = state
-                            .versions
-                            .get(self.new_instance_version_idx)
-                            .map(|v| v.id.as_str())
-                            .unwrap_or("?");
-                        let prev_idx = self.new_instance_version_idx;
-                        egui::ComboBox::from_id_salt("mc_ver")
-                            .selected_text(current)
-                            .show_ui(ui, |ui| {
-                                for (i, ver) in state.versions.iter().enumerate() {
-                                    ui.selectable_value(
-                                        &mut self.new_instance_version_idx,
-                                        i,
-                                        &ver.id,
-                                    );
-                                }
-                            });
-                        if self.new_instance_version_idx != prev_idx {
-                            self.new_instance_loader = 0;
-                            self.new_instance_loader_version_idx = 0;
-                            let mc_ver = state.versions[self.new_instance_version_idx].id.clone();
-                            self.fetch_loader_versions(ctx, &mc_ver);
-                        }
-                    } else {
-                        ui.label("Loading...");
-                    }
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Mod Loader:");
-                    let loaders = self.get_available_loaders(state);
-                    let current_name = loaders
-                        .iter()
-                        .find(|(idx, _, _)| *idx == self.new_instance_loader)
-                        .map(|(_, name, _)| *name)
-                        .unwrap_or("None (Vanilla)");
-
-                    egui::ComboBox::from_id_salt("loader")
-                        .selected_text(current_name)
-                        .show_ui(ui, |ui| {
-                            for (idx, name, available) in &loaders {
-                                ui.add_enabled_ui(*available, |ui| {
-                                    let label = if *available {
-                                        name.to_string()
-                                    } else {
-                                        format!("{} (N/A)", name)
-                                    };
-                                    ui.selectable_value(&mut self.new_instance_loader, *idx, label);
-                                });
-                            }
-                        });
-                });
-
-                if self.new_instance_loader > 0 {
-                    let loader_versions = self.get_loader_versions(state);
-                    if !loader_versions.is_empty() {
-                        ui.horizontal(|ui| {
-                            ui.label("Version:");
-                            let current = loader_versions
-                                .get(self.new_instance_loader_version_idx)
-                                .map(|v| v.version.as_str())
-                                .unwrap_or("?");
-                            egui::ComboBox::from_id_salt("loader_ver")
-                                .selected_text(current)
-                                .show_ui(ui, |ui| {
-                                    for (i, v) in loader_versions.iter().enumerate() {
-                                        let label = if v.stable {
-                                            format!("{} ★", v.version)
-                                        } else {
-                                            v.version.clone()
-                                        };
-                                        ui.selectable_value(
-                                            &mut self.new_instance_loader_version_idx,
-                                            i,
-                                            label,
-                                        );
-                                    }
-                                });
-                        });
-                    }
-                }
-
-                ui.separator();
-
-                if ui.button("Create").clicked() && !state.versions.is_empty() {
-                    let ver = state.versions[self.new_instance_version_idx].clone();
-                    let name = if self.new_instance_name.is_empty() {
-                        ver.id.clone()
-                    } else {
-                        self.new_instance_name.clone()
-                    };
-                    let loader = if self.new_instance_loader == 0 {
-                        None
-                    } else {
-                        let versions = self.get_loader_versions(state);
-                        versions
-                            .get(self.new_instance_loader_version_idx)
-                            .or(versions.first())
-                            .and_then(|v| {
-                                ModLoaderType::from_index(self.new_instance_loader - 1)
-                                    .map(|lt| (lt.as_str().to_string(), v.version.clone()))
-                            })
-                    };
-
-                    self.active_dialog = Dialog::None;
-                    self.create_instance(ver, name, loader);
-                }
-            });
-
-        if !open {
-            self.active_dialog = Dialog::None;
-        }
-    }
-
-    fn render_accounts_dialog(&mut self, ctx: &egui::Context, state: &AsyncState) {
-        let mut open = true;
-        egui::Window::new("Accounts")
-            .open(&mut open)
-            .resizable(false)
-            .show(ctx, |ui| {
-                if self.config.accounts.is_empty() {
-                    ui.label("No accounts.");
-                } else {
-                    for (i, acc) in self.config.accounts.iter().enumerate() {
-                        let active = self.config.active_account_index == Some(i);
-                        let marker = if active { "★" } else { " " };
-                        let acc_type = if acc.is_microsoft() { "MS" } else { "Offline" };
-                        ui.label(format!("{} [{}] {}", marker, acc_type, acc.username()));
-                    }
-                }
-
-                ui.separator();
-                ui.label("Add offline account:");
-                ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut self.offline_username_input);
-                    if ui.button("Add").clicked() && !self.offline_username_input.is_empty() {
-                        let account = create_offline_account(&self.offline_username_input);
-                        self.status = format!("✓ Added: {}", account.username);
-                        self.config.accounts.push(AuthMethod::Offline(account));
-                        if self.config.active_account_index.is_none() {
-                            self.config.active_account_index = Some(0);
-                        }
-                        let _ = self.config.save();
-                        self.offline_username_input.clear();
-                    }
-                });
-
-                ui.separator();
-                if let Some(ref dc) = state.ms_device_code {
-                    ui.label(format!("Go to: {}", dc.verification_uri));
-                    ui.label(format!("Code: {}", dc.user_code));
-                    ui.label("Waiting...");
-                } else if state.ms_logging_in {
-                    ui.label("Connecting...");
-                } else if ui.button("Microsoft Login").clicked() {
-                    self.start_ms_login(ctx.clone());
-                }
-            });
-
-        if !open {
-            self.active_dialog = Dialog::None;
-        }
-    }
-
-    fn render_settings_dialog(&mut self, ctx: &egui::Context) {
-        let mut open = true;
-        egui::Window::new("Settings")
-            .open(&mut open)
-            .resizable(false)
-            .show(ctx, |ui| {
-                ui.label(format!("Data: {}", self.config.data_dir.display()));
-                ui.label(format!("Mirror: {:?}", self.config.download_mirror));
-                ui.label(format!(
-                    "Concurrent downloads: {}",
-                    self.config.max_concurrent_downloads
-                ));
-                ui.separator();
-                ui.label("Java installations:");
-                if self.cached_javas.is_none() {
-                    self.cached_javas = Some(java::detect_system_java());
-                }
-                if let Some(ref javas) = self.cached_javas {
-                    if javas.is_empty() {
-                        ui.label("  None detected");
-                    } else {
-                        for j in javas {
-                            ui.label(format!(
-                                "  Java {} ({}) - {}",
-                                j.major_version,
-                                j.version,
-                                j.path.display()
-                            ));
-                        }
-                    }
-                }
-                if ui.small_button("Refresh").clicked() {
-                    self.cached_javas = None;
-                }
-            });
-
-        if !open {
-            self.active_dialog = Dialog::None;
-            self.cached_javas = None;
-        }
-    }
-}
-
-impl MiaoApp {
-    fn get_available_loaders(&self, state: &AsyncState) -> Vec<(usize, &'static str, bool)> {
-        let mut loaders = vec![(0, "None (Vanilla)", true)];
-        for (idx, name, loader_type) in [
-            (1, "Fabric", ModLoaderType::Fabric),
-            (2, "Quilt", ModLoaderType::Quilt),
-            (3, "NeoForge", ModLoaderType::NeoForge),
-            (4, "Forge", ModLoaderType::Forge),
-        ] {
-            loaders.push((idx, name, state.loader_versions.contains_key(&loader_type)));
-        }
-        loaders
-    }
-
-    fn get_loader_versions<'a>(&self, state: &'a AsyncState) -> Vec<&'a ModLoaderVersion> {
-        if self.new_instance_loader == 0 {
-            return Vec::new();
-        }
-        ModLoaderType::from_index(self.new_instance_loader - 1)
-            .and_then(|lt| state.loader_versions.get(&lt))
-            .map(|v| v.iter().collect())
-            .unwrap_or_default()
-    }
-
-    fn fetch_loader_versions(&mut self, ctx: &egui::Context, mc_version: &str) {
-        {
-            let mut s = self.async_state.lock().unwrap();
-            if s.loading_loader_versions {
-                return;
-            }
-            s.loading_loader_versions = true;
-            s.loader_versions.clear();
-        }
-
-        let state = self.async_state.clone();
-        let mc_version = mc_version.to_string();
-        let ctx = ctx.clone();
-
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            let http = reqwest::Client::new();
-            rt.block_on(async {
-                let versions =
-                    miao_core::modloader::fetch_all_loader_versions(&http, &mc_version).await;
-                let mut s = state.lock().unwrap();
-                s.loading_loader_versions = false;
-                if let Ok(v) = versions {
-                    s.loader_versions = v;
-                }
-            });
-            ctx.request_repaint();
-        });
-    }
-
-    fn launch_instance(&mut self, idx: usize) {
+    pub fn launch_instance(&mut self, idx: usize) {
         let inst = &self.instances[idx];
         let account = self
             .config
@@ -814,10 +294,7 @@ impl MiaoApp {
         });
 
         let Some(java_path) = java_path else {
-            self.status = format!(
-                "No Java {} found! Click '☕ Java' to install.",
-                required_java
-            );
+            self.status = format!("No Java {} found! Click 'Java' to download.", required_java);
             return;
         };
 
@@ -844,7 +321,7 @@ impl MiaoApp {
         }
     }
 
-    fn download_java_for_instance(&mut self, idx: usize) {
+    pub fn download_java_for_instance(&mut self, idx: usize) {
         let inst = &self.instances[idx];
         let meta_path = self
             .config
@@ -941,7 +418,7 @@ impl MiaoApp {
         });
     }
 
-    fn create_instance(
+    pub fn create_instance(
         &mut self,
         ver: VersionInfo,
         name: String,
@@ -987,7 +464,7 @@ impl MiaoApp {
         });
     }
 
-    fn start_ms_login(&mut self, ctx: egui::Context) {
+    pub fn start_ms_login(&mut self) {
         {
             let mut s = self.async_state.lock().unwrap();
             if s.ms_logging_in {
@@ -998,6 +475,7 @@ impl MiaoApp {
 
         let state = self.async_state.clone();
         let mut config = self.config.clone();
+        let ctx = self.ctx.clone();
 
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
@@ -1077,232 +555,7 @@ impl MiaoApp {
         });
     }
 
-    fn render_mod_search_dialog(&mut self, ctx: &egui::Context) {
-        let mut open = true;
-        let mut do_search = false;
-        let mut do_install: Option<usize> = None;
-        let mut do_load_versions: Option<usize> = None;
-
-        egui::Window::new("Modrinth Mod Search")
-            .open(&mut open)
-            .resizable(true)
-            .default_width(500.0)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Search:");
-                    let response = ui.text_edit_singleline(&mut self.mod_search_query);
-                    if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                        do_search = true;
-                    }
-                    if ui.button("Search").clicked() {
-                        do_search = true;
-                    }
-                });
-
-                if self.mod_searching {
-                    ui.spinner();
-                    ui.label("Searching...");
-                }
-
-                if !self.mod_search_results.is_empty() && self.mod_search_versions.is_empty() {
-                    ui.separator();
-                    ui.label("Results (click to select):");
-                    egui::ScrollArea::vertical()
-                        .max_height(200.0)
-                        .show(ui, |ui| {
-                            for (i, hit) in self.mod_search_results.iter().enumerate() {
-                                let dl = format_downloads_gui(hit.downloads);
-                                let label =
-                                    format!("{} — {} — ↓{}", hit.title, hit.description, dl);
-                                let truncated = if label.chars().count() > 80 {
-                                    let s: String = label.chars().take(79).collect();
-                                    format!("{}…", s)
-                                } else {
-                                    label
-                                };
-                                if ui.selectable_label(false, &truncated).clicked() {
-                                    do_load_versions = Some(i);
-                                }
-                            }
-                        });
-                }
-
-                if !self.mod_search_versions.is_empty() {
-                    ui.separator();
-                    let hit_title = self
-                        .mod_search_results
-                        .get(self.mod_search_selected)
-                        .map(|h| h.title.as_str())
-                        .unwrap_or("?");
-                    ui.label(format!("Versions for '{}':", hit_title));
-                    egui::ScrollArea::vertical()
-                        .max_height(200.0)
-                        .show(ui, |ui| {
-                            for (i, ver) in self.mod_search_versions.iter().enumerate().take(15) {
-                                let label = format!("{} [{}]", ver.name, ver.version_type);
-                                if ui.button(&label).clicked() {
-                                    do_install = Some(i);
-                                }
-                            }
-                        });
-                    if ui.button("← Back to results").clicked() {
-                        self.mod_search_versions.clear();
-                    }
-                }
-            });
-
-        if !open {
-            self.active_dialog = Dialog::None;
-        }
-
-        if do_search && !self.mod_search_query.is_empty() {
-            self.do_mod_search(ctx);
-        }
-
-        if let Some(idx) = do_load_versions {
-            self.mod_search_selected = idx;
-            self.load_mod_versions(ctx, idx);
-        }
-
-        if let Some(idx) = do_install {
-            self.install_mod_version(ctx, idx);
-        }
-    }
-
-    fn do_mod_search(&mut self, ctx: &egui::Context) {
-        let Some(inst_idx) = self.selected_instance else {
-            return;
-        };
-        let inst = &self.instances[inst_idx];
-        let mc_version = inst.minecraft_version.clone();
-        let loader = inst
-            .mod_loader
-            .as_ref()
-            .map(|l| l.loader_type.as_str().to_string());
-        let query = self.mod_search_query.clone();
-        let state = self.async_state.clone();
-        let ctx = ctx.clone();
-        self.mod_searching = true;
-        self.mod_search_results.clear();
-        self.mod_search_versions.clear();
-
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let result = miao_core::modrinth::api::search_mods(
-                    &query,
-                    Some(&mc_version),
-                    loader.as_deref(),
-                    20,
-                )
-                .await;
-                let mut s = state.lock().unwrap();
-                match result {
-                    Ok(r) => {
-                        s.mod_search_hits = Some(r.hits);
-                    }
-                    Err(e) => {
-                        s.install_status = Some(format!("✗ Search failed: {}", e));
-                    }
-                }
-                ctx.request_repaint();
-            });
-        });
-    }
-
-    fn load_mod_versions(&mut self, ctx: &egui::Context, hit_idx: usize) {
-        let Some(hit) = self.mod_search_results.get(hit_idx) else {
-            return;
-        };
-        let Some(inst_idx) = self.selected_instance else {
-            return;
-        };
-        let inst = &self.instances[inst_idx];
-        let project_slug = hit.slug.clone();
-        let mc_version = inst.minecraft_version.clone();
-        let loader = inst
-            .mod_loader
-            .as_ref()
-            .map(|l| l.loader_type.as_str().to_string());
-        let state = self.async_state.clone();
-        let ctx = ctx.clone();
-        self.mod_searching = true;
-
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let result = miao_core::modrinth::api::get_project_versions(
-                    &project_slug,
-                    Some(&mc_version),
-                    loader.as_deref(),
-                )
-                .await;
-                let mut s = state.lock().unwrap();
-                match result {
-                    Ok(versions) => {
-                        s.mod_versions = Some(versions);
-                    }
-                    Err(e) => {
-                        s.install_status = Some(format!("✗ {}", e));
-                    }
-                }
-                ctx.request_repaint();
-            });
-        });
-    }
-
-    fn install_mod_version(&mut self, _ctx: &egui::Context, _ver_idx: usize) {
-        let Some(hit) = self.mod_search_results.get(self.mod_search_selected) else {
-            return;
-        };
-        let Some(inst_idx) = self.selected_instance else {
-            return;
-        };
-        let inst = &self.instances[inst_idx];
-        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
-        let mods_dir = Instance::mods_dir(&instance_dir);
-        let mc_version = inst.minecraft_version.clone();
-        let loader = inst
-            .mod_loader
-            .as_ref()
-            .map(|l| l.loader_type.as_str().to_string())
-            .unwrap_or_else(|| "fabric".to_string());
-        let project_slug = hit.slug.clone();
-        let state = self.async_state.clone();
-        let ctx = self.ctx.clone();
-
-        self.status = format!("Installing {} + dependencies...", hit.title);
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                match miao_core::modrinth::api::install_mod_with_dependencies(
-                    &project_slug,
-                    &mc_version,
-                    &loader,
-                    &mods_dir,
-                )
-                .await
-                {
-                    Ok(results) => {
-                        let names: Vec<_> = results.iter().map(|m| m.filename.clone()).collect();
-                        let mut s = state.lock().unwrap();
-                        s.install_status = Some(format!(
-                            "✓ Installed {} mod(s): {}",
-                            results.len(),
-                            names.join(", ")
-                        ));
-                    }
-                    Err(e) => {
-                        let mut s = state.lock().unwrap();
-                        s.install_status = Some(format!("✗ Install failed: {}", e));
-                    }
-                }
-                ctx.request_repaint();
-            });
-        });
-    }
-
-    fn export_instance_with_dialog(&mut self, idx: usize) {
+    pub fn export_instance_with_dialog(&mut self, idx: usize) {
         let inst = self.instances[idx].clone();
         let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
         let state = self.async_state.clone();
@@ -1311,7 +564,7 @@ impl MiaoApp {
         self.status = "Selecting export folder...".to_string();
         std::thread::spawn(move || {
             let folder = rfd::FileDialog::new()
-                .set_title("Export .mrpack — select output folder")
+                .set_title("Export .mrpack")
                 .pick_folder();
 
             let Some(output_path) = folder else {
@@ -1341,7 +594,7 @@ impl MiaoApp {
         });
     }
 
-    fn import_with_dialog(&mut self) {
+    pub fn import_with_dialog(&mut self) {
         let state = self.async_state.clone();
         let config = self.config.clone();
         let ctx = self.ctx.clone();
@@ -1394,15 +647,58 @@ impl MiaoApp {
             });
         });
     }
-}
 
-fn format_downloads_gui(n: u64) -> String {
-    if n >= 1_000_000 {
-        format!("{:.1}M", n as f64 / 1_000_000.0)
-    } else if n >= 1_000 {
-        format!("{:.0}K", n as f64 / 1_000.0)
-    } else {
-        n.to_string()
+    pub fn fetch_loader_versions(&mut self, mc_version: &str) {
+        {
+            let mut s = self.async_state.lock().unwrap();
+            if s.loading_loader_versions {
+                return;
+            }
+            s.loading_loader_versions = true;
+            s.loader_versions.clear();
+        }
+
+        let state = self.async_state.clone();
+        let mc_version = mc_version.to_string();
+        let ctx = self.ctx.clone();
+
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let http = reqwest::Client::new();
+            rt.block_on(async {
+                let versions =
+                    miao_core::modloader::fetch_all_loader_versions(&http, &mc_version).await;
+                let mut s = state.lock().unwrap();
+                s.loading_loader_versions = false;
+                if let Ok(v) = versions {
+                    s.loader_versions = v;
+                }
+            });
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn get_available_loaders(&self, state: &AsyncState) -> Vec<(usize, &'static str, bool)> {
+        let mut loaders = vec![(0, "None (Vanilla)", true)];
+        for (idx, name, loader_type) in [
+            (1, "Fabric", ModLoaderType::Fabric),
+            (2, "Quilt", ModLoaderType::Quilt),
+            (3, "NeoForge", ModLoaderType::NeoForge),
+            (4, "Forge", ModLoaderType::Forge),
+        ] {
+            loaders.push((idx, name, state.loader_versions.contains_key(&loader_type)));
+        }
+        loaders
+    }
+
+    pub fn get_loader_versions<'a>(&self, state: &'a AsyncState) -> Vec<&'a ModLoaderVersion> {
+        if self.new_instance_loader == 0 {
+            return Vec::new();
+        }
+        ModLoaderType::from_index(self.new_instance_loader - 1)
+            .and_then(|lt| state.loader_versions.get(&lt))
+            .map(|v| v.iter().collect())
+            .unwrap_or_default()
     }
 }
 
