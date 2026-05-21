@@ -21,12 +21,17 @@ impl MiaoApp {
         ui.separator();
         ui.add_space(theme::Spacing::SMALL_GAP);
 
-        egui::ScrollArea::vertical().show(ui, |ui| match self.active_tab {
-            DetailTab::Mods => self.render_mods_tab(ui, &instance_dir),
-            DetailTab::Resources => self.render_resources_tab(ui, &instance_dir),
-            DetailTab::Worlds => self.render_worlds_tab(ui, &instance_dir),
-            DetailTab::Log => self.render_log_tab(ui, &instance_dir),
-        });
+        egui::ScrollArea::vertical()
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width() - 8.0);
+                match self.active_tab {
+                    DetailTab::Mods => self.render_mods_tab(ui, &instance_dir),
+                    DetailTab::Resources => self.render_resources_tab(ui, &instance_dir),
+                    DetailTab::Worlds => self.render_worlds_tab(ui, &instance_dir),
+                    DetailTab::Log => self.render_log_tab(ui, &instance_dir),
+                }
+            });
     }
 
     fn render_welcome(&self, ui: &mut egui::Ui) {
