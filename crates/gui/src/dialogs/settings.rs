@@ -7,41 +7,30 @@ use crate::theme;
 
 impl MiaoApp {
     pub fn render_settings_page(&mut self, ui: &mut egui::Ui, state: &AsyncState) {
-        let total_rect = ui.available_rect_before_wrap();
-        let nav_width = 150.0;
-
-        let nav_rect =
-            egui::Rect::from_min_size(total_rect.min, egui::vec2(nav_width, total_rect.height()));
-        let content_rect = egui::Rect::from_min_max(
-            egui::pos2(total_rect.min.x + nav_width + 1.0, total_rect.min.y),
-            total_rect.max,
-        );
-
-        let mut nav_ui = ui.new_child(egui::UiBuilder::new().max_rect(nav_rect));
-        self.render_settings_nav(&mut nav_ui);
-
-        ui.painter().vline(
-            nav_rect.right(),
-            total_rect.y_range(),
-            egui::Stroke::new(1.0, theme::Colors::BG_WIDGET),
-        );
-
-        let mut content_ui = ui.new_child(egui::UiBuilder::new().max_rect(content_rect));
-        egui::ScrollArea::vertical()
-            .id_salt("settings_content")
-            .show(&mut content_ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                ui.add_space(12.0);
-                match self.settings_tab {
-                    SettingsTab::Account => self.render_tab_account(ui, state),
-                    SettingsTab::Data => self.render_tab_data(ui),
-                    SettingsTab::Java => self.render_tab_java(ui),
-                    SettingsTab::About => self.render_tab_about(ui),
-                }
-                ui.add_space(16.0);
+        egui::SidePanel::left("settings_nav")
+            .resizable(false)
+            .exact_width(150.0)
+            .frame(egui::Frame::none().inner_margin(egui::Margin::same(0.0)))
+            .show_inside(ui, |ui| {
+                self.render_settings_nav(ui);
             });
 
-        ui.allocate_rect(total_rect, egui::Sense::hover());
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(16.0, 0.0)))
+            .show_inside(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("settings_content")
+                    .show(ui, |ui| {
+                        ui.add_space(12.0);
+                        match self.settings_tab {
+                            SettingsTab::Account => self.render_tab_account(ui, state),
+                            SettingsTab::Data => self.render_tab_data(ui),
+                            SettingsTab::Java => self.render_tab_java(ui),
+                            SettingsTab::About => self.render_tab_about(ui),
+                        }
+                        ui.add_space(16.0);
+                    });
+            });
     }
 
     fn render_settings_nav(&mut self, ui: &mut egui::Ui) {
