@@ -220,22 +220,36 @@ impl MiaoApp {
                 }
             });
             ui.add_space(8.0);
-            if ui.button("Apply & Migrate").clicked() {
-                let new_path = std::path::PathBuf::from(&self.data_dir_input);
-                let old_path = self.config.data_dir.clone();
-                if new_path != old_path {
+            ui.horizontal(|ui| {
+                if ui.button("Apply").clicked() {
+                    let new_path = std::path::PathBuf::from(&self.data_dir_input);
                     let _ = std::fs::create_dir_all(&new_path);
-                    if old_path.exists() {
-                        migrate_data_dir(&old_path, &new_path);
-                    }
                     self.config.data_dir = new_path;
                     let _ = self.config.save();
                     self.instances =
                         miao_core::instance::list_instances(&self.config.instances_dir())
                             .unwrap_or_default();
-                    self.status = "Data directory migrated.".to_string();
+                    self.selected_instance = None;
+                    self.status = "Data directory updated.".to_string();
                 }
-            }
+                if ui.button("Apply & Migrate").clicked() {
+                    let new_path = std::path::PathBuf::from(&self.data_dir_input);
+                    let old_path = self.config.data_dir.clone();
+                    if new_path != old_path {
+                        let _ = std::fs::create_dir_all(&new_path);
+                        if old_path.exists() {
+                            migrate_data_dir(&old_path, &new_path);
+                        }
+                        self.config.data_dir = new_path;
+                        let _ = self.config.save();
+                        self.instances =
+                            miao_core::instance::list_instances(&self.config.instances_dir())
+                                .unwrap_or_default();
+                        self.selected_instance = None;
+                        self.status = "Data directory migrated.".to_string();
+                    }
+                }
+            });
         });
 
         ui.add_space(16.0);
