@@ -272,6 +272,10 @@ pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
     style.visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);
     style.visuals.slider_trailing_fill = true;
 
+    style.spacing.scroll = egui::style::ScrollStyle::solid();
+    style.spacing.scroll.bar_width = 6.0;
+    style.spacing.scroll.bar_outer_margin = 4.0;
+
     ctx.set_style(style);
 }
 
