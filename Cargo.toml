@@ -3,7 +3,6 @@ resolver = "2"
 members = [
     "crates/core",
     "crates/cli",
-    "crates/gui",
     "src-tauri",
 ]
 
@@ -54,10 +53,6 @@ url = "2"
 # Indicatif progress bars (shared between TUI/CLI)
 indicatif = "0.17"
 
-
-# GUI
-eframe = "0.30"
-egui = "0.30"
 
 # OAuth2
 oauth2 = "5"
