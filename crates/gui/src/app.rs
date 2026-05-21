@@ -1,6 +1,6 @@
 use eframe::egui;
 use miao_core::auth::AuthMethod;
-use miao_core::auth::microsoft::{DeviceCodeResponse, MicrosoftAuth, PollResult};
+use miao_core::auth::microsoft::{MicrosoftAuth, PollResult};
 use miao_core::auth::offline::create_offline_account;
 use miao_core::config::LauncherConfig;
 use miao_core::download::manager::DownloadManager;
@@ -9,55 +9,20 @@ use miao_core::java;
 use miao_core::launch::{LaunchOptions, build_launch_command};
 use miao_core::modloader::{ModLoaderType, ModLoaderVersion};
 use miao_core::version::VersionInfo;
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+pub use crate::state::{
+    AppView, AsyncState, DetailTab, Dialog, ModSearchState, NewInstanceInput, SharedAsyncState,
+    VersionsState,
+};
 use crate::theme;
 
 pub const MS_CLIENT_ID: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AppView {
-    Main,
-    Settings,
-    Welcome,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DetailTab {
-    Mods,
-    Resources,
-    Worlds,
-    Log,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Dialog {
-    None,
-    NewInstance,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct AsyncState {
-    pub versions: Vec<VersionInfo>,
-    pub versions_loading: bool,
-    pub install_status: Option<String>,
-    pub installing: bool,
-    pub ms_device_code: Option<DeviceCodeResponse>,
-    pub ms_logging_in: bool,
-    pub loader_versions: HashMap<ModLoaderType, Vec<ModLoaderVersion>>,
-    pub loading_loader_versions: bool,
-    pub mod_search_hits: Option<Vec<miao_core::modrinth::api::SearchHit>>,
-    pub mod_versions: Option<Vec<miao_core::modrinth::api::ProjectVersion>>,
-    pub progress_total: usize,
-    pub progress_completed: usize,
-    pub progress_label: String,
-}
-
 pub struct MiaoApp {
     pub config: LauncherConfig,
     pub instances: Vec<Instance>,
-    pub async_state: Arc<Mutex<AsyncState>>,
+    pub async_state: SharedAsyncState,
     pub app_view: AppView,
     pub active_dialog: Dialog,
     pub active_tab: DetailTab,
@@ -66,17 +31,8 @@ pub struct MiaoApp {
 
     pub offline_username_input: String,
     pub data_dir_input: String,
-    pub new_instance_name: String,
-    pub new_instance_version_idx: usize,
-    pub new_instance_loader: usize,
-    pub new_instance_loader_version_idx: usize,
-
-    pub mod_search_query: String,
-    pub mod_search_results: Vec<miao_core::modrinth::api::SearchHit>,
-    pub mod_search_versions: Vec<miao_core::modrinth::api::ProjectVersion>,
-    pub mod_search_selected: usize,
-    pub mod_searching: bool,
-    pub mod_search_active: bool,
+    pub new_instance: NewInstanceInput,
+    pub mod_search: ModSearchState,
 
     pub ctx: egui::Context,
     pub cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
@@ -90,7 +46,10 @@ impl MiaoApp {
         let instances = instance::list_instances(&config.instances_dir()).unwrap_or_default();
 
         let async_state = Arc::new(Mutex::new(AsyncState {
-            versions_loading: true,
+            versions: VersionsState {
+                loading: true,
+                ..Default::default()
+            },
             ..Default::default()
         }));
 
@@ -111,10 +70,10 @@ impl MiaoApp {
                         .take(50)
                         .collect();
                     let mut state = state_clone.lock().unwrap();
-                    state.versions = releases;
-                    state.versions_loading = false;
+                    state.versions.versions = releases;
+                    state.versions.loading = false;
                 } else {
-                    state_clone.lock().unwrap().versions_loading = false;
+                    state_clone.lock().unwrap().versions.loading = false;
                 }
                 ctx.request_repaint();
             });
@@ -138,16 +97,8 @@ impl MiaoApp {
             status: "Ready".to_string(),
             offline_username_input: String::new(),
             data_dir_input,
-            new_instance_name: String::new(),
-            new_instance_version_idx: 0,
-            new_instance_loader: 0,
-            new_instance_loader_version_idx: 0,
-            mod_search_query: String::new(),
-            mod_search_results: Vec::new(),
-            mod_search_versions: Vec::new(),
-            mod_search_selected: 0,
-            mod_searching: false,
-            mod_search_active: false,
+            new_instance: NewInstanceInput::default(),
+            mod_search: ModSearchState::default(),
             ctx: cc.egui_ctx.clone(),
             cached_javas: None,
             refresh_counter: 0,
@@ -157,10 +108,7 @@ impl MiaoApp {
 
     pub fn open_new_instance_dialog(&mut self) {
         self.active_dialog = Dialog::NewInstance;
-        self.new_instance_name.clear();
-        self.new_instance_version_idx = 0;
-        self.new_instance_loader = 0;
-        self.new_instance_loader_version_idx = 0;
+        self.new_instance.reset();
     }
 }
 
@@ -181,13 +129,13 @@ impl eframe::App for MiaoApp {
 
         let state = self.async_state.lock().unwrap().clone();
 
-        if let Some(ref s) = state.install_status {
+        if let Some(ref s) = state.install.status {
             self.status = s.clone();
             if s.starts_with('✓')
                 || s.starts_with('✗')
-                || (!state.installing && !state.ms_logging_in)
+                || (!state.install.installing && !state.auth.logging_in)
             {
-                self.async_state.lock().unwrap().install_status = None;
+                self.async_state.lock().unwrap().install.status = None;
                 if s.starts_with('✓') {
                     self.instances =
                         instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
@@ -196,20 +144,23 @@ impl eframe::App for MiaoApp {
         }
 
         if let Some(hits) = state.mod_search_hits.clone() {
-            self.mod_search_results = hits;
-            self.mod_searching = false;
+            self.mod_search.results = hits;
+            self.mod_search.searching = false;
             self.async_state.lock().unwrap().mod_search_hits = None;
         }
         if let Some(versions) = state.mod_versions.clone() {
-            self.mod_search_versions = versions;
-            self.mod_searching = false;
+            self.mod_search.versions = versions;
+            self.mod_search.searching = false;
             self.async_state.lock().unwrap().mod_versions = None;
         }
+        if state.pending_mod_install.is_some() {
+            self.mod_search.searching = false;
+        }
 
-        if state.installing
-            || state.ms_logging_in
-            || state.loading_loader_versions
-            || self.mod_searching
+        if state.install.installing
+            || state.auth.logging_in
+            || state.loader.loading
+            || self.mod_search.searching
         {
             ctx.request_repaint();
         }
@@ -256,14 +207,14 @@ impl eframe::App for MiaoApp {
                 egui::TopBottomPanel::bottom("status_bar")
                     .frame(theme::bottom_bar_frame())
                     .show(ctx, |ui| {
-                        if state.installing && state.progress_total > 0 {
-                            let fraction = state.progress_completed as f32
-                                / state.progress_total.max(1) as f32;
+                        if state.install.installing && state.install.progress_total > 0 {
+                            let fraction = state.install.progress_completed as f32
+                                / state.install.progress_total.max(1) as f32;
                             let text = format!(
                                 "{} ({}/{})",
-                                state.progress_label,
-                                state.progress_completed,
-                                state.progress_total
+                                state.install.progress_label,
+                                state.install.progress_completed,
+                                state.install.progress_total
                             );
                             ui.add(
                                 egui::ProgressBar::new(fraction)
@@ -395,12 +346,12 @@ impl MiaoApp {
 
         {
             let mut s = self.async_state.lock().unwrap();
-            if s.installing {
+            if s.install.installing {
                 self.status = "Already installing...".to_string();
                 return;
             }
-            s.installing = true;
-            s.install_status = Some(format!("Downloading Java {}...", required));
+            s.install.installing = true;
+            s.install.status = Some(format!("Downloading Java {}...", required));
         }
 
         self.status = format!("Downloading Java {}...", required);
@@ -434,7 +385,7 @@ impl MiaoApp {
                                             format!("Java {}: extracting...", required)
                                         }
                                     };
-                                    sp.lock().unwrap().install_status = Some(msg);
+                                    sp.lock().unwrap().install.status = Some(msg);
                                 },
                             )
                             .await
@@ -443,17 +394,17 @@ impl MiaoApp {
                     };
 
                 let mut s = state.lock().unwrap();
-                s.installing = false;
+                s.install.installing = false;
                 match result {
                     Ok(path) => {
-                        s.install_status = Some(format!(
+                        s.install.status = Some(format!(
                             "✓ Java {} installed at {}",
                             required,
                             path.display()
                         ));
                     }
                     Err(e) => {
-                        s.install_status = Some(format!("✗ Java download failed: {}", e));
+                        s.install.status = Some(format!("✗ Java download failed: {}", e));
                     }
                 }
             });
@@ -468,12 +419,12 @@ impl MiaoApp {
     ) {
         {
             let mut s = self.async_state.lock().unwrap();
-            if s.installing {
+            if s.install.installing {
                 self.status = "Already installing...".to_string();
                 return;
             }
-            s.installing = true;
-            s.install_status = Some(format!("Creating '{}'...", name));
+            s.install.installing = true;
+            s.install.status = Some(format!("Creating '{}'...", name));
         }
 
         self.status = format!("Creating '{}'...", name);
@@ -494,12 +445,12 @@ impl MiaoApp {
                 )
                 .await;
                 let mut s = state.lock().unwrap();
-                s.installing = false;
-                s.progress_total = 0;
-                s.progress_completed = 0;
+                s.install.installing = false;
+                s.install.progress_total = 0;
+                s.install.progress_completed = 0;
                 match result {
-                    Ok(_) => s.install_status = Some(format!("✓ '{}' created!", name)),
-                    Err(e) => s.install_status = Some(format!("✗ Failed: {}", e)),
+                    Ok(_) => s.install.status = Some(format!("✓ '{}' created!", name)),
+                    Err(e) => s.install.status = Some(format!("✗ Failed: {}", e)),
                 }
                 ctx.request_repaint();
             });
@@ -509,10 +460,10 @@ impl MiaoApp {
     pub fn start_ms_login(&mut self) {
         {
             let mut s = self.async_state.lock().unwrap();
-            if s.ms_logging_in {
+            if s.auth.logging_in {
                 return;
             }
-            s.ms_logging_in = true;
+            s.auth.logging_in = true;
         }
 
         let state = self.async_state.clone();
@@ -527,8 +478,8 @@ impl MiaoApp {
                     Ok(dc) => dc,
                     Err(e) => {
                         let mut s = state.lock().unwrap();
-                        s.ms_logging_in = false;
-                        s.install_status = Some(format!("Login error: {}", e));
+                        s.auth.logging_in = false;
+                        s.install.status = Some(format!("Login error: {}", e));
                         ctx.request_repaint();
                         return;
                     }
@@ -537,7 +488,7 @@ impl MiaoApp {
                 let _ = open::that(&device_code.verification_uri);
                 let code = device_code.device_code.clone();
                 let interval = device_code.interval;
-                state.lock().unwrap().ms_device_code = Some(device_code);
+                state.lock().unwrap().auth.device_code = Some(device_code);
                 ctx.request_repaint();
 
                 loop {
@@ -559,15 +510,15 @@ impl MiaoApp {
                                     }
                                     let _ = config.save();
                                     let mut s = state.lock().unwrap();
-                                    s.ms_device_code = None;
-                                    s.ms_logging_in = false;
-                                    s.install_status = Some(format!("✓ Logged in as {}", name));
+                                    s.auth.device_code = None;
+                                    s.auth.logging_in = false;
+                                    s.install.status = Some(format!("✓ Logged in as {}", name));
                                 }
                                 Err(e) => {
                                     let mut s = state.lock().unwrap();
-                                    s.ms_device_code = None;
-                                    s.ms_logging_in = false;
-                                    s.install_status = Some(format!("Auth error: {}", e));
+                                    s.auth.device_code = None;
+                                    s.auth.logging_in = false;
+                                    s.install.status = Some(format!("Auth error: {}", e));
                                 }
                             }
                             ctx.request_repaint();
@@ -576,17 +527,17 @@ impl MiaoApp {
                         Ok(PollResult::Pending) | Ok(PollResult::SlowDown) => continue,
                         Ok(PollResult::Expired) => {
                             let mut s = state.lock().unwrap();
-                            s.ms_device_code = None;
-                            s.ms_logging_in = false;
-                            s.install_status = Some("Code expired.".to_string());
+                            s.auth.device_code = None;
+                            s.auth.logging_in = false;
+                            s.install.status = Some("Code expired.".to_string());
                             ctx.request_repaint();
                             return;
                         }
                         Ok(PollResult::Error(e)) => {
                             let mut s = state.lock().unwrap();
-                            s.ms_device_code = None;
-                            s.ms_logging_in = false;
-                            s.install_status = Some(format!("Error: {}", e));
+                            s.auth.device_code = None;
+                            s.auth.logging_in = false;
+                            s.install.status = Some(format!("Error: {}", e));
                             ctx.request_repaint();
                             return;
                         }
@@ -611,25 +562,25 @@ impl MiaoApp {
 
             let Some(output_path) = folder else {
                 let mut s = state.lock().unwrap();
-                s.install_status = Some("Export cancelled.".to_string());
+                s.install.status = Some("Export cancelled.".to_string());
                 ctx.request_repaint();
                 return;
             };
 
             {
                 let mut s = state.lock().unwrap();
-                s.install_status = Some(format!("Exporting '{}'...", inst.name));
+                s.install.status = Some(format!("Exporting '{}'...", inst.name));
             }
             ctx.request_repaint();
 
             match miao_core::modrinth::mrpack::export_mrpack(&instance_dir, &inst, &output_path) {
                 Ok(path) => {
                     let mut s = state.lock().unwrap();
-                    s.install_status = Some(format!("✓ Exported to {}", path.display()));
+                    s.install.status = Some(format!("✓ Exported to {}", path.display()));
                 }
                 Err(e) => {
                     let mut s = state.lock().unwrap();
-                    s.install_status = Some(format!("✗ Export failed: {}", e));
+                    s.install.status = Some(format!("✗ Export failed: {}", e));
                 }
             }
             ctx.request_repaint();
@@ -650,15 +601,15 @@ impl MiaoApp {
 
             let Some(mrpack_path) = file else {
                 let mut s = state.lock().unwrap();
-                s.install_status = Some("Import cancelled.".to_string());
+                s.install.status = Some("Import cancelled.".to_string());
                 ctx.request_repaint();
                 return;
             };
 
             {
                 let mut s = state.lock().unwrap();
-                s.installing = true;
-                s.install_status = Some(format!("Importing {}...", mrpack_path.display()));
+                s.install.installing = true;
+                s.install.status = Some(format!("Importing {}...", mrpack_path.display()));
             }
             ctx.request_repaint();
 
@@ -673,16 +624,16 @@ impl MiaoApp {
                             .map(|l| format!(" + {} {}", l.loader_type, l.version))
                             .unwrap_or_default();
                         let mut s = state.lock().unwrap();
-                        s.installing = false;
-                        s.install_status = Some(format!(
+                        s.install.installing = false;
+                        s.install.status = Some(format!(
                             "✓ Imported '{}' (MC {}{})",
                             inst.name, inst.minecraft_version, loader_info
                         ));
                     }
                     Err(e) => {
                         let mut s = state.lock().unwrap();
-                        s.installing = false;
-                        s.install_status = Some(format!("✗ Import failed: {}", e));
+                        s.install.installing = false;
+                        s.install.status = Some(format!("✗ Import failed: {}", e));
                     }
                 }
                 ctx.request_repaint();
@@ -693,11 +644,11 @@ impl MiaoApp {
     pub fn fetch_loader_versions(&mut self, mc_version: &str) {
         {
             let mut s = self.async_state.lock().unwrap();
-            if s.loading_loader_versions {
+            if s.loader.loading {
                 return;
             }
-            s.loading_loader_versions = true;
-            s.loader_versions.clear();
+            s.loader.loading = true;
+            s.loader.versions.clear();
         }
 
         let state = self.async_state.clone();
@@ -711,9 +662,9 @@ impl MiaoApp {
                 let versions =
                     miao_core::modloader::fetch_all_loader_versions(&http, &mc_version).await;
                 let mut s = state.lock().unwrap();
-                s.loading_loader_versions = false;
+                s.loader.loading = false;
                 if let Ok(v) = versions {
-                    s.loader_versions = v;
+                    s.loader.versions = v;
                 }
             });
             ctx.request_repaint();
@@ -728,17 +679,17 @@ impl MiaoApp {
             (3, "NeoForge", ModLoaderType::NeoForge),
             (4, "Forge", ModLoaderType::Forge),
         ] {
-            loaders.push((idx, name, state.loader_versions.contains_key(&loader_type)));
+            loaders.push((idx, name, state.loader.versions.contains_key(&loader_type)));
         }
         loaders
     }
 
     pub fn get_loader_versions<'a>(&self, state: &'a AsyncState) -> Vec<&'a ModLoaderVersion> {
-        if self.new_instance_loader == 0 {
+        if self.new_instance.loader == 0 {
             return Vec::new();
         }
-        ModLoaderType::from_index(self.new_instance_loader - 1)
-            .and_then(|lt| state.loader_versions.get(&lt))
+        ModLoaderType::from_index(self.new_instance.loader - 1)
+            .and_then(|lt| state.loader.versions.get(&lt))
             .map(|v| v.iter().collect())
             .unwrap_or_default()
     }
@@ -766,9 +717,9 @@ async fn do_create_instance(
 
     {
         let mut s = state.lock().unwrap();
-        s.progress_total = tasks.len();
-        s.progress_completed = 0;
-        s.progress_label = "Downloading libraries".to_string();
+        s.install.progress_total = tasks.len();
+        s.install.progress_completed = 0;
+        s.install.progress_label = "Downloading libraries".to_string();
     }
     ctx.request_repaint();
 
@@ -780,8 +731,8 @@ async fn do_create_instance(
     )
     .with_progress_callback(std::sync::Arc::new(move |p| {
         let mut s = state_cb.lock().unwrap();
-        s.progress_completed = p.completed_files;
-        s.progress_total = p.total_files;
+        s.install.progress_completed = p.completed_files;
+        s.install.progress_total = p.total_files;
         ctx_cb.request_repaint();
     }));
     dm.download_all(tasks).await?;
@@ -801,9 +752,9 @@ async fn do_create_instance(
 
         {
             let mut s = state.lock().unwrap();
-            s.progress_total = asset_tasks.len();
-            s.progress_completed = 0;
-            s.progress_label = "Downloading assets".to_string();
+            s.install.progress_total = asset_tasks.len();
+            s.install.progress_completed = 0;
+            s.install.progress_label = "Downloading assets".to_string();
         }
         ctx.request_repaint();
 
@@ -815,8 +766,8 @@ async fn do_create_instance(
         )
         .with_progress_callback(std::sync::Arc::new(move |p| {
             let mut s = state_cb2.lock().unwrap();
-            s.progress_completed = p.completed_files;
-            s.progress_total = p.total_files;
+            s.install.progress_completed = p.completed_files;
+            s.install.progress_total = p.total_files;
             ctx_cb2.request_repaint();
         }));
         dm2.download_all(asset_tasks).await?;
@@ -824,9 +775,9 @@ async fn do_create_instance(
 
     {
         let mut s = state.lock().unwrap();
-        s.progress_total = 0;
-        s.progress_completed = 0;
-        s.progress_label.clear();
+        s.install.progress_total = 0;
+        s.install.progress_completed = 0;
+        s.install.progress_label.clear();
     }
 
     let mut inst = Instance::new(instance_name, &ver.id);
