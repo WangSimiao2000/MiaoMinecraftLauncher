@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod config;
 pub mod download;
+pub mod error;
 pub mod http;
 pub mod instance;
 pub mod java;
@@ -10,4 +11,5 @@ pub mod modmanager;
 pub mod modrinth;
 pub mod resource;
 pub mod server_list;
+pub mod service;
 pub mod version;

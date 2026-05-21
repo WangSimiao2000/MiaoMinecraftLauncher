@@ -1,0 +1,426 @@
+use std::path::PathBuf;
+use std::process::Command;
+
+use anyhow::Result;
+
+use crate::auth::AuthMethod;
+use crate::auth::offline::create_offline_account;
+use crate::config::LauncherConfig;
+use crate::download::DownloadTask;
+use crate::download::manager::{DownloadManager, ProgressCallback};
+use crate::instance::{Instance, ModLoaderConfig};
+use crate::java;
+use crate::launch::{LaunchOptions, build_launch_command};
+use crate::modloader::{self, ModLoaderType};
+use crate::modrinth;
+use crate::version::{VersionInfo, assets, install, manifest, meta::VersionMeta};
+
+pub struct LauncherService {
+    config: LauncherConfig,
+    http: reqwest::Client,
+}
+
+impl LauncherService {
+    pub fn new(config: LauncherConfig) -> Self {
+        Self {
+            config,
+            http: reqwest::Client::builder()
+                .user_agent("MiaoMinecraftLauncher/0.1.0")
+                .build()
+                .expect("failed to build HTTP client"),
+        }
+    }
+
+    pub fn config(&self) -> &LauncherConfig {
+        &self.config
+    }
+
+    pub fn config_mut(&mut self) -> &mut LauncherConfig {
+        &mut self.config
+    }
+
+    pub fn update_config(&mut self, config: LauncherConfig) {
+        self.config = config;
+    }
+
+    // ─── Version Operations ──────────────────────────────────────────────
+
+    pub async fn fetch_versions(&self) -> Result<Vec<VersionInfo>> {
+        manifest::fetch_version_manifest(&self.http, &self.config.download_mirror).await
+    }
+
+    pub async fn fetch_version_meta(&self, version_url: &str) -> Result<VersionMeta> {
+        install::fetch_version_meta(&self.http, version_url, &self.config.download_mirror).await
+    }
+
+    // ─── Instance Operations ─────────────────────────────────────────────
+
+    pub fn list_instances(&self) -> Result<Vec<Instance>> {
+        crate::instance::list_instances(&self.config.instances_dir())
+    }
+
+    pub fn load_instance(&self, name: &str) -> Result<Instance> {
+        let dir = Instance::instance_dir(&self.config.instances_dir(), name);
+        Instance::load_from(&dir)
+    }
+
+    pub fn delete_instance(&self, name: &str) -> Result<()> {
+        crate::instance::delete_instance(&self.config.instances_dir(), name)
+    }
+
+    pub async fn create_instance(
+        &self,
+        mc_version: &str,
+        name: Option<&str>,
+        loader: Option<&str>,
+        loader_version: Option<&str>,
+        progress: Option<ProgressCallback>,
+    ) -> Result<Instance> {
+        let instance_name = name.unwrap_or(mc_version);
+
+        let versions = self.fetch_versions().await?;
+        let version_info = versions
+            .iter()
+            .find(|v| v.id == mc_version)
+            .ok_or_else(|| anyhow::anyhow!("Version '{}' not found", mc_version))?;
+
+        let meta = self.fetch_version_meta(&version_info.url).await?;
+        install::save_version_meta(&meta, &self.config)?;
+
+        let tasks = install::all_download_tasks(&meta, &self.config, &self.config.download_mirror);
+        self.download_files(tasks, progress.clone()).await?;
+
+        let asset_index_task = install::collect_asset_index_download(
+            &meta,
+            &self.config,
+            &self.config.download_mirror,
+        );
+        let asset_index_path = asset_index_task.dest.clone();
+        self.download_files(vec![asset_index_task], progress.clone())
+            .await?;
+
+        if asset_index_path.exists() {
+            let asset_index = assets::fetch_asset_index(&asset_index_path).await?;
+            let asset_tasks = assets::collect_asset_downloads(
+                &asset_index,
+                &self.config,
+                &self.config.download_mirror,
+            );
+            self.download_files(asset_tasks, progress).await?;
+        }
+
+        let mut inst = Instance::new(instance_name, mc_version);
+
+        if let Some(loader_str) = loader {
+            let loader_config = self
+                .install_loader(mc_version, loader_str, loader_version)
+                .await?;
+            inst.mod_loader = Some(loader_config);
+        }
+
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), instance_name);
+        inst.save_to(&instance_dir)?;
+        Instance::create_directories(&instance_dir)?;
+
+        Ok(inst)
+    }
+
+    // ─── Launch ──────────────────────────────────────────────────────────
+
+    pub async fn launch_instance(&self, name: &str) -> Result<Command> {
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), name);
+        let inst = Instance::load_from(&instance_dir)?;
+
+        let account = self
+            .config
+            .accounts
+            .first()
+            .cloned()
+            .unwrap_or_else(|| AuthMethod::Offline(create_offline_account("Player")));
+
+        let meta = self.load_version_meta(&inst.minecraft_version)?;
+        let required_java = meta.required_java_major();
+
+        let java_path = inst
+            .java_path
+            .clone()
+            .or_else(|| {
+                let installations = java::detect_system_java();
+                java::find_compatible_java(&installations, required_java).map(|j| j.path.clone())
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No compatible Java {} found. Run download-java or set java_path.",
+                    required_java
+                )
+            })?;
+
+        let options = LaunchOptions {
+            game_dir: instance_dir,
+            java_path,
+            version_meta: meta,
+            instance: inst,
+            auth: account,
+            config: self.config.clone(),
+        };
+
+        build_launch_command(&options)
+    }
+
+    // ─── Java ────────────────────────────────────────────────────────────
+
+    pub fn detect_java(&self) -> Vec<java::JavaInstallation> {
+        java::detect_system_java()
+    }
+
+    pub async fn download_java_for_instance(
+        &self,
+        name: &str,
+        progress_cb: Option<impl Fn(java::download::DownloadPhase) + Send + 'static>,
+    ) -> Result<PathBuf> {
+        let inst = self.load_instance(name)?;
+        let meta = self.load_version_meta(&inst.minecraft_version)?;
+        let required = meta.required_java_major();
+
+        let installations = java::detect_system_java();
+        if let Some(existing) = java::find_compatible_java(&installations, required) {
+            return Ok(existing.path.clone());
+        }
+
+        let asset = java::download::fetch_latest_asset(&self.http, required).await?;
+        let java_dir = self.config.data_dir.join("java");
+
+        let java_bin = if let Some(cb) = progress_cb {
+            java::download::download_and_extract_java_with_progress(
+                &self.http, &asset, &java_dir, cb,
+            )
+            .await?
+        } else {
+            java::download::download_and_extract_java_with_progress(
+                &self.http,
+                &asset,
+                &java_dir,
+                |_| {},
+            )
+            .await?
+        };
+
+        Ok(java_bin)
+    }
+
+    // ─── Mod Loaders ─────────────────────────────────────────────────────
+
+    pub async fn fetch_loader_versions(
+        &self,
+        mc_version: &str,
+    ) -> Result<std::collections::HashMap<ModLoaderType, Vec<modloader::ModLoaderVersion>>> {
+        modloader::fetch_all_loader_versions(&self.http, mc_version).await
+    }
+
+    pub async fn install_loader(
+        &self,
+        mc_version: &str,
+        loader_str: &str,
+        loader_version: Option<&str>,
+    ) -> Result<ModLoaderConfig> {
+        let lt = ModLoaderType::parse(loader_str)?;
+        let ver = match loader_version {
+            Some(v) => v.to_string(),
+            None => self.resolve_latest_loader_version(&lt, mc_version).await?,
+        };
+        modloader::install_loader(&self.http, &lt, mc_version, &ver, &self.config).await
+    }
+
+    pub async fn upgrade_loader(
+        &self,
+        instance_name: &str,
+        target_version: Option<&str>,
+    ) -> Result<Instance> {
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), instance_name);
+        let mut inst = Instance::load_from(&instance_dir)?;
+        let mc_version = inst.minecraft_version.clone();
+
+        let current_loader = inst.mod_loader.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("Instance '{}' has no mod loader installed", instance_name)
+        })?;
+
+        let current_type = current_loader.loader_type.clone();
+
+        let new_ver = match target_version {
+            Some(v) => v.to_string(),
+            None => {
+                self.resolve_latest_loader_version(&current_type, &mc_version)
+                    .await?
+            }
+        };
+
+        let loader_config = modloader::install_loader(
+            &self.http,
+            &current_type,
+            &mc_version,
+            &new_ver,
+            &self.config,
+        )
+        .await?;
+        inst.mod_loader = Some(loader_config);
+        inst.save_to(&instance_dir)?;
+
+        Ok(inst)
+    }
+
+    async fn resolve_latest_loader_version(
+        &self,
+        loader_type: &ModLoaderType,
+        mc_version: &str,
+    ) -> Result<String> {
+        use crate::modloader::{fabric, forge, neoforge, quilt};
+
+        let version = match loader_type {
+            ModLoaderType::Fabric => {
+                let versions = fabric::fetch_loader_versions(&self.http, mc_version).await?;
+                versions
+                    .iter()
+                    .find(|v| v.loader.stable)
+                    .or(versions.first())
+                    .map(|v| v.loader.version.clone())
+                    .ok_or_else(|| anyhow::anyhow!("No Fabric versions for MC {}", mc_version))?
+            }
+            ModLoaderType::Quilt => {
+                let versions = quilt::fetch_loader_versions(&self.http, mc_version).await?;
+                versions
+                    .first()
+                    .map(|v| v.loader.version.clone())
+                    .ok_or_else(|| anyhow::anyhow!("No Quilt versions for MC {}", mc_version))?
+            }
+            ModLoaderType::NeoForge => {
+                let versions = neoforge::fetch_versions(&self.http, mc_version).await?;
+                versions
+                    .first()
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("No NeoForge versions for MC {}", mc_version))?
+            }
+            ModLoaderType::Forge => forge::fetch_recommended_version(&self.http, mc_version)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("No Forge versions for MC {}", mc_version))?,
+        };
+
+        Ok(version)
+    }
+
+    // ─── Modrinth Mods ───────────────────────────────────────────────────
+
+    pub async fn search_mods(
+        &self,
+        query: &str,
+        mc_version: Option<&str>,
+        loader: Option<&str>,
+        limit: u32,
+    ) -> Result<modrinth::api::SearchResult> {
+        modrinth::api::search_mods(query, mc_version, loader, limit).await
+    }
+
+    pub async fn install_mod(
+        &self,
+        instance_name: &str,
+        project_id: &str,
+    ) -> Result<Vec<modrinth::api::InstalledMod>> {
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), instance_name);
+        let inst = Instance::load_from(&instance_dir)?;
+
+        let loader = inst
+            .mod_loader
+            .as_ref()
+            .map(|l| l.loader_type.as_str())
+            .unwrap_or("fabric");
+
+        let mods_dir = Instance::mods_dir(&instance_dir);
+        modrinth::api::install_mod_with_dependencies(
+            project_id,
+            &inst.minecraft_version,
+            loader,
+            &mods_dir,
+        )
+        .await
+    }
+
+    // ─── Mrpack Import/Export ─────────────────────────────────────────────
+
+    pub fn export_instance(
+        &self,
+        instance_name: &str,
+        output_dir: &std::path::Path,
+    ) -> Result<PathBuf> {
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), instance_name);
+        let inst = Instance::load_from(&instance_dir)?;
+        modrinth::mrpack::export_mrpack(&instance_dir, &inst, output_dir)
+    }
+
+    pub async fn import_mrpack(
+        &self,
+        mrpack_path: &std::path::Path,
+        name: Option<&str>,
+    ) -> Result<Instance> {
+        modrinth::mrpack::import_mrpack(mrpack_path, &self.config, name).await
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────
+
+    async fn download_files(
+        &self,
+        tasks: Vec<DownloadTask>,
+        progress: Option<ProgressCallback>,
+    ) -> Result<()> {
+        if tasks.is_empty() {
+            return Ok(());
+        }
+        let dm = DownloadManager::new(
+            self.config.download_mirror.clone(),
+            self.config.max_concurrent_downloads,
+        );
+        let dm = if let Some(cb) = progress {
+            dm.with_progress_callback(cb)
+        } else {
+            dm
+        };
+        dm.download_all(tasks).await
+    }
+
+    fn load_version_meta(&self, mc_version: &str) -> Result<VersionMeta> {
+        let meta_path = self
+            .config
+            .versions_dir()
+            .join(mc_version)
+            .join(format!("{}.json", mc_version));
+
+        if !meta_path.exists() {
+            anyhow::bail!(
+                "Version metadata not found for {}. Create the instance first.",
+                mc_version
+            );
+        }
+
+        let content = std::fs::read_to_string(&meta_path)?;
+        let meta: VersionMeta = serde_json::from_str(&content)?;
+        Ok(meta)
+    }
+}
+
+// ─── Account Helpers ─────────────────────────────────────────────────────
+
+impl LauncherService {
+    pub fn add_offline_account(&mut self, username: &str) -> Result<()> {
+        let account = create_offline_account(username);
+        self.config.accounts.push(AuthMethod::Offline(account));
+        if self.config.active_account_index.is_none() {
+            self.config.active_account_index = Some(0);
+        }
+        self.config.save()?;
+        Ok(())
+    }
+
+    pub fn active_account(&self) -> Option<&AuthMethod> {
+        self.config
+            .active_account_index
+            .and_then(|idx| self.config.accounts.get(idx))
+    }
+}
