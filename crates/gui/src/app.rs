@@ -17,6 +17,13 @@ use crate::theme;
 pub const MS_CLIENT_ID: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppView {
+    Main,
+    Settings,
+    Welcome,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DetailTab {
     Mods,
     Resources,
@@ -28,8 +35,6 @@ pub enum DetailTab {
 pub enum Dialog {
     None,
     NewInstance,
-    Accounts,
-    Settings,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -53,12 +58,14 @@ pub struct MiaoApp {
     pub config: LauncherConfig,
     pub instances: Vec<Instance>,
     pub async_state: Arc<Mutex<AsyncState>>,
+    pub app_view: AppView,
     pub active_dialog: Dialog,
     pub active_tab: DetailTab,
     pub selected_instance: Option<usize>,
     pub status: String,
 
     pub offline_username_input: String,
+    pub data_dir_input: String,
     pub new_instance_name: String,
     pub new_instance_version_idx: usize,
     pub new_instance_loader: usize,
@@ -112,15 +119,24 @@ impl MiaoApp {
             });
         });
 
+        let is_first_run = !config.data_dir.join("config.toml").exists() && instances.is_empty();
+        let data_dir_input = config.data_dir.display().to_string();
+
         Self {
             config,
             instances,
             async_state,
+            app_view: if is_first_run {
+                AppView::Welcome
+            } else {
+                AppView::Main
+            },
             active_dialog: Dialog::None,
             active_tab: DetailTab::Mods,
             selected_instance: None,
             status: "Ready".to_string(),
             offline_username_input: String::new(),
+            data_dir_input,
             new_instance_name: String::new(),
             new_instance_version_idx: 0,
             new_instance_loader: 0,
@@ -196,55 +212,78 @@ impl eframe::App for MiaoApp {
             ctx.request_repaint();
         }
 
-        egui::TopBottomPanel::top("top_bar")
-            .frame(theme::top_bar_frame())
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(theme::heading("MiaoMC"));
-                    ui.add_space(8.0);
-                    ui.label(theme::small("Minecraft Launcher"));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("Settings").clicked() {
-                            self.active_dialog = Dialog::Settings;
-                        }
-                        if ui.button("Accounts").clicked() {
-                            self.active_dialog = Dialog::Accounts;
+        match self.app_view {
+            AppView::Welcome => {
+                self.render_welcome_setup(ctx);
+            }
+            AppView::Settings => {
+                egui::TopBottomPanel::top("top_bar")
+                    .frame(theme::top_bar_frame())
+                    .show(ctx, |ui| {
+                        ui.horizontal(|ui| {
+                            if ui.button("< Back").clicked() {
+                                self.app_view = AppView::Main;
+                            }
+                            ui.add_space(8.0);
+                            ui.label(theme::heading("Settings"));
+                        });
+                    });
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    self.render_settings_page(ui, &state);
+                });
+            }
+            AppView::Main => {
+                egui::TopBottomPanel::top("top_bar")
+                    .frame(theme::top_bar_frame())
+                    .show(ctx, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(theme::heading("MiaoMC"));
+                            ui.add_space(8.0);
+                            ui.label(theme::small("Minecraft Launcher"));
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui.button("Settings").clicked() {
+                                        self.app_view = AppView::Settings;
+                                    }
+                                },
+                            );
+                        });
+                    });
+
+                egui::TopBottomPanel::bottom("status_bar")
+                    .frame(theme::bottom_bar_frame())
+                    .show(ctx, |ui| {
+                        if state.installing && state.progress_total > 0 {
+                            let fraction = state.progress_completed as f32
+                                / state.progress_total.max(1) as f32;
+                            let text = format!(
+                                "{} ({}/{})",
+                                state.progress_label,
+                                state.progress_completed,
+                                state.progress_total
+                            );
+                            ui.add(
+                                egui::ProgressBar::new(fraction)
+                                    .text(text)
+                                    .fill(theme::Colors::ACCENT),
+                            );
+                        } else {
+                            ui.label(theme::status_text(&self.status));
                         }
                     });
+
+                self.render_sidebar(ctx);
+
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    self.render_detail(ui);
                 });
-            });
 
-        egui::TopBottomPanel::bottom("status_bar")
-            .frame(theme::bottom_bar_frame())
-            .show(ctx, |ui| {
-                if state.installing && state.progress_total > 0 {
-                    let fraction =
-                        state.progress_completed as f32 / state.progress_total.max(1) as f32;
-                    let text = format!(
-                        "{} ({}/{})",
-                        state.progress_label, state.progress_completed, state.progress_total
-                    );
-                    ui.add(
-                        egui::ProgressBar::new(fraction)
-                            .text(text)
-                            .fill(theme::Colors::ACCENT),
-                    );
-                } else {
-                    ui.label(theme::status_text(&self.status));
+                match self.active_dialog {
+                    Dialog::NewInstance => self.render_new_instance_dialog(ctx, &state),
+                    Dialog::None => {}
                 }
-            });
-
-        self.render_sidebar(ctx);
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            self.render_detail(ui);
-        });
-
-        match self.active_dialog {
-            Dialog::NewInstance => self.render_new_instance_dialog(ctx, &state),
-            Dialog::Accounts => self.render_accounts_dialog(ctx, &state),
-            Dialog::Settings => self.render_settings_dialog(ctx),
-            Dialog::None => {}
+            }
         }
     }
 }
