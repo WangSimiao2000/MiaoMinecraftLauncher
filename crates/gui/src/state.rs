@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
 
 use miao_core::auth::microsoft::DeviceCodeResponse;
 use miao_core::modloader::{ModLoaderType, ModLoaderVersion};
@@ -42,7 +41,7 @@ pub enum Dialog {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct VersionsState {
+pub struct VersionsUiState {
     pub all_versions: Vec<VersionInfo>,
     pub versions: Vec<VersionInfo>,
     pub loading: bool,
@@ -52,22 +51,20 @@ pub struct VersionsState {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct InstallState {
-    pub status: Option<String>,
-    pub installing: bool,
-    pub progress_total: usize,
-    pub progress_completed: usize,
-    pub progress_label: String,
+pub struct InstallProgress {
+    pub total: usize,
+    pub completed: usize,
+    pub label: String,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct AuthState {
+pub struct AuthUiState {
     pub device_code: Option<DeviceCodeResponse>,
     pub logging_in: bool,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct LoaderState {
+pub struct LoaderUiState {
     pub versions: HashMap<ModLoaderType, Vec<ModLoaderVersion>>,
     pub loading: bool,
 }
@@ -91,7 +88,6 @@ pub struct PendingModInstall {
     pub loader: String,
 }
 
-/// Real-time game log state
 #[derive(Debug, Clone, Default)]
 pub struct GameLogState {
     pub lines: VecDeque<String>,
@@ -102,7 +98,6 @@ impl GameLogState {
     pub const MAX_LINES: usize = 2000;
 }
 
-/// Per-instance settings editing state
 #[derive(Debug, Clone, Default)]
 pub struct InstanceSettingsEdit {
     pub memory_max: String,
@@ -113,22 +108,6 @@ pub struct InstanceSettingsEdit {
     pub jvm_args: String,
     pub dirty: bool,
 }
-
-#[derive(Debug, Clone, Default)]
-pub struct AsyncState {
-    pub versions: VersionsState,
-    pub install: InstallState,
-    pub auth: AuthState,
-    pub loader: LoaderState,
-    pub mod_search_hits: Option<Vec<SearchHit>>,
-    pub mod_versions: Option<Vec<ProjectVersion>>,
-    pub pending_mod_install: Option<PendingModInstall>,
-    pub game_log: GameLogState,
-    pub update_available: Option<String>,
-    pub java_installed_launch_idx: Option<usize>,
-}
-
-pub type SharedAsyncState = Arc<Mutex<AsyncState>>;
 
 #[derive(Default)]
 pub struct NewInstanceInput {
@@ -164,13 +143,11 @@ impl Language {
     }
 }
 
-/// Translation keys
 pub struct I18n;
 
 impl I18n {
     pub fn t(lang: Language, key: &'static str) -> &'static str {
         match (lang, key) {
-            // General
             (Language::English, "ready") => "Ready",
             (Language::Chinese, "ready") => "就绪",
             (Language::English, "settings") => "Settings",
@@ -203,8 +180,6 @@ impl I18n {
             (Language::Chinese, "save") => "保存",
             (Language::English, "apply") => "Apply",
             (Language::Chinese, "apply") => "应用",
-
-            // Tabs
             (Language::English, "tab_mods") => "Mods",
             (Language::Chinese, "tab_mods") => "模组",
             (Language::English, "tab_resources") => "Resources",
@@ -215,8 +190,6 @@ impl I18n {
             (Language::Chinese, "tab_log") => "日志",
             (Language::English, "tab_settings") => "Settings",
             (Language::Chinese, "tab_settings") => "设置",
-
-            // Settings tabs
             (Language::English, "account") => "Account",
             (Language::Chinese, "account") => "账号",
             (Language::English, "data") => "Data",
@@ -227,8 +200,6 @@ impl I18n {
             (Language::Chinese, "about") => "关于",
             (Language::English, "language") => "Language",
             (Language::Chinese, "language") => "语言",
-
-            // Instance settings
             (Language::English, "memory") => "Memory",
             (Language::Chinese, "memory") => "内存",
             (Language::English, "resolution") => "Resolution",
@@ -249,8 +220,6 @@ impl I18n {
             (Language::Chinese, "height") => "高度",
             (Language::English, "saved") => "Settings saved.",
             (Language::Chinese, "saved") => "设置已保存。",
-
-            // Downloads
             (Language::English, "mirror") => "Mirror",
             (Language::Chinese, "mirror") => "下载源",
             (Language::English, "mirror_official") => "Official",
@@ -261,8 +230,6 @@ impl I18n {
             (Language::Chinese, "mirror_custom") => "自定义",
             (Language::English, "max_concurrent") => "Max concurrent downloads",
             (Language::Chinese, "max_concurrent") => "最大并发下载数",
-
-            // Versions
             (Language::English, "show_snapshots") => "Snapshots",
             (Language::Chinese, "show_snapshots") => "快照版",
             (Language::English, "show_old_beta") => "Old Beta",
@@ -271,16 +238,12 @@ impl I18n {
             (Language::Chinese, "show_old_alpha") => "旧Alpha版",
             (Language::English, "create_instance") => "Create New Instance",
             (Language::Chinese, "create_instance") => "创建新实例",
-
-            // Log
             (Language::English, "game_log") => "Game Log",
             (Language::Chinese, "game_log") => "游戏日志",
             (Language::English, "clear_log") => "Clear",
             (Language::Chinese, "clear_log") => "清除",
             (Language::English, "no_log") => "No log yet. Launch the game first.",
             (Language::Chinese, "no_log") => "暂无日志，请先启动游戏。",
-
-            // Welcome
             (Language::English, "welcome") => "Welcome to MMCL",
             (Language::Chinese, "welcome") => "欢迎使用 MMCL",
             (Language::English, "welcome_hint") => {
@@ -289,14 +252,10 @@ impl I18n {
             (Language::Chinese, "welcome_hint") => {
                 "从左侧面板选择一个实例，\n或点击 '+ 新建' 创建一个。"
             }
-
-            // No instances
             (Language::English, "no_instances") => "No instances yet",
             (Language::Chinese, "no_instances") => "暂无实例",
             (Language::English, "no_instances_hint") => "Click '+ New' to create one",
             (Language::Chinese, "no_instances_hint") => "点击 '+ 新建' 创建一个",
-
-            // Account
             (Language::English, "active_account") => "Active Account",
             (Language::Chinese, "active_account") => "当前账号",
             (Language::English, "add_account") => "Add Account",
@@ -309,12 +268,8 @@ impl I18n {
             (Language::Chinese, "no_accounts") => "暂未配置任何账号。",
             (Language::English, "sign_in") => "Sign In",
             (Language::Chinese, "sign_in") => "登录",
-
-            // Update
             (Language::English, "update_available") => "Update available",
             (Language::Chinese, "update_available") => "有新版本可用",
-
-            // Fallback
             _ => key,
         }
     }

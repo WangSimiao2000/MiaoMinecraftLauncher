@@ -1,15 +1,15 @@
 use eframe::egui;
 
-use crate::app::{AsyncState, Dialog, I18n, MiaoApp};
+use crate::app::{Dialog, I18n, MiaoApp};
 use crate::theme;
 
 impl MiaoApp {
-    pub fn render_new_instance_dialog(&mut self, ctx: &egui::Context, state: &AsyncState) {
-        if !state.versions.versions.is_empty()
-            && state.loader.versions.is_empty()
-            && !state.loader.loading
+    pub fn render_new_instance_dialog(&mut self, ctx: &egui::Context) {
+        if !self.versions.versions.is_empty()
+            && self.loader.versions.is_empty()
+            && !self.loader.loading
         {
-            let mc_ver = state.versions.versions[self.new_instance.version_idx]
+            let mc_ver = self.versions.versions[self.new_instance.version_idx]
                 .id
                 .clone();
             self.fetch_loader_versions(&mc_ver);
@@ -37,8 +37,8 @@ impl MiaoApp {
 
                 ui.horizontal(|ui| {
                     ui.label("MC Version:");
-                    if !state.versions.versions.is_empty() {
-                        let current = state
+                    if !self.versions.versions.is_empty() {
+                        let current = self
                             .versions
                             .versions
                             .get(self.new_instance.version_idx)
@@ -48,7 +48,7 @@ impl MiaoApp {
                         egui::ComboBox::from_id_salt("mc_ver")
                             .selected_text(current)
                             .show_ui(ui, |ui| {
-                                for (i, ver) in state.versions.versions.iter().enumerate() {
+                                for (i, ver) in self.versions.versions.iter().enumerate() {
                                     ui.selectable_value(
                                         &mut self.new_instance.version_idx,
                                         i,
@@ -59,7 +59,7 @@ impl MiaoApp {
                         if self.new_instance.version_idx != prev_idx {
                             self.new_instance.loader = 0;
                             self.new_instance.loader_version_idx = 0;
-                            let mc_ver = state.versions.versions[self.new_instance.version_idx]
+                            let mc_ver = self.versions.versions[self.new_instance.version_idx]
                                 .id
                                 .clone();
                             self.fetch_loader_versions(&mc_ver);
@@ -74,9 +74,9 @@ impl MiaoApp {
                 ui.horizontal(|ui| {
                     ui.label(theme::small("Show:"));
                     ui.add_space(4.0);
-                    let mut show_snap = state.versions.show_snapshots;
-                    let mut show_beta = state.versions.show_old_beta;
-                    let mut show_alpha = state.versions.show_old_alpha;
+                    let mut show_snap = self.versions.show_snapshots;
+                    let mut show_beta = self.versions.show_old_beta;
+                    let mut show_alpha = self.versions.show_old_alpha;
 
                     if ui
                         .checkbox(&mut show_snap, I18n::t(lang, "show_snapshots"))
@@ -101,7 +101,7 @@ impl MiaoApp {
 
                 ui.horizontal(|ui| {
                     ui.label("Mod Loader:");
-                    let loaders = self.get_available_loaders(state);
+                    let loaders = self.get_available_loaders();
                     let current_name = loaders
                         .iter()
                         .find(|(idx, _, _)| *idx == self.new_instance.loader)
@@ -125,7 +125,11 @@ impl MiaoApp {
                 });
 
                 if self.new_instance.loader > 0 {
-                    let loader_versions = self.get_loader_versions(state);
+                    let loader_versions: Vec<_> = self
+                        .get_loader_versions()
+                        .into_iter()
+                        .cloned()
+                        .collect();
                     if !loader_versions.is_empty() {
                         ui.horizontal(|ui| {
                             ui.label("Loader Version:");
@@ -150,7 +154,7 @@ impl MiaoApp {
                                     }
                                 });
                         });
-                    } else if state.loader.loading {
+                    } else if self.loader.loading {
                         ui.horizontal(|ui| {
                             ui.spinner();
                             ui.label("Loading loader versions...");
@@ -160,10 +164,10 @@ impl MiaoApp {
 
                 ui.add_space(theme::Spacing::SECTION_GAP);
 
-                let can_create = !state.versions.versions.is_empty() && !state.install.installing;
+                let can_create = !self.versions.versions.is_empty() && !self.installing;
                 ui.add_enabled_ui(can_create, |ui| {
                     if ui.button("Create").clicked() {
-                        let ver = state.versions.versions[self.new_instance.version_idx].clone();
+                        let ver = self.versions.versions[self.new_instance.version_idx].clone();
                         let name = if self.new_instance.name.is_empty() {
                             ver.id.clone()
                         } else {
@@ -171,11 +175,11 @@ impl MiaoApp {
                         };
 
                         let loader = if self.new_instance.loader > 0 {
-                            let loader_versions = self.get_loader_versions(state);
                             let lt = miao_core::modloader::ModLoaderType::from_index(
                                 self.new_instance.loader - 1,
                             );
-                            let lv = loader_versions
+                            let lv = self
+                                .get_loader_versions()
                                 .get(self.new_instance.loader_version_idx)
                                 .map(|v| v.version.clone());
                             match (lt, lv) {
@@ -195,39 +199,5 @@ impl MiaoApp {
         if !open {
             self.active_dialog = Dialog::None;
         }
-    }
-
-    pub fn update_version_filter(
-        &mut self,
-        show_snapshots: bool,
-        show_old_beta: bool,
-        show_old_alpha: bool,
-    ) {
-        use miao_core::version::VersionType;
-
-        let mut s = self.async_state.lock().unwrap();
-        s.versions.show_snapshots = show_snapshots;
-        s.versions.show_old_beta = show_old_beta;
-        s.versions.show_old_alpha = show_old_alpha;
-
-        let filtered: Vec<_> = s
-            .versions
-            .all_versions
-            .iter()
-            .filter(|v| match v.version_type {
-                VersionType::Release => true,
-                VersionType::Snapshot => show_snapshots,
-                VersionType::OldBeta => show_old_beta,
-                VersionType::OldAlpha => show_old_alpha,
-            })
-            .cloned()
-            .collect();
-
-        s.versions.versions = filtered;
-        drop(s);
-
-        self.new_instance.version_idx = 0;
-        self.new_instance.loader = 0;
-        self.new_instance.loader_version_idx = 0;
     }
 }

@@ -7,8 +7,9 @@ use crate::theme;
 impl MiaoApp {
     pub fn render_resources_tab(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
         let lang = self.language;
+        self.file_scan_cache.get_or_scan(instance_dir);
         let res_dir = miao_core::instance::Instance::resourcepacks_dir(instance_dir);
-        let packs = miao_core::resource::scan_resourcepacks(&res_dir);
+        let packs = self.file_scan_cache.resourcepacks.clone();
 
         ui.horizontal(|ui| {
             ui.label(theme::subheading(&format!(
@@ -67,7 +68,7 @@ impl MiaoApp {
         ui.add_space(theme::Spacing::SMALL_GAP);
 
         let shader_dir = miao_core::instance::Instance::shaderpacks_dir(instance_dir);
-        let shaders = miao_core::resource::scan_shaderpacks(&shader_dir);
+        let shaders = self.file_scan_cache.shaderpacks.clone();
 
         ui.horizontal(|ui| {
             ui.label(theme::subheading(&format!("Shaders ({})", shaders.len())));

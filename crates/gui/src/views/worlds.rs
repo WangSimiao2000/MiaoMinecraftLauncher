@@ -7,7 +7,8 @@ use crate::theme;
 impl MiaoApp {
     pub fn render_worlds_tab(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
         let lang = self.language;
-        let saves = miao_core::instance::list_saves(instance_dir);
+        self.file_scan_cache.get_or_scan(instance_dir);
+        let saves = self.file_scan_cache.saves.clone();
         let saves_dir = miao_core::instance::Instance::saves_dir(instance_dir);
 
         ui.horizontal(|ui| {

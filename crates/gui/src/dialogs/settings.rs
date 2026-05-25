@@ -3,11 +3,11 @@ use miao_core::auth::AuthMethod;
 use miao_core::auth::offline::create_offline_account;
 use miao_core::config::DownloadMirror;
 
-use crate::app::{AsyncState, I18n, Language, MiaoApp, SettingsTab};
+use crate::app::{I18n, Language, MiaoApp, SettingsTab};
 use crate::theme;
 
 impl MiaoApp {
-    pub fn render_settings_page(&mut self, ui: &mut egui::Ui, state: &AsyncState) {
+    pub fn render_settings_page(&mut self, ui: &mut egui::Ui) {
         egui::SidePanel::left("settings_nav")
             .resizable(false)
             .exact_width(150.0)
@@ -24,7 +24,7 @@ impl MiaoApp {
                     .show(ui, |ui| {
                         ui.add_space(12.0);
                         match self.settings_tab {
-                            SettingsTab::Account => self.render_tab_account(ui, state),
+                            SettingsTab::Account => self.render_tab_account(ui),
                             SettingsTab::Data => self.render_tab_data(ui),
                             SettingsTab::Java => self.render_tab_java(ui),
                             SettingsTab::About => self.render_tab_about(ui),
@@ -82,7 +82,7 @@ impl MiaoApp {
         });
     }
 
-    fn render_tab_account(&mut self, ui: &mut egui::Ui, state: &AsyncState) {
+    fn render_tab_account(&mut self, ui: &mut egui::Ui) {
         let lang = self.language;
         ui.label(theme::subheading(I18n::t(lang, "active_account")));
         ui.add_space(8.0);
@@ -209,8 +209,8 @@ impl MiaoApp {
             ui.set_min_width(ui.available_width());
             ui.label(theme::body(I18n::t(lang, "ms_account")));
             ui.add_space(6.0);
-            if state.auth.logging_in {
-                if let Some(ref dc) = state.auth.device_code {
+            if self.auth.logging_in {
+                if let Some(ref dc) = self.auth.device_code {
                     ui.label(theme::muted("Open the link below and enter the code:"));
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
@@ -458,10 +458,7 @@ impl MiaoApp {
             ui.label(theme::body("A feature-rich Minecraft launcher for Linux."));
         });
 
-        let state = self.async_state.lock().unwrap();
-        if let Some(ref version) = state.update_available {
-            let ver = version.clone();
-            drop(state);
+        if let Some(ref version) = self.update_available.clone() {
             ui.add_space(12.0);
             egui::Frame::none()
                 .fill(theme::Colors::BG_ELEVATED)
@@ -479,7 +476,7 @@ impl MiaoApp {
                         ui.label(theme::body(&format!(
                             "{}: {}",
                             I18n::t(self.language, "update_available"),
-                            ver
+                            version
                         )));
                         ui.with_layout(
                             egui::Layout::right_to_left(egui::Align::Center),
@@ -493,8 +490,6 @@ impl MiaoApp {
                         );
                     });
                 });
-        } else {
-            drop(state);
         }
 
         ui.add_space(16.0);

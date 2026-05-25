@@ -1,5 +1,7 @@
 mod app;
+mod controller;
 mod dialogs;
+mod messages;
 pub mod state;
 mod theme;
 mod views;

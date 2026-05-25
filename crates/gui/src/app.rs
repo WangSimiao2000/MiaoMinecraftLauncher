@@ -1,20 +1,22 @@
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Instant;
+
 use eframe::egui;
 use miao_core::auth::AuthMethod;
-use miao_core::auth::microsoft::{MicrosoftAuth, PollResult};
-use miao_core::auth::offline::create_offline_account;
 use miao_core::config::LauncherConfig;
-use miao_core::download::manager::DownloadManager;
 use miao_core::instance::{self, Instance};
 use miao_core::java;
-use miao_core::launch::{LaunchOptions, build_launch_command};
 use miao_core::modloader::{ModLoaderType, ModLoaderVersion};
 use miao_core::version::VersionInfo;
-use std::sync::{Arc, Mutex};
 use tokio::runtime::Runtime;
 
+use crate::controller::AppController;
+use crate::messages::{AppCommand, AppEvent};
 pub use crate::state::{
-    AppView, AsyncState, DetailTab, Dialog, I18n, InstanceSettingsEdit, Language, ModSearchState,
-    NewInstanceInput, SettingsTab, SharedAsyncState, VersionsState,
+    AppView, AuthUiState, DetailTab, Dialog, GameLogState, I18n, InstallProgress,
+    InstanceSettingsEdit, Language, LoaderUiState, ModSearchState, NewInstanceInput,
+    PendingModInstall, SettingsTab, VersionsUiState,
 };
 use crate::theme;
 
@@ -23,7 +25,7 @@ pub const MS_CLIENT_ID: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
 pub struct MiaoApp {
     pub config: LauncherConfig,
     pub instances: Vec<Instance>,
-    pub async_state: SharedAsyncState,
+
     pub app_view: AppView,
     pub active_dialog: Dialog,
     pub active_tab: DetailTab,
@@ -34,10 +36,10 @@ pub struct MiaoApp {
     pub data_dir_input: String,
     pub new_instance: NewInstanceInput,
     pub mod_search: ModSearchState,
+    pub pending_mod_install: Option<PendingModInstall>,
 
     pub confirm_delete: Option<usize>,
     pub settings_tab: SettingsTab,
-    pub ctx: egui::Context,
     pub cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
     pub refresh_counter: u32,
     #[allow(dead_code)]
@@ -47,7 +49,72 @@ pub struct MiaoApp {
     pub language: Language,
     pub mirror_custom_url: String,
     pub max_downloads_input: String,
+
+    pub versions: VersionsUiState,
+    pub loader: LoaderUiState,
+    pub auth: AuthUiState,
+    pub game_log: GameLogState,
+    pub install_progress: Option<InstallProgress>,
+    pub installing: bool,
+    pub update_available: Option<String>,
+
+    pub file_scan_cache: FileScanCache,
+
+    pub controller: AppController,
+    #[allow(dead_code)]
     pub rt: Arc<Runtime>,
+}
+
+pub struct FileScanCache {
+    pub mods: Vec<miao_core::modmanager::ModInfo>,
+    pub resourcepacks: Vec<miao_core::resource::ResourcePack>,
+    pub shaderpacks: Vec<miao_core::resource::ShaderPack>,
+    pub saves: Vec<miao_core::instance::SaveWorld>,
+    pub instance_dir: PathBuf,
+    pub last_scan: Instant,
+}
+
+impl FileScanCache {
+    const CACHE_DURATION_MS: u128 = 2000;
+
+    pub fn new() -> Self {
+        Self {
+            mods: Vec::new(),
+            resourcepacks: Vec::new(),
+            shaderpacks: Vec::new(),
+            saves: Vec::new(),
+            instance_dir: PathBuf::new(),
+            last_scan: Instant::now(),
+        }
+    }
+
+    pub fn get_or_scan(&mut self, instance_dir: &std::path::Path) -> bool {
+        let now = Instant::now();
+        let stale = now.duration_since(self.last_scan).as_millis() > Self::CACHE_DURATION_MS;
+        let dir_changed = self.instance_dir != instance_dir;
+
+        if stale || dir_changed {
+            self.instance_dir = instance_dir.to_path_buf();
+            self.mods = miao_core::modmanager::scan_mods_dir(
+                &miao_core::instance::Instance::mods_dir(instance_dir),
+            );
+            self.resourcepacks = miao_core::resource::scan_resourcepacks(
+                &miao_core::instance::Instance::resourcepacks_dir(instance_dir),
+            );
+            self.shaderpacks = miao_core::resource::scan_shaderpacks(
+                &miao_core::instance::Instance::shaderpacks_dir(instance_dir),
+            );
+            self.saves = miao_core::instance::list_saves(instance_dir);
+            self.last_scan = now;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn invalidate(&mut self) {
+        self.last_scan = Instant::now() - std::time::Duration::from_secs(10);
+    }
 }
 
 impl MiaoApp {
@@ -55,39 +122,13 @@ impl MiaoApp {
         let config = LauncherConfig::load().unwrap_or_default();
         let instances = instance::list_instances(&config.instances_dir()).unwrap_or_default();
 
-        let async_state = Arc::new(Mutex::new(AsyncState {
-            versions: VersionsState {
-                loading: true,
-                ..Default::default()
-            },
-            ..Default::default()
-        }));
-
         let rt = Arc::new(Runtime::new().expect("failed to create tokio runtime"));
+        let controller = AppController::new(&rt, cc.egui_ctx.clone());
 
-        let state_clone = async_state.clone();
-        let mirror = config.download_mirror.clone();
-        let ctx = cc.egui_ctx.clone();
-
-        rt.spawn(async move {
-            let http = reqwest::Client::new();
-            if let Ok(all_versions) =
-                miao_core::version::manifest::fetch_version_manifest(&http, &mirror).await
-            {
-                let mut state = state_clone.lock().unwrap();
-                let releases: Vec<_> = all_versions
-                    .iter()
-                    .filter(|v| v.is_release())
-                    .cloned()
-                    .collect();
-                state.versions.all_versions = all_versions;
-                state.versions.versions = releases;
-                state.versions.loading = false;
-            } else {
-                state_clone.lock().unwrap().versions.loading = false;
-            }
-            ctx.request_repaint();
+        controller.send(AppCommand::FetchVersionManifest {
+            mirror: config.download_mirror.clone(),
         });
+        controller.send(AppCommand::CheckForUpdates);
 
         let data_dir_input = config.data_dir.display().to_string();
         let mirror_custom_url = match &config.download_mirror {
@@ -96,10 +137,9 @@ impl MiaoApp {
         };
         let max_downloads_input = config.max_concurrent_downloads.to_string();
 
-        let app = Self {
+        Self {
             config,
             instances,
-            async_state,
             app_view: AppView::Main,
             active_dialog: Dialog::None,
             active_tab: DetailTab::Mods,
@@ -109,9 +149,9 @@ impl MiaoApp {
             data_dir_input,
             new_instance: NewInstanceInput::default(),
             mod_search: ModSearchState::default(),
+            pending_mod_install: None,
             confirm_delete: None,
             settings_tab: SettingsTab::default(),
-            ctx: cc.egui_ctx.clone(),
             cached_javas: None,
             refresh_counter: 0,
             theme_preset: crate::theme::ThemePreset::Dark,
@@ -119,21 +159,162 @@ impl MiaoApp {
             language: Language::default(),
             mirror_custom_url,
             max_downloads_input,
+            versions: VersionsUiState {
+                loading: true,
+                ..Default::default()
+            },
+            loader: LoaderUiState::default(),
+            auth: AuthUiState::default(),
+            game_log: GameLogState::default(),
+            install_progress: None,
+            installing: false,
+            update_available: None,
+            file_scan_cache: FileScanCache::new(),
+            controller,
             rt,
-        };
-
-        app.check_for_updates();
-        app
+        }
     }
 
     pub fn open_new_instance_dialog(&mut self) {
         self.active_dialog = Dialog::NewInstance;
         self.new_instance.reset();
     }
+
+    fn drain_events(&mut self) {
+        while let Some(event) = self.controller.try_recv() {
+            match event {
+                AppEvent::VersionsFetched {
+                    all_versions,
+                    releases,
+                } => {
+                    self.versions.all_versions = all_versions;
+                    self.versions.versions = releases;
+                    self.versions.loading = false;
+                }
+                AppEvent::LoaderVersionsFetched { versions } => {
+                    self.loader.versions = versions;
+                    self.loader.loading = false;
+                }
+                AppEvent::LoaderFetchFailed => {
+                    self.loader.loading = false;
+                }
+                AppEvent::InstallStatus(msg) => {
+                    self.status = msg;
+                }
+                AppEvent::InstallProgress {
+                    completed,
+                    total,
+                    label,
+                } => {
+                    self.installing = true;
+                    self.install_progress = Some(InstallProgress {
+                        completed,
+                        total,
+                        label,
+                    });
+                }
+                AppEvent::InstallFinished { success, message } => {
+                    self.installing = false;
+                    self.install_progress = None;
+                    self.status = message;
+                    if success {
+                        self.instances = instance::list_instances(&self.config.instances_dir())
+                            .unwrap_or_default();
+                        self.cached_javas = None;
+                    }
+                }
+                AppEvent::DeviceCode(dc) => {
+                    self.auth.device_code = Some(dc);
+                }
+                AppEvent::LoginComplete { account } => {
+                    if let AuthMethod::Microsoft(ref ms) = account {
+                        self.status = format!("✓ Logged in as {}", ms.username);
+                    }
+                    self.config.accounts.push(account);
+                    if self.config.active_account_index.is_none() {
+                        self.config.active_account_index = Some(0);
+                    }
+                    let _ = self.config.save();
+                    self.auth.device_code = None;
+                    self.auth.logging_in = false;
+                }
+                AppEvent::LoginFailed(msg) => {
+                    self.status = msg;
+                    self.auth.device_code = None;
+                    self.auth.logging_in = false;
+                }
+                AppEvent::JavaProgress(msg) => {
+                    self.status = msg;
+                }
+                AppEvent::JavaInstalled { launch_idx } => {
+                    self.installing = false;
+                    self.install_progress = None;
+                    self.cached_javas = None;
+                    self.status = "✓ Java installed — launching game...".to_string();
+                    self.launch_instance(launch_idx);
+                }
+                AppEvent::JavaFailed(msg) => {
+                    self.installing = false;
+                    self.install_progress = None;
+                    self.status = format!("✗ {}", msg);
+                }
+                AppEvent::ModSearchResults(hits) => {
+                    self.mod_search.results = hits;
+                    self.mod_search.searching = false;
+                }
+                AppEvent::ModVersions(versions) => {
+                    self.mod_search.versions = versions;
+                    self.mod_search.searching = false;
+                }
+                AppEvent::ModPendingInstall(pending) => {
+                    self.pending_mod_install = Some(pending);
+                    self.mod_search.searching = false;
+                }
+                AppEvent::ModInstalled { count } => {
+                    self.status = format!("Installed {} mod(s)", count);
+                    self.mod_search.searching = false;
+                    self.file_scan_cache.invalidate();
+                }
+                AppEvent::ModError(msg) => {
+                    self.status = msg;
+                    self.mod_search.searching = false;
+                }
+                AppEvent::GameLogLine(line) => {
+                    if self.game_log.lines.len() >= GameLogState::MAX_LINES {
+                        self.game_log.lines.pop_front();
+                    }
+                    self.game_log.lines.push_back(line);
+                    self.game_log.running = true;
+                }
+                AppEvent::GameExited => {
+                    self.game_log.running = false;
+                }
+                AppEvent::ExportResult(msg) => {
+                    self.status = msg;
+                }
+                AppEvent::ImportResult { success, message } => {
+                    self.installing = false;
+                    self.status = message;
+                    if success {
+                        self.instances = instance::list_instances(&self.config.instances_dir())
+                            .unwrap_or_default();
+                    }
+                }
+                AppEvent::UpdateAvailable(version) => {
+                    self.update_available = Some(version);
+                }
+                AppEvent::Error(msg) => {
+                    self.status = msg;
+                }
+            }
+        }
+    }
 }
 
 impl eframe::App for MiaoApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.drain_events();
+
         self.refresh_counter += 1;
         if self.refresh_counter.is_multiple_of(60) {
             let fresh = instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
@@ -147,72 +328,40 @@ impl eframe::App for MiaoApp {
             }
         }
 
-        let state = self.async_state.lock().unwrap().clone();
-
-        if let Some(ref s) = state.install.status {
-            self.status = s.clone();
-            if s.starts_with('✓')
-                || s.starts_with('✗')
-                || (!state.install.installing && !state.auth.logging_in)
-            {
-                self.async_state.lock().unwrap().install.status = None;
-                if s.starts_with('✓') {
-                    self.instances =
-                        instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
-                    self.cached_javas = None;
-                }
-            }
-        }
-
-        if let Some(hits) = state.mod_search_hits.clone() {
-            self.mod_search.results = hits;
-            self.mod_search.searching = false;
-            self.async_state.lock().unwrap().mod_search_hits = None;
-        }
-        if let Some(versions) = state.mod_versions.clone() {
-            self.mod_search.versions = versions;
-            self.mod_search.searching = false;
-            self.async_state.lock().unwrap().mod_versions = None;
-        }
-        if state.pending_mod_install.is_some() {
-            self.mod_search.searching = false;
-        }
-
-        if state.install.installing
-            || state.auth.logging_in
-            || state.loader.loading
+        if self.installing
+            || self.auth.logging_in
+            || self.loader.loading
             || self.mod_search.searching
-            || state.game_log.running
+            || self.game_log.running
         {
             ctx.request_repaint();
         }
 
         let lang = self.language;
 
-        if let Some(launch_idx) = state.java_installed_launch_idx {
-            self.async_state.lock().unwrap().java_installed_launch_idx = None;
-            self.cached_javas = None;
-            self.launch_instance(launch_idx);
-        }
-
         egui::TopBottomPanel::bottom("status_bar")
             .frame(theme::bottom_bar_frame())
             .show(ctx, |ui| {
-                if state.install.installing && state.install.progress_total > 0 {
-                    let fraction = state.install.progress_completed as f32
-                        / state.install.progress_total.max(1) as f32;
-                    let text = format!(
-                        "{} ({}/{})",
-                        state.install.progress_label,
-                        state.install.progress_completed,
-                        state.install.progress_total
-                    );
-                    ui.add(
-                        egui::ProgressBar::new(fraction)
-                            .text(text)
-                            .fill(theme::Colors::ACCENT),
-                    );
-                } else if state.install.installing {
+                if let Some(ref progress) = self.install_progress {
+                    if progress.total > 0 {
+                        let fraction =
+                            progress.completed as f32 / progress.total.max(1) as f32;
+                        let text = format!(
+                            "{} ({}/{})",
+                            progress.label, progress.completed, progress.total
+                        );
+                        ui.add(
+                            egui::ProgressBar::new(fraction)
+                                .text(text)
+                                .fill(theme::Colors::ACCENT),
+                        );
+                    } else {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(theme::status_text(&self.status));
+                        });
+                    }
+                } else if self.installing {
                     ui.horizontal(|ui| {
                         ui.spinner();
                         ui.label(theme::status_text(&self.status));
@@ -236,7 +385,7 @@ impl eframe::App for MiaoApp {
                         });
                     });
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    self.render_settings_page(ui, &state);
+                    self.render_settings_page(ui);
                 });
             }
             AppView::Main => {
@@ -271,7 +420,7 @@ impl eframe::App for MiaoApp {
                     });
 
                 match self.active_dialog {
-                    Dialog::NewInstance => self.render_new_instance_dialog(ctx, &state),
+                    Dialog::NewInstance => self.render_new_instance_dialog(ctx),
                     Dialog::ConfirmJavaDownload {
                         instance_idx,
                         java_major,
@@ -288,12 +437,6 @@ impl eframe::App for MiaoApp {
 impl MiaoApp {
     pub fn launch_instance(&mut self, idx: usize) {
         let inst = &self.instances[idx];
-        let account = self
-            .config
-            .accounts
-            .first()
-            .cloned()
-            .unwrap_or_else(|| AuthMethod::Offline(create_offline_account("Player")));
 
         let java_installations = java::detect_java_with_data_dir(&self.config.data_dir);
         let meta_path = self
@@ -329,7 +472,7 @@ impl MiaoApp {
             java::find_compatible_java(&java_installations, required_java).map(|j| j.path.clone())
         });
 
-        let Some(java_path) = java_path else {
+        let Some(_java_path) = java_path else {
             self.status = format!("Java {} not found. Confirm download?", required_java);
             self.active_dialog = Dialog::ConfirmJavaDownload {
                 instance_idx: idx,
@@ -338,39 +481,15 @@ impl MiaoApp {
             return;
         };
 
-        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
-        let options = LaunchOptions {
-            game_dir: instance_dir,
-            java_path: java_path.clone(),
-            version_meta: meta,
-            instance: inst.clone(),
-            auth: account,
-            config: self.config.clone(),
-        };
+        self.game_log.lines.clear();
+        self.game_log.running = true;
+        self.status = format!("Launched {}", inst.name);
 
-        match build_launch_command(&options) {
-            Ok(mut cmd) => {
-                cmd.stdout(std::process::Stdio::piped());
-                cmd.stderr(std::process::Stdio::piped());
-                match cmd.spawn() {
-                    Ok(child) => {
-                        self.status = format!("Launched {}", inst.name);
-                        {
-                            let mut s = self.async_state.lock().unwrap();
-                            s.game_log.lines.clear();
-                            s.game_log.running = true;
-                        }
-                        let state = self.async_state.clone();
-                        let ctx = self.ctx.clone();
-                        std::thread::spawn(move || {
-                            Self::stream_game_output(child, state, ctx);
-                        });
-                    }
-                    Err(e) => self.status = format!("Launch failed: {}", e),
-                }
-            }
-            Err(e) => self.status = format!("Command error: {}", e),
-        }
+        self.controller.send(AppCommand::LaunchInstance {
+            idx,
+            instance: inst.clone(),
+            config: self.config.clone(),
+        });
     }
 
     pub fn download_java_for_instance(&mut self, idx: usize) {
@@ -408,69 +527,17 @@ impl MiaoApp {
             return;
         }
 
-        {
-            let mut s = self.async_state.lock().unwrap();
-            if s.install.installing {
-                self.status = "Already installing...".to_string();
-                return;
-            }
-            s.install.installing = true;
-            s.install.status = Some(format!("Downloading Java {}...", required));
+        if self.installing {
+            self.status = "Already installing...".to_string();
+            return;
         }
-
+        self.installing = true;
         self.status = format!("Downloading Java {}...", required);
-        let state = self.async_state.clone();
-        let java_dir = self.config.data_dir.join("java");
-        let launch_idx = idx;
-        let ctx = self.ctx.clone();
 
-        self.rt.spawn(async move {
-            let http = reqwest::Client::new();
-            let result = match miao_core::java::download::fetch_latest_asset(&http, required).await
-            {
-                Ok(asset) => {
-                    let sp = state.clone();
-                    miao_core::java::download::download_and_extract_java_with_progress(
-                        &http,
-                        &asset,
-                        &java_dir,
-                        move |phase| {
-                            use miao_core::java::download::DownloadPhase;
-                            let msg = match phase {
-                                DownloadPhase::Downloading { downloaded, total } => {
-                                    format!(
-                                        "Java {}: {:.1}/{:.1} MB",
-                                        required,
-                                        downloaded as f64 / 1_000_000.0,
-                                        total as f64 / 1_000_000.0
-                                    )
-                                }
-                                DownloadPhase::Extracting => {
-                                    format!("Java {}: extracting...", required)
-                                }
-                            };
-                            sp.lock().unwrap().install.status = Some(msg);
-                        },
-                    )
-                    .await
-                }
-                Err(e) => Err(e),
-            };
-
-            let mut s = state.lock().unwrap();
-            s.install.installing = false;
-            match result {
-                Ok(path) => {
-                    s.install.status =
-                        Some(format!("✓ Java {} installed — launching game...", required,));
-                    s.java_installed_launch_idx = Some(launch_idx);
-                    let _ = &path;
-                }
-                Err(e) => {
-                    s.install.status = Some(format!("✗ Java download failed: {}", e));
-                }
-            }
-            ctx.request_repaint();
+        self.controller.send(AppCommand::DownloadJava {
+            required_major: required,
+            java_dir: self.config.data_dir.join("java"),
+            launch_idx: idx,
         });
     }
 
@@ -480,256 +547,65 @@ impl MiaoApp {
         name: String,
         loader: Option<(String, String)>,
     ) {
-        {
-            let mut s = self.async_state.lock().unwrap();
-            if s.install.installing {
-                self.status = "Already installing...".to_string();
-                return;
-            }
-            s.install.installing = true;
-            s.install.status = Some(format!("Creating '{}'...", name));
+        if self.installing {
+            self.status = "Already installing...".to_string();
+            return;
         }
-
+        self.installing = true;
         self.status = format!("Creating '{}'...", name);
-        let state = self.async_state.clone();
-        let config = self.config.clone();
-        let ctx = self.ctx.clone();
 
-        self.rt.spawn(async move {
-            let result = do_create_instance(
-                &ver,
-                &name,
-                loader.as_ref().map(|(lt, lv)| (lt.as_str(), lv.as_str())),
-                &config,
-                state.clone(),
-                ctx.clone(),
-            )
-            .await;
-            let mut s = state.lock().unwrap();
-            s.install.installing = false;
-            s.install.progress_total = 0;
-            s.install.progress_completed = 0;
-            match result {
-                Ok(_) => s.install.status = Some(format!("✓ '{}' created!", name)),
-                Err(e) => s.install.status = Some(format!("✗ Failed: {}", e)),
-            }
-            ctx.request_repaint();
+        self.controller.send(AppCommand::CreateInstance {
+            ver,
+            name,
+            loader,
+            config: self.config.clone(),
         });
     }
 
     pub fn start_ms_login(&mut self) {
-        {
-            let mut s = self.async_state.lock().unwrap();
-            if s.auth.logging_in {
-                return;
-            }
-            s.auth.logging_in = true;
+        if self.auth.logging_in {
+            return;
         }
+        self.auth.logging_in = true;
 
-        let state = self.async_state.clone();
-        let mut config = self.config.clone();
-        let ctx = self.ctx.clone();
-
-        self.rt.spawn(async move {
-            let auth = MicrosoftAuth::new(MS_CLIENT_ID.to_string());
-            let device_code = match auth.request_device_code().await {
-                Ok(dc) => dc,
-                Err(e) => {
-                    let mut s = state.lock().unwrap();
-                    s.auth.logging_in = false;
-                    s.install.status = Some(format!("Login error: {}", e));
-                    ctx.request_repaint();
-                    return;
-                }
-            };
-
-            let _ = open::that(&device_code.verification_uri);
-            let code = device_code.device_code.clone();
-            let interval = device_code.interval;
-            state.lock().unwrap().auth.device_code = Some(device_code);
-            ctx.request_repaint();
-
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
-                match auth.poll_for_token(&code).await {
-                    Ok(PollResult::Success(access_token, refresh_token)) => {
-                        match auth
-                            .authenticate_with_microsoft_token(
-                                &access_token,
-                                refresh_token.as_deref(),
-                            )
-                            .await
-                        {
-                            Ok(account) => {
-                                let name = account.username.clone();
-                                config.accounts.push(AuthMethod::Microsoft(account));
-                                if config.active_account_index.is_none() {
-                                    config.active_account_index = Some(0);
-                                }
-                                let _ = config.save();
-                                let mut s = state.lock().unwrap();
-                                s.auth.device_code = None;
-                                s.auth.logging_in = false;
-                                s.install.status = Some(format!("✓ Logged in as {}", name));
-                            }
-                            Err(e) => {
-                                let mut s = state.lock().unwrap();
-                                s.auth.device_code = None;
-                                s.auth.logging_in = false;
-                                s.install.status = Some(format!("Auth error: {}", e));
-                            }
-                        }
-                        ctx.request_repaint();
-                        return;
-                    }
-                    Ok(PollResult::Pending) | Ok(PollResult::SlowDown) => continue,
-                    Ok(PollResult::Expired) => {
-                        let mut s = state.lock().unwrap();
-                        s.auth.device_code = None;
-                        s.auth.logging_in = false;
-                        s.install.status = Some("Code expired.".to_string());
-                        ctx.request_repaint();
-                        return;
-                    }
-                    Ok(PollResult::Error(e)) => {
-                        let mut s = state.lock().unwrap();
-                        s.auth.device_code = None;
-                        s.auth.logging_in = false;
-                        s.install.status = Some(format!("Error: {}", e));
-                        ctx.request_repaint();
-                        return;
-                    }
-                    Err(_) => continue,
-                }
-            }
+        self.controller.send(AppCommand::StartMsLogin {
+            client_id: MS_CLIENT_ID.to_string(),
+            config: self.config.clone(),
         });
     }
 
     pub fn export_instance_with_dialog(&mut self, idx: usize) {
         let inst = self.instances[idx].clone();
-        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
-        let state = self.async_state.clone();
-        let ctx = self.ctx.clone();
-
         self.status = "Selecting export folder...".to_string();
-        std::thread::spawn(move || {
-            let folder = rfd::FileDialog::new()
-                .set_title("Export .mrpack")
-                .pick_folder();
 
-            let Some(output_path) = folder else {
-                let mut s = state.lock().unwrap();
-                s.install.status = Some("Export cancelled.".to_string());
-                ctx.request_repaint();
-                return;
-            };
-
-            {
-                let mut s = state.lock().unwrap();
-                s.install.status = Some(format!("Exporting '{}'...", inst.name));
-            }
-            ctx.request_repaint();
-
-            match miao_core::modrinth::mrpack::export_mrpack(&instance_dir, &inst, &output_path) {
-                Ok(path) => {
-                    let mut s = state.lock().unwrap();
-                    s.install.status = Some(format!("✓ Exported to {}", path.display()));
-                }
-                Err(e) => {
-                    let mut s = state.lock().unwrap();
-                    s.install.status = Some(format!("✗ Export failed: {}", e));
-                }
-            }
-            ctx.request_repaint();
+        self.controller.send(AppCommand::ExportInstance {
+            instance: inst,
+            config: self.config.clone(),
         });
     }
 
     pub fn import_with_dialog(&mut self) {
-        let state = self.async_state.clone();
-        let config = self.config.clone();
-        let ctx = self.ctx.clone();
-
         self.status = "Selecting .mrpack file...".to_string();
-        std::thread::spawn(move || {
-            let file = rfd::FileDialog::new()
-                .set_title("Import .mrpack")
-                .add_filter("Modrinth Modpack", &["mrpack"])
-                .pick_file();
+        self.installing = true;
 
-            let Some(mrpack_path) = file else {
-                let mut s = state.lock().unwrap();
-                s.install.status = Some("Import cancelled.".to_string());
-                ctx.request_repaint();
-                return;
-            };
-
-            {
-                let mut s = state.lock().unwrap();
-                s.install.installing = true;
-                s.install.status = Some(format!("Importing {}...", mrpack_path.display()));
-            }
-            ctx.request_repaint();
-
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap();
-            rt.block_on(async {
-                match miao_core::modrinth::mrpack::import_mrpack(&mrpack_path, &config, None).await
-                {
-                    Ok(inst) => {
-                        let loader_info = inst
-                            .mod_loader
-                            .as_ref()
-                            .map(|l| format!(" + {} {}", l.loader_type, l.version))
-                            .unwrap_or_default();
-                        let mut s = state.lock().unwrap();
-                        s.install.installing = false;
-                        s.install.status = Some(format!(
-                            "✓ Imported '{}' (MC {}{})",
-                            inst.name, inst.minecraft_version, loader_info
-                        ));
-                    }
-                    Err(e) => {
-                        let mut s = state.lock().unwrap();
-                        s.install.installing = false;
-                        s.install.status = Some(format!("✗ Import failed: {}", e));
-                    }
-                }
-                ctx.request_repaint();
-            });
+        self.controller.send(AppCommand::ImportMrpack {
+            config: self.config.clone(),
         });
     }
 
     pub fn fetch_loader_versions(&mut self, mc_version: &str) {
-        {
-            let mut s = self.async_state.lock().unwrap();
-            if s.loader.loading {
-                return;
-            }
-            s.loader.loading = true;
-            s.loader.versions.clear();
+        if self.loader.loading {
+            return;
         }
+        self.loader.loading = true;
+        self.loader.versions.clear();
 
-        let state = self.async_state.clone();
-        let mc_version = mc_version.to_string();
-        let ctx = self.ctx.clone();
-
-        self.rt.spawn(async move {
-            let http = reqwest::Client::new();
-            let versions =
-                miao_core::modloader::fetch_all_loader_versions(&http, &mc_version).await;
-            let mut s = state.lock().unwrap();
-            s.loader.loading = false;
-            if let Ok(v) = versions {
-                s.loader.versions = v;
-            }
-            drop(s);
-            ctx.request_repaint();
+        self.controller.send(AppCommand::FetchLoaderVersions {
+            mc_version: mc_version.to_string(),
         });
     }
 
-    pub fn get_available_loaders(&self, state: &AsyncState) -> Vec<(usize, &'static str, bool)> {
+    pub fn get_available_loaders(&self) -> Vec<(usize, &'static str, bool)> {
         let mut loaders = vec![(0, "None (Vanilla)", true)];
         for (idx, name, loader_type) in [
             (1, "Fabric", ModLoaderType::Fabric),
@@ -737,80 +613,19 @@ impl MiaoApp {
             (3, "NeoForge", ModLoaderType::NeoForge),
             (4, "Forge", ModLoaderType::Forge),
         ] {
-            loaders.push((idx, name, state.loader.versions.contains_key(&loader_type)));
+            loaders.push((idx, name, self.loader.versions.contains_key(&loader_type)));
         }
         loaders
     }
 
-    pub fn get_loader_versions<'a>(&self, state: &'a AsyncState) -> Vec<&'a ModLoaderVersion> {
+    pub fn get_loader_versions(&self) -> Vec<&ModLoaderVersion> {
         if self.new_instance.loader == 0 {
             return Vec::new();
         }
         ModLoaderType::from_index(self.new_instance.loader - 1)
-            .and_then(|lt| state.loader.versions.get(&lt))
+            .and_then(|lt| self.loader.versions.get(&lt))
             .map(|v| v.iter().collect())
             .unwrap_or_default()
-    }
-
-    fn stream_game_output(
-        mut child: std::process::Child,
-        state: SharedAsyncState,
-        ctx: egui::Context,
-    ) {
-        use crate::state::GameLogState;
-        use std::io::BufRead;
-
-        let stdout = child.stdout.take();
-        let stderr = child.stderr.take();
-
-        let state2 = state.clone();
-        let ctx2 = ctx.clone();
-
-        let stdout_handle = stdout.map(|out| {
-            let s = state.clone();
-            let c = ctx.clone();
-            std::thread::spawn(move || {
-                let reader = std::io::BufReader::new(out);
-                for line in reader.lines() {
-                    let Ok(line) = line else { break };
-                    let mut st = s.lock().unwrap();
-                    if st.game_log.lines.len() >= GameLogState::MAX_LINES {
-                        st.game_log.lines.pop_front();
-                    }
-                    st.game_log.lines.push_back(line);
-                    drop(st);
-                    c.request_repaint();
-                }
-            })
-        });
-
-        let stderr_handle = stderr.map(|err| {
-            let s = state2.clone();
-            let c = ctx2.clone();
-            std::thread::spawn(move || {
-                let reader = std::io::BufReader::new(err);
-                for line in reader.lines() {
-                    let Ok(line) = line else { break };
-                    let mut st = s.lock().unwrap();
-                    if st.game_log.lines.len() >= GameLogState::MAX_LINES {
-                        st.game_log.lines.pop_front();
-                    }
-                    st.game_log.lines.push_back(format!("[ERR] {}", line));
-                    drop(st);
-                    c.request_repaint();
-                }
-            })
-        });
-
-        if let Some(h) = stdout_handle {
-            let _ = h.join();
-        }
-        if let Some(h) = stderr_handle {
-            let _ = h.join();
-        }
-        let _ = child.wait();
-        state2.lock().unwrap().game_log.running = false;
-        ctx2.request_repaint();
     }
 
     pub fn load_instance_settings_edit(&mut self, idx: usize) {
@@ -889,134 +704,34 @@ impl MiaoApp {
         self.status = I18n::t(self.language, "saved").to_string();
     }
 
-    pub fn check_for_updates(&self) {
-        let state = self.async_state.clone();
-        let ctx = self.ctx.clone();
-        self.rt.spawn(async move {
-            let Ok(http) = reqwest::Client::builder().user_agent("MMCL/0.1.0").build() else {
-                return;
-            };
-            let url =
-                "https://api.github.com/repos/WangSimiao2000/MiaoMinecraftLauncher/releases/latest";
-            if let Ok(resp) = http.get(url).send().await
-                && let Ok(json) = resp.json::<serde_json::Value>().await
-                && let Some(tag) = json.get("tag_name").and_then(|v| v.as_str())
-            {
-                let current = env!("CARGO_PKG_VERSION");
-                let remote = tag.trim_start_matches('v');
-                if remote != current {
-                    let mut s = state.lock().unwrap();
-                    s.update_available = Some(tag.to_string());
-                }
-            }
-            ctx.request_repaint();
-        });
-    }
-}
+    pub fn update_version_filter(
+        &mut self,
+        show_snapshots: bool,
+        show_old_beta: bool,
+        show_old_alpha: bool,
+    ) {
+        use miao_core::version::VersionType;
 
-async fn do_create_instance(
-    ver: &VersionInfo,
-    instance_name: &str,
-    loader: Option<(&str, &str)>,
-    config: &LauncherConfig,
-    state: Arc<Mutex<AsyncState>>,
-    ctx: egui::Context,
-) -> anyhow::Result<()> {
-    use miao_core::modloader::ModLoaderType;
+        self.versions.show_snapshots = show_snapshots;
+        self.versions.show_old_beta = show_old_beta;
+        self.versions.show_old_alpha = show_old_alpha;
 
-    let http = reqwest::Client::new();
-
-    let meta =
-        miao_core::version::install::fetch_version_meta(&http, &ver.url, &config.download_mirror)
-            .await?;
-    miao_core::version::install::save_version_meta(&meta, config)?;
-
-    let tasks =
-        miao_core::version::install::all_download_tasks(&meta, config, &config.download_mirror);
-
-    {
-        let mut s = state.lock().unwrap();
-        s.install.progress_total = tasks.len();
-        s.install.progress_completed = 0;
-        s.install.progress_label = "Downloading libraries".to_string();
-    }
-    ctx.request_repaint();
-
-    let state_cb = state.clone();
-    let ctx_cb = ctx.clone();
-    let dm = DownloadManager::new(
-        config.download_mirror.clone(),
-        config.max_concurrent_downloads,
-    )
-    .with_progress_callback(std::sync::Arc::new(move |p| {
-        let mut s = state_cb.lock().unwrap();
-        s.install.progress_completed = p.completed_files;
-        s.install.progress_total = p.total_files;
-        ctx_cb.request_repaint();
-    }));
-    dm.download_all(tasks).await?;
-
-    let asset_index_path = config
-        .assets_dir()
-        .join("indexes")
-        .join(format!("{}.json", &meta.asset_index.id));
-
-    if asset_index_path.exists() {
-        let asset_index = miao_core::version::assets::fetch_asset_index(&asset_index_path).await?;
-        let asset_tasks = miao_core::version::assets::collect_asset_downloads(
-            &asset_index,
-            config,
-            &config.download_mirror,
-        );
-
-        {
-            let mut s = state.lock().unwrap();
-            s.install.progress_total = asset_tasks.len();
-            s.install.progress_completed = 0;
-            s.install.progress_label = "Downloading assets".to_string();
-        }
-        ctx.request_repaint();
-
-        let state_cb2 = state.clone();
-        let ctx_cb2 = ctx.clone();
-        let dm2 = DownloadManager::new(
-            config.download_mirror.clone(),
-            config.max_concurrent_downloads,
-        )
-        .with_progress_callback(std::sync::Arc::new(move |p| {
-            let mut s = state_cb2.lock().unwrap();
-            s.install.progress_completed = p.completed_files;
-            s.install.progress_total = p.total_files;
-            ctx_cb2.request_repaint();
-        }));
-        dm2.download_all(asset_tasks).await?;
-    }
-
-    {
-        let mut s = state.lock().unwrap();
-        s.install.progress_total = 0;
-        s.install.progress_completed = 0;
-        s.install.progress_label.clear();
-    }
-
-    let mut inst = Instance::new(instance_name, &ver.id);
-
-    if let Some((loader_type_str, loader_version)) = loader {
-        let lt = ModLoaderType::ALL
+        let filtered: Vec<_> = self
+            .versions
+            .all_versions
             .iter()
-            .find(|t| t.as_str() == loader_type_str)
+            .filter(|v| match v.version_type {
+                VersionType::Release => true,
+                VersionType::Snapshot => show_snapshots,
+                VersionType::OldBeta => show_old_beta,
+                VersionType::OldAlpha => show_old_alpha,
+            })
             .cloned()
-            .ok_or_else(|| anyhow::anyhow!("Unknown loader: {}", loader_type_str))?;
+            .collect();
 
-        let loader_config =
-            miao_core::modloader::install_loader(&http, &lt, &ver.id, loader_version, config)
-                .await?;
-        inst.mod_loader = Some(loader_config);
+        self.versions.versions = filtered;
+        self.new_instance.version_idx = 0;
+        self.new_instance.loader = 0;
+        self.new_instance.loader_version_idx = 0;
     }
-
-    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
-    inst.save_to(&instance_dir)?;
-    Instance::create_directories(&instance_dir)?;
-
-    Ok(())
 }

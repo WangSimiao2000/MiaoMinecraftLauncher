@@ -2,12 +2,14 @@ use eframe::egui;
 use std::path::Path;
 
 use crate::app::MiaoApp;
+use crate::messages::AppCommand;
 use crate::theme;
 
 impl MiaoApp {
     pub fn render_mods_tab(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
+        self.file_scan_cache.get_or_scan(instance_dir);
         let mods_dir = miao_core::instance::Instance::mods_dir(instance_dir);
-        let mods = miao_core::modmanager::scan_mods_dir(&mods_dir);
+        let mods = self.file_scan_cache.mods.clone();
 
         ui.horizontal(|ui| {
             ui.label(theme::subheading(&format!("Mods ({})", mods.len())));
@@ -42,8 +44,7 @@ impl MiaoApp {
             ui.add_space(theme::Spacing::SMALL_GAP);
         }
 
-        let pending = self.async_state.lock().unwrap().pending_mod_install.clone();
-        if let Some(ref pending) = pending {
+        if let Some(ref pending) = self.pending_mod_install.clone() {
             self.mod_search.active = false;
             self.render_install_confirmation(ui, pending);
             ui.add_space(theme::Spacing::SECTION_GAP);
@@ -241,30 +242,12 @@ impl MiaoApp {
             .as_ref()
             .map(|l| l.loader_type.as_str().to_string());
         let query = self.mod_search.query.clone();
-        let state = self.async_state.clone();
-        let ctx = self.ctx.clone();
         self.mod_search.searching = true;
 
-        self.rt.spawn(async move {
-            let http = reqwest::Client::new();
-            let result = miao_core::modrinth::api::search_mods(
-                &http,
-                &query,
-                Some(&mc_version),
-                loader.as_deref(),
-                20,
-            )
-            .await;
-            let mut s = state.lock().unwrap();
-            match result {
-                Ok(r) => {
-                    s.mod_search_hits = Some(r.hits);
-                }
-                Err(e) => {
-                    s.install.status = Some(format!("Search failed: {}", e));
-                }
-            }
-            ctx.request_repaint();
+        self.controller.send(AppCommand::SearchMods {
+            query,
+            mc_version,
+            loader,
         });
     }
 
@@ -276,35 +259,18 @@ impl MiaoApp {
             return;
         };
         let inst = &self.instances[idx];
-        let project_slug = hit.slug.clone();
+        let slug = hit.slug.clone();
         let mc_version = inst.minecraft_version.clone();
         let loader = inst
             .mod_loader
             .as_ref()
             .map(|l| l.loader_type.as_str().to_string());
-        let state = self.async_state.clone();
-        let ctx = self.ctx.clone();
         self.mod_search.searching = true;
 
-        self.rt.spawn(async move {
-            let http = reqwest::Client::new();
-            let result = miao_core::modrinth::api::get_project_versions(
-                &http,
-                &project_slug,
-                Some(&mc_version),
-                loader.as_deref(),
-            )
-            .await;
-            let mut s = state.lock().unwrap();
-            match result {
-                Ok(versions) => {
-                    s.mod_versions = Some(versions);
-                }
-                Err(e) => {
-                    s.install.status = Some(format!("Failed: {}", e));
-                }
-            }
-            ctx.request_repaint();
+        self.controller.send(AppCommand::LoadModVersions {
+            slug,
+            mc_version,
+            loader,
         });
     }
 
@@ -363,13 +329,11 @@ impl MiaoApp {
                         if ui.button("Only This Mod").clicked() {
                             self.do_confirmed_install(false);
                         }
-                    } else {
-                        if ui.button("Install").clicked() {
-                            self.do_confirmed_install(false);
-                        }
+                    } else if ui.button("Install").clicked() {
+                        self.do_confirmed_install(false);
                     }
                     if ui.button("Cancel").clicked() {
-                        self.async_state.lock().unwrap().pending_mod_install = None;
+                        self.pending_mod_install = None;
                     }
                 });
             });
@@ -392,91 +356,31 @@ impl MiaoApp {
             .as_ref()
             .map(|l| l.loader_type.as_str().to_string())
             .unwrap_or_else(|| "fabric".to_string());
-        let project_slug = hit.slug.clone();
-        let state = self.async_state.clone();
-        let ctx = self.ctx.clone();
-        let instance_dir = instance_dir.to_path_buf();
+        let slug = hit.slug.clone();
 
         self.status = format!("Resolving dependencies for {}...", hit.title);
         self.mod_search.searching = true;
 
-        self.rt.spawn(async move {
-            let http = reqwest::Client::new();
-            match miao_core::modrinth::api::resolve_dependencies(
-                &http,
-                &project_slug,
-                &mc_version,
-                &loader,
-            )
-            .await
-            {
-                Ok(deps) => {
-                    let mut s = state.lock().unwrap();
-                    s.pending_mod_install = Some(crate::state::PendingModInstall {
-                        project_slug,
-                        deps,
-                        instance_dir,
-                        mc_version,
-                        loader,
-                    });
-                }
-                Err(e) => {
-                    let mut s = state.lock().unwrap();
-                    s.install.status = Some(format!("Resolve failed: {}", e));
-                }
-            }
-            ctx.request_repaint();
+        self.controller.send(AppCommand::ResolveDeps {
+            slug,
+            mc_version,
+            loader,
+            instance_dir: instance_dir.to_path_buf(),
         });
     }
 
     pub fn do_confirmed_install(&mut self, include_deps: bool) {
-        let pending = {
-            let mut s = self.async_state.lock().unwrap();
-            s.pending_mod_install.take()
-        };
-        let Some(pending) = pending else {
+        let Some(pending) = self.pending_mod_install.take() else {
             return;
         };
-        let state = self.async_state.clone();
-        let ctx = self.ctx.clone();
-        let mods_dir = miao_core::instance::Instance::mods_dir(&pending.instance_dir);
 
         self.status = format!("Installing {}...", pending.project_slug);
         self.mod_search.active = false;
         self.mod_search.searching = false;
 
-        self.rt.spawn(async move {
-            let http = reqwest::Client::new();
-            let result = if include_deps {
-                miao_core::modrinth::api::install_mod_with_dependencies(
-                    &http,
-                    &pending.project_slug,
-                    &pending.mc_version,
-                    &pending.loader,
-                    &mods_dir,
-                )
-                .await
-            } else {
-                miao_core::modrinth::api::install_mod_only(
-                    &http,
-                    &pending.project_slug,
-                    &pending.mc_version,
-                    &pending.loader,
-                    &mods_dir,
-                )
-                .await
-            };
-
-            let mut s = state.lock().unwrap();
-            match result {
-                Ok(results) => {
-                    s.install.status = Some(format!("Installed {} mod(s)", results.len()));
-                }
-                Err(e) => {
-                    s.install.status = Some(format!("Install failed: {}", e));
-                }
-            }
-            ctx.request_repaint();
+        self.controller.send(AppCommand::InstallMod {
+            pending,
+            include_deps,
         });
     }
 }

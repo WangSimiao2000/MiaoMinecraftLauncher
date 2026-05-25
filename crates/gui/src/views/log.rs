@@ -8,11 +8,9 @@ impl MiaoApp {
     pub fn render_log_tab(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
         let lang = self.language;
         let log_path = instance_dir.join("logs").join("latest.log");
-        let state = self.async_state.lock().unwrap();
-        let has_live_log = !state.game_log.lines.is_empty() || state.game_log.running;
-        let live_lines: Vec<String> = state.game_log.lines.iter().cloned().collect();
-        let is_running = state.game_log.running;
-        drop(state);
+        let has_live_log = !self.game_log.lines.is_empty() || self.game_log.running;
+        let live_lines: Vec<String> = self.game_log.lines.iter().cloned().collect();
+        let is_running = self.game_log.running;
 
         ui.horizontal(|ui| {
             ui.label(theme::subheading(I18n::t(lang, "game_log")));
@@ -22,7 +20,7 @@ impl MiaoApp {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button(I18n::t(lang, "clear_log")).clicked() {
-                    self.async_state.lock().unwrap().game_log.lines.clear();
+                    self.game_log.lines.clear();
                 }
                 if log_path.exists() && ui.button("Open file").clicked() {
                     let _ = open::that(&log_path);
