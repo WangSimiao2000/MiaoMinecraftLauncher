@@ -459,7 +459,7 @@ impl MiaoApp {
             .config
             .versions_dir()
             .join(&inst.minecraft_version)
-            .join(format!("{}.json", &inst.minecraft_version));
+            .join(format!("{}.json", inst.minecraft_version));
 
         if !meta_path.exists() {
             self.status = format!("Version meta not found for {}.", inst.minecraft_version);
@@ -514,7 +514,7 @@ impl MiaoApp {
             .config
             .versions_dir()
             .join(&inst.minecraft_version)
-            .join(format!("{}.json", &inst.minecraft_version));
+            .join(format!("{}.json", inst.minecraft_version));
 
         if !meta_path.exists() {
             self.status = "Version meta not found.".to_string();

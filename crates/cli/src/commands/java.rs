@@ -30,7 +30,7 @@ pub async fn cmd_download_java(service: &LauncherService, instance_name: &str) -
         .config()
         .versions_dir()
         .join(&inst.minecraft_version)
-        .join(format!("{}.json", &inst.minecraft_version));
+        .join(format!("{}.json", inst.minecraft_version));
 
     if !meta_path.exists() {
         anyhow::bail!("Version metadata not found for {}", inst.minecraft_version);

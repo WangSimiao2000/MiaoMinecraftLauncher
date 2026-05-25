@@ -184,7 +184,7 @@ fn stream_game_process(
     let meta_path = config
         .versions_dir()
         .join(&instance.minecraft_version)
-        .join(format!("{}.json", &instance.minecraft_version));
+        .join(format!("{}.json", instance.minecraft_version));
 
     if !meta_path.exists() {
         let _ = tx.send(AppEvent::Error(format!(
@@ -349,7 +349,7 @@ async fn do_create_instance(
     let asset_index_path = config
         .assets_dir()
         .join("indexes")
-        .join(format!("{}.json", &meta.asset_index.id));
+        .join(format!("{}.json", meta.asset_index.id));
 
     if asset_index_path.exists() {
         let asset_index =
