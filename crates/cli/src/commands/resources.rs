@@ -7,8 +7,7 @@ pub fn cmd_resources(
     instance_name: &str,
     delete: Option<&str>,
 ) -> Result<()> {
-    let instance_dir =
-        Instance::instance_dir(&service.config().instances_dir(), instance_name);
+    let instance_dir = Instance::instance_dir(&service.config().instances_dir(), instance_name);
     let dir = Instance::resourcepacks_dir(&instance_dir);
     let packs = miao_core::resource::scan_resourcepacks(&dir);
 
@@ -37,8 +36,7 @@ pub fn cmd_shaders(
     instance_name: &str,
     delete: Option<&str>,
 ) -> Result<()> {
-    let instance_dir =
-        Instance::instance_dir(&service.config().instances_dir(), instance_name);
+    let instance_dir = Instance::instance_dir(&service.config().instances_dir(), instance_name);
     let dir = Instance::shaderpacks_dir(&instance_dir);
     let shaders = miao_core::resource::scan_shaderpacks(&dir);
 
@@ -67,8 +65,7 @@ pub fn cmd_saves(
     instance_name: &str,
     delete: Option<&str>,
 ) -> Result<()> {
-    let instance_dir =
-        Instance::instance_dir(&service.config().instances_dir(), instance_name);
+    let instance_dir = Instance::instance_dir(&service.config().instances_dir(), instance_name);
     let saves = instance::list_saves(&instance_dir);
 
     if let Some(name) = delete {

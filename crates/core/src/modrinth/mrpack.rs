@@ -54,9 +54,7 @@ pub async fn import_mrpack(
     let mut archive = zip::ZipArchive::new(file)?;
 
     let index: MrpackIndex = {
-        let mut index_file = archive
-            .by_name("modrinth.index.json")
-            ?;
+        let mut index_file = archive.by_name("modrinth.index.json")?;
         let mut content = String::new();
         index_file.read_to_string(&mut content)?;
         serde_json::from_str(&content)?
@@ -66,7 +64,11 @@ pub async fn import_mrpack(
     let mc_version = index
         .dependencies
         .get("minecraft")
-        .ok_or_else(|| crate::error::MiaoError::Other("No minecraft version in mrpack dependencies".to_string()))?
+        .ok_or_else(|| {
+            crate::error::MiaoError::Other(
+                "No minecraft version in mrpack dependencies".to_string(),
+            )
+        })?
         .clone();
 
     let name = {

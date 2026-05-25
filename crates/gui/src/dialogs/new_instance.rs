@@ -125,11 +125,8 @@ impl MiaoApp {
                 });
 
                 if self.new_instance.loader > 0 {
-                    let loader_versions: Vec<_> = self
-                        .get_loader_versions()
-                        .into_iter()
-                        .cloned()
-                        .collect();
+                    let loader_versions: Vec<_> =
+                        self.get_loader_versions().into_iter().cloned().collect();
                     if !loader_versions.is_empty() {
                         ui.horizontal(|ui| {
                             ui.label("Loader Version:");

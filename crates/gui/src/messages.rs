@@ -6,8 +6,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use miao_core::auth::microsoft::DeviceCodeResponse;
 use miao_core::auth::AuthMethod;
+use miao_core::auth::microsoft::DeviceCodeResponse;
 use miao_core::config::{DownloadMirror, LauncherConfig};
 use miao_core::instance::Instance;
 use miao_core::modloader::{ModLoaderType, ModLoaderVersion};

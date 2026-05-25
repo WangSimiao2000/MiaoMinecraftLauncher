@@ -10,8 +10,7 @@ pub fn cmd_mods(
     toggle: Option<&str>,
     delete: Option<&str>,
 ) -> Result<()> {
-    let instance_dir =
-        Instance::instance_dir(&service.config().instances_dir(), instance_name);
+    let instance_dir = Instance::instance_dir(&service.config().instances_dir(), instance_name);
     let mods_dir = Instance::mods_dir(&instance_dir);
     let mut mods = miao_core::modmanager::scan_mods_dir(&mods_dir);
 

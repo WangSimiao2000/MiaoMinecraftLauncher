@@ -105,7 +105,12 @@ async fn controller_loop(
                 ));
             }
             AppCommand::FetchVersionManifest { mirror } => {
-                versions::handle_fetch_manifest(mirror, http.clone(), event_tx.clone(), ctx.clone());
+                versions::handle_fetch_manifest(
+                    mirror,
+                    http.clone(),
+                    event_tx.clone(),
+                    ctx.clone(),
+                );
             }
             AppCommand::FetchLoaderVersions { mc_version } => {
                 versions::handle_fetch_loader_versions(

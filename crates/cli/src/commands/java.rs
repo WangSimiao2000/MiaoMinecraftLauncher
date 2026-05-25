@@ -52,21 +52,24 @@ pub async fn cmd_download_java(service: &LauncherService, instance_name: &str) -
     );
 
     let java_bin = service
-        .download_java_for_instance(instance_name, Some(|phase| {
-            use miao_core::java::download::DownloadPhase;
-            match phase {
-                DownloadPhase::Downloading { downloaded, total } => {
-                    eprint!(
-                        "\r  {:.1}/{:.1} MB",
-                        downloaded as f64 / 1_000_000.0,
-                        total as f64 / 1_000_000.0
-                    );
+        .download_java_for_instance(
+            instance_name,
+            Some(|phase| {
+                use miao_core::java::download::DownloadPhase;
+                match phase {
+                    DownloadPhase::Downloading { downloaded, total } => {
+                        eprint!(
+                            "\r  {:.1}/{:.1} MB",
+                            downloaded as f64 / 1_000_000.0,
+                            total as f64 / 1_000_000.0
+                        );
+                    }
+                    DownloadPhase::Extracting => {
+                        eprintln!("\r  Extracting...          ");
+                    }
                 }
-                DownloadPhase::Extracting => {
-                    eprintln!("\r  Extracting...          ");
-                }
-            }
-        }))
+            }),
+        )
         .await?;
 
     println!("\n✓ Java {} installed at {}", required, java_bin.display());

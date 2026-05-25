@@ -82,7 +82,9 @@ impl LauncherService {
         let version_info = versions
             .iter()
             .find(|v| v.id == mc_version)
-            .ok_or_else(|| crate::error::MiaoError::Other(format!("Version '{}' not found", mc_version)))?;
+            .ok_or_else(|| {
+                crate::error::MiaoError::Other(format!("Version '{}' not found", mc_version))
+            })?;
 
         let meta = self.fetch_version_meta(&version_info.url).await?;
         install::save_version_meta(&meta, &self.config)?;
@@ -240,7 +242,10 @@ impl LauncherService {
         let mc_version = inst.minecraft_version.clone();
 
         let current_loader = inst.mod_loader.as_ref().ok_or_else(|| {
-            crate::error::MiaoError::Other(format!("Instance '{}' has no mod loader installed", instance_name))
+            crate::error::MiaoError::Other(format!(
+                "Instance '{}' has no mod loader installed",
+                instance_name
+            ))
         })?;
 
         let current_type = current_loader.loader_type.clone();
@@ -282,25 +287,42 @@ impl LauncherService {
                     .find(|v| v.loader.stable)
                     .or(versions.first())
                     .map(|v| v.loader.version.clone())
-                    .ok_or_else(|| crate::error::MiaoError::Other(format!("No Fabric versions for MC {}", mc_version)))?
+                    .ok_or_else(|| {
+                        crate::error::MiaoError::Other(format!(
+                            "No Fabric versions for MC {}",
+                            mc_version
+                        ))
+                    })?
             }
             ModLoaderType::Quilt => {
                 let versions = quilt::fetch_loader_versions(&self.http, mc_version).await?;
                 versions
                     .first()
                     .map(|v| v.loader.version.clone())
-                    .ok_or_else(|| crate::error::MiaoError::Other(format!("No Quilt versions for MC {}", mc_version)))?
+                    .ok_or_else(|| {
+                        crate::error::MiaoError::Other(format!(
+                            "No Quilt versions for MC {}",
+                            mc_version
+                        ))
+                    })?
             }
             ModLoaderType::NeoForge => {
                 let versions = neoforge::fetch_versions(&self.http, mc_version).await?;
-                versions
-                    .first()
-                    .cloned()
-                    .ok_or_else(|| crate::error::MiaoError::Other(format!("No NeoForge versions for MC {}", mc_version)))?
+                versions.first().cloned().ok_or_else(|| {
+                    crate::error::MiaoError::Other(format!(
+                        "No NeoForge versions for MC {}",
+                        mc_version
+                    ))
+                })?
             }
             ModLoaderType::Forge => forge::fetch_recommended_version(&self.http, mc_version)
                 .await?
-                .ok_or_else(|| crate::error::MiaoError::Other(format!("No Forge versions for MC {}", mc_version)))?,
+                .ok_or_else(|| {
+                    crate::error::MiaoError::Other(format!(
+                        "No Forge versions for MC {}",
+                        mc_version
+                    ))
+                })?,
         };
 
         Ok(version)

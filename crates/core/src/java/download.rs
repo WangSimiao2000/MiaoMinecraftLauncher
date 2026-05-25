@@ -70,18 +70,14 @@ pub async fn fetch_latest_asset(
         ADOPTIUM_API, major_version, arch
     );
 
-    let assets: Vec<AdoptiumAsset> = http
-        .get(&url)
-        .send()
-        .await?
-        .json()
-        .await
-        ?;
+    let assets: Vec<AdoptiumAsset> = http.get(&url).send().await?.json().await?;
 
-    assets
-        .into_iter()
-        .next()
-        .ok_or_else(|| crate::error::MiaoError::Other(format!("No JRE available for Java {} on {}", major_version, arch)))
+    assets.into_iter().next().ok_or_else(|| {
+        crate::error::MiaoError::Other(format!(
+            "No JRE available for Java {} on {}",
+            major_version, arch
+        ))
+    })
 }
 
 pub async fn download_and_extract_java(
@@ -149,7 +145,9 @@ fn find_java_binary(extracted_dir: &Path) -> Result<PathBuf> {
             return Ok(bin_path);
         }
     }
-    Err(crate::error::MiaoError::Other("Could not find java binary in extracted archive".to_string()))
+    Err(crate::error::MiaoError::Other(
+        "Could not find java binary in extracted archive".to_string(),
+    ))
 }
 
 #[cfg(test)]

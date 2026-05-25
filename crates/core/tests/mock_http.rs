@@ -51,7 +51,10 @@ impl HttpClient for MockHttpClient {
                 return Ok(serde_json::from_str(body)?);
             }
         }
-        Err(MiaoError::Other(format!("No mock response for URL: {}", url)))
+        Err(MiaoError::Other(format!(
+            "No mock response for URL: {}",
+            url
+        )))
     }
 
     async fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
@@ -67,6 +70,9 @@ impl HttpClient for MockHttpClient {
                 return Ok(body.as_bytes().to_vec());
             }
         }
-        Err(MiaoError::Other(format!("No mock byte response for URL: {}", url)))
+        Err(MiaoError::Other(format!(
+            "No mock byte response for URL: {}",
+            url
+        )))
     }
 }

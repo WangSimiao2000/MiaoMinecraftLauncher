@@ -124,11 +124,7 @@ pub fn cmd_export(
     Ok(())
 }
 
-pub async fn cmd_import(
-    service: &LauncherService,
-    path: &str,
-    name: Option<&str>,
-) -> Result<()> {
+pub async fn cmd_import(service: &LauncherService, path: &str, name: Option<&str>) -> Result<()> {
     let mrpack_path = std::path::Path::new(path);
     if !mrpack_path.exists() {
         anyhow::bail!("File not found: {}", path);

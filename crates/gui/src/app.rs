@@ -349,8 +349,7 @@ impl eframe::App for MiaoApp {
             .show(ctx, |ui| {
                 if let Some(ref progress) = self.install_progress {
                     if progress.total > 0 {
-                        let fraction =
-                            progress.completed as f32 / progress.total.max(1) as f32;
+                        let fraction = progress.completed as f32 / progress.total.max(1) as f32;
                         let text = format!(
                             "{} ({}/{})",
                             progress.label, progress.completed, progress.total

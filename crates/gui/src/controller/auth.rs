@@ -1,6 +1,6 @@
 use egui::Context;
-use miao_core::auth::microsoft::{MicrosoftAuth, PollResult};
 use miao_core::auth::AuthMethod;
+use miao_core::auth::microsoft::{MicrosoftAuth, PollResult};
 use miao_core::config::LauncherConfig;
 use tokio::sync::mpsc;
 
@@ -34,10 +34,7 @@ pub fn handle_ms_login(
             match auth.poll_for_token(&code).await {
                 Ok(PollResult::Success(access_token, refresh_token)) => {
                     match auth
-                        .authenticate_with_microsoft_token(
-                            &access_token,
-                            refresh_token.as_deref(),
-                        )
+                        .authenticate_with_microsoft_token(&access_token, refresh_token.as_deref())
                         .await
                     {
                         Ok(account) => {
@@ -51,8 +48,7 @@ pub fn handle_ms_login(
                             });
                         }
                         Err(e) => {
-                            let _ =
-                                tx.send(AppEvent::LoginFailed(format!("Auth error: {}", e)));
+                            let _ = tx.send(AppEvent::LoginFailed(format!("Auth error: {}", e)));
                         }
                     }
                     ctx.request_repaint();

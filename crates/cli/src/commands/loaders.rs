@@ -37,19 +37,13 @@ pub async fn cmd_upgrade_loader(
 ) -> Result<()> {
     let inst = service.load_instance(instance_name)?;
     let current_loader = inst.mod_loader.as_ref().ok_or_else(|| {
-        anyhow::anyhow!(
-            "Instance '{}' has no mod loader installed.",
-            instance_name
-        )
+        anyhow::anyhow!("Instance '{}' has no mod loader installed.", instance_name)
     })?;
 
     let current_type = &current_loader.loader_type;
     let current_ver = &current_loader.version;
 
-    println!(
-        "Upgrading {} for '{}'...",
-        current_type, instance_name
-    );
+    println!("Upgrading {} for '{}'...", current_type, instance_name);
 
     let updated = service
         .upgrade_loader(instance_name, target_version)

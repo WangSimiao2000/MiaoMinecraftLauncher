@@ -168,7 +168,10 @@ pub fn open_folder(path: &Path) -> Result<()> {
     if path.exists() {
         open::that(path)?;
     } else {
-        return Err(crate::error::MiaoError::Other(format!("Directory does not exist: {}", path.display())));
+        return Err(crate::error::MiaoError::Other(format!(
+            "Directory does not exist: {}",
+            path.display()
+        )));
     }
     Ok(())
 }

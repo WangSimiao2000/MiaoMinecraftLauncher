@@ -143,8 +143,7 @@ impl MicrosoftAuth {
             .send()
             .await?
             .json::<DeviceCodeResponse>()
-            .await
-            ?;
+            .await?;
 
         Ok(resp)
     }
@@ -177,7 +176,10 @@ impl MicrosoftAuth {
             };
         }
 
-        Err(crate::error::MiaoError::Other(format!("Unexpected response from token endpoint: {}", text)))
+        Err(crate::error::MiaoError::Other(format!(
+            "Unexpected response from token endpoint: {}",
+            text
+        )))
     }
 
     pub async fn authenticate_with_microsoft_token(
@@ -216,8 +218,7 @@ impl MicrosoftAuth {
             .send()
             .await?
             .json()
-            .await
-            ?;
+            .await?;
 
         self.authenticate_with_microsoft_token(&resp.access_token, resp.refresh_token.as_deref())
             .await
@@ -240,11 +241,13 @@ impl MicrosoftAuth {
         let text = resp.text().await?;
 
         if !status.is_success() {
-            return Err(crate::error::MiaoError::Other(format!("Xbox Live auth failed ({}): {}", status, text)));
+            return Err(crate::error::MiaoError::Other(format!(
+                "Xbox Live auth failed ({}): {}",
+                status, text
+            )));
         }
 
-        let parsed: XboxAuthResponse =
-            serde_json::from_str(&text)?;
+        let parsed: XboxAuthResponse = serde_json::from_str(&text)?;
 
         Ok(parsed.token)
     }
@@ -265,11 +268,13 @@ impl MicrosoftAuth {
         let text = resp.text().await?;
 
         if !status.is_success() {
-            return Err(crate::error::MiaoError::Other(format!("XSTS auth failed ({}): {}", status, text)));
+            return Err(crate::error::MiaoError::Other(format!(
+                "XSTS auth failed ({}): {}",
+                status, text
+            )));
         }
 
-        let parsed: XboxAuthResponse =
-            serde_json::from_str(&text)?;
+        let parsed: XboxAuthResponse = serde_json::from_str(&text)?;
 
         let user_hash = parsed
             .display_claims
@@ -297,11 +302,13 @@ impl MicrosoftAuth {
         let text = resp.text().await?;
 
         if !status.is_success() {
-            return Err(crate::error::MiaoError::Other(format!("Minecraft auth failed ({}): {}", status, text)));
+            return Err(crate::error::MiaoError::Other(format!(
+                "Minecraft auth failed ({}): {}",
+                status, text
+            )));
         }
 
-        let parsed: MinecraftAuthResponse =
-            serde_json::from_str(&text)?;
+        let parsed: MinecraftAuthResponse = serde_json::from_str(&text)?;
 
         Ok(parsed.access_token)
     }
@@ -318,11 +325,13 @@ impl MicrosoftAuth {
         let text = resp.text().await?;
 
         if !status.is_success() {
-            return Err(crate::error::MiaoError::Other(format!("Minecraft profile failed ({}): {}", status, text)));
+            return Err(crate::error::MiaoError::Other(format!(
+                "Minecraft profile failed ({}): {}",
+                status, text
+            )));
         }
 
-        let parsed: MinecraftProfile =
-            serde_json::from_str(&text)?;
+        let parsed: MinecraftProfile = serde_json::from_str(&text)?;
 
         Ok(parsed)
     }
@@ -331,7 +340,10 @@ impl MicrosoftAuth {
 pub fn parse_mojang_uuid(id: &str) -> Result<uuid::Uuid> {
     uuid::Uuid::parse_str(id).or_else(|_| {
         if id.len() != 32 {
-            return Err(crate::error::MiaoError::Other(format!("Invalid UUID length: {}", id.len())));
+            return Err(crate::error::MiaoError::Other(format!(
+                "Invalid UUID length: {}",
+                id.len()
+            )));
         }
         let with_dashes = format!(
             "{}-{}-{}-{}-{}",

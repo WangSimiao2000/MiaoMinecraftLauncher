@@ -86,8 +86,7 @@ pub fn handle_export_instance(
         )));
         ctx.request_repaint();
 
-        let instance_dir =
-            Instance::instance_dir(&config.instances_dir(), &instance.name);
+        let instance_dir = Instance::instance_dir(&config.instances_dir(), &instance.name);
         match miao_core::modrinth::mrpack::export_mrpack(&instance_dir, &instance, &output_path) {
             Ok(path) => {
                 let _ = tx.send(AppEvent::ExportResult(format!(
@@ -168,8 +167,8 @@ fn stream_game_process(
     tx: mpsc::UnboundedSender<AppEvent>,
     ctx: Context,
 ) {
-    use miao_core::auth::offline::create_offline_account;
     use miao_core::auth::AuthMethod;
+    use miao_core::auth::offline::create_offline_account;
     use miao_core::java;
     use miao_core::launch::{LaunchOptions, build_launch_command};
     use std::io::BufRead;
@@ -274,8 +273,7 @@ fn stream_game_process(
                             let reader = std::io::BufReader::new(err);
                             for line in reader.lines() {
                                 let Ok(line) = line else { break };
-                                let _ =
-                                    tx.send(AppEvent::GameLogLine(format!("[ERR] {}", line)));
+                                let _ = tx.send(AppEvent::GameLogLine(format!("[ERR] {}", line)));
                                 ctx.request_repaint();
                             }
                         })
@@ -352,8 +350,7 @@ async fn do_create_instance(
         .join(format!("{}.json", meta.asset_index.id));
 
     if asset_index_path.exists() {
-        let asset_index =
-            miao_core::version::assets::fetch_asset_index(&asset_index_path).await?;
+        let asset_index = miao_core::version::assets::fetch_asset_index(&asset_index_path).await?;
         let asset_tasks = miao_core::version::assets::collect_asset_downloads(
             &asset_index,
             config,

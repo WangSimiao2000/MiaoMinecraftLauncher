@@ -12,7 +12,11 @@ fn setup() -> (Arc<Runtime>, AppController) {
     (rt, controller)
 }
 
-fn recv_event_blocking(rt: &Runtime, controller: &mut AppController, timeout_ms: u64) -> Option<AppEvent> {
+fn recv_event_blocking(
+    rt: &Runtime,
+    controller: &mut AppController,
+    timeout_ms: u64,
+) -> Option<AppEvent> {
     rt.block_on(async {
         let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms);
         loop {
@@ -27,7 +31,11 @@ fn recv_event_blocking(rt: &Runtime, controller: &mut AppController, timeout_ms:
     })
 }
 
-fn drain_events_blocking(rt: &Runtime, controller: &mut AppController, timeout_ms: u64) -> Vec<AppEvent> {
+fn drain_events_blocking(
+    rt: &Runtime,
+    controller: &mut AppController,
+    timeout_ms: u64,
+) -> Vec<AppEvent> {
     rt.block_on(async {
         let mut events = Vec::new();
         let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms);
@@ -56,7 +64,10 @@ fn version_manifest_fetch_produces_event() {
     assert!(event.is_some(), "Should receive VersionsFetched event");
 
     match event.unwrap() {
-        AppEvent::VersionsFetched { all_versions, releases } => {
+        AppEvent::VersionsFetched {
+            all_versions,
+            releases,
+        } => {
             assert!(
                 !all_versions.is_empty() || releases.is_empty(),
                 "Should have versions or gracefully return empty on network failure"
@@ -79,10 +90,16 @@ fn loader_versions_fetch_produces_event() {
 
     match event.unwrap() {
         AppEvent::LoaderVersionsFetched { versions } => {
-            assert!(!versions.is_empty(), "Should have at least one loader for 1.21.4");
+            assert!(
+                !versions.is_empty(),
+                "Should have at least one loader for 1.21.4"
+            );
         }
         AppEvent::LoaderFetchFailed => {}
-        other => panic!("Expected LoaderVersionsFetched or LoaderFetchFailed, got {:?}", other),
+        other => panic!(
+            "Expected LoaderVersionsFetched or LoaderFetchFailed, got {:?}",
+            other
+        ),
     }
 }
 
@@ -109,7 +126,10 @@ fn cancel_task_when_no_active_task_is_noop() {
 
     rt.block_on(async { tokio::time::sleep(Duration::from_millis(200)).await });
     let event = controller.try_recv();
-    assert!(event.is_none(), "Cancel with no active task should produce no event");
+    assert!(
+        event.is_none(),
+        "Cancel with no active task should produce no event"
+    );
 }
 
 #[test]
@@ -156,6 +176,11 @@ fn create_instance_with_invalid_version_fails() {
     });
 
     let events = drain_events_blocking(&rt, &mut controller, 15000);
-    let has_failure = events.iter().any(|ev| matches!(ev, AppEvent::InstallFinished { success: false, .. }));
-    assert!(has_failure, "Invalid version URL should produce InstallFinished with success=false");
+    let has_failure = events
+        .iter()
+        .any(|ev| matches!(ev, AppEvent::InstallFinished { success: false, .. }));
+    assert!(
+        has_failure,
+        "Invalid version URL should produce InstallFinished with success=false"
+    );
 }

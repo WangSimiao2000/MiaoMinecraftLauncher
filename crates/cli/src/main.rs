@@ -187,9 +187,7 @@ async fn main() -> anyhow::Result<()> {
             commands::instance::cmd_launch(&service, &instance).await?
         }
         Commands::Delete { instance } => commands::instance::cmd_delete(&service, &instance)?,
-        Commands::Account { username } => {
-            commands::instance::cmd_account(&mut service, &username)?
-        }
+        Commands::Account { username } => commands::instance::cmd_account(&mut service, &username)?,
         Commands::Java => commands::java::cmd_java(&service),
         Commands::DownloadJava { instance } => {
             commands::java::cmd_download_java(&service, &instance).await?
@@ -209,16 +207,19 @@ async fn main() -> anyhow::Result<()> {
             commands::resources::cmd_saves(&service, &instance, delete.as_deref())?
         }
         Commands::Open { instance } => commands::instance::cmd_open(&service, &instance)?,
-        Commands::Loaders { version } => {
-            commands::loaders::cmd_loaders(&service, &version).await?
-        }
+        Commands::Loaders { version } => commands::loaders::cmd_loaders(&service, &version).await?,
         Commands::ModSearch {
             query,
             mc_version,
             loader,
         } => {
-            commands::mods::cmd_mod_search(&service, &query, mc_version.as_deref(), loader.as_deref())
-                .await?
+            commands::mods::cmd_mod_search(
+                &service,
+                &query,
+                mc_version.as_deref(),
+                loader.as_deref(),
+            )
+            .await?
         }
         Commands::ModInstall { instance, project } => {
             commands::mods::cmd_mod_install(&service, &instance, &project).await?
