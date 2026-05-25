@@ -3,7 +3,7 @@ pub mod forge;
 pub mod neoforge;
 pub mod quilt;
 
-use anyhow::Result;
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::config::LauncherConfig;
@@ -212,16 +212,16 @@ impl ModLoaderType {
         Self::ALL.get(idx).cloned()
     }
 
-    pub fn parse(s: &str) -> anyhow::Result<Self> {
+    pub fn parse(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "fabric" => Ok(Self::Fabric),
             "quilt" => Ok(Self::Quilt),
             "neoforge" => Ok(Self::NeoForge),
             "forge" => Ok(Self::Forge),
-            _ => anyhow::bail!(
+            _ => Err(crate::error::MiaoError::Other(format!(
                 "Unknown loader '{}'. Use: fabric, quilt, neoforge, forge",
                 s
-            ),
+            ))),
         }
     }
 

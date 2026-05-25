@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::modloader::ModLoaderType;
@@ -168,7 +168,7 @@ pub fn open_folder(path: &Path) -> Result<()> {
     if path.exists() {
         open::that(path)?;
     } else {
-        anyhow::bail!("Directory does not exist: {}", path.display());
+        return Err(crate::error::MiaoError::Other(format!("Directory does not exist: {}", path.display())));
     }
     Ok(())
 }

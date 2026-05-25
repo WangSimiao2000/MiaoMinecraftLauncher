@@ -34,6 +34,30 @@ pub enum MiaoError {
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    #[error("HTTP request failed: {0}")]
+    Http(#[from] reqwest::Error),
+
+    #[error("JSON parse error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("TOML deserialization error: {0}")]
+    TomlDe(#[from] toml::de::Error),
+
+    #[error("TOML serialization error: {0}")]
+    TomlSer(#[from] toml::ser::Error),
+
+    #[error("ZIP error: {0}")]
+    Zip(#[from] zip::result::ZipError),
+
+    #[error("UUID parse error: {0}")]
+    Uuid(#[from] uuid::Error),
+
+    #[error("Task join error: {0}")]
+    Join(#[from] tokio::task::JoinError),
+
+    #[error("{0}")]
+    Other(String),
 }
 
 /// Instance management errors.

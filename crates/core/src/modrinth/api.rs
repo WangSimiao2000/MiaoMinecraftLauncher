@@ -1,4 +1,4 @@
-use anyhow::Result;
+use crate::error::Result;
 use serde::Deserialize;
 
 use crate::http::HttpClient;
@@ -285,7 +285,7 @@ pub async fn install_mod_with_dependencies(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::anyhow;
+    use crate::error::MiaoError;
     use std::collections::HashMap;
     use std::sync::Mutex;
 
@@ -324,10 +324,10 @@ mod tests {
             for (pattern, body) in responses.iter() {
                 if url.contains(pattern) {
                     return serde_json::from_str(body)
-                        .map_err(|e| anyhow!("Mock parse error: {}", e));
+                        .map_err(|e| MiaoError::Other(format!("Mock parse error: {}", e)));
                 }
             }
-            Err(anyhow!("No mock for URL: {}", url))
+            Err(MiaoError::Other(format!("No mock for URL: {}", url)))
         }
 
         async fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
@@ -337,7 +337,7 @@ mod tests {
                     return Ok(data.clone());
                 }
             }
-            Err(anyhow!("No byte mock for URL: {}", url))
+            Err(MiaoError::Other(format!("No byte mock for URL: {}", url)))
         }
     }
 

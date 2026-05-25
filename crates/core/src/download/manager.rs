@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::Result;
+use crate::error::Result;
 use futures::stream::{self, StreamExt};
 use tokio::sync::Mutex;
 
@@ -97,11 +97,11 @@ impl DownloadManager {
         if let Some(expected_sha1) = &task.sha1
             && !verify_sha1(&task.dest, expected_sha1).await?
         {
-            anyhow::bail!(
+            return Err(crate::error::MiaoError::Other(format!(
                 "SHA1 mismatch for {}: expected {}",
                 task.dest.display(),
                 expected_sha1
-            );
+            )));
         }
 
         let mut progress = self.progress.lock().await;

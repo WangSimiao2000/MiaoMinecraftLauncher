@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use anyhow::{Result, anyhow};
+use miao_core::error::MiaoError;
 use miao_core::http::HttpClient;
 use serde::de::DeserializeOwned;
+
+type Result<T> = std::result::Result<T, MiaoError>;
 
 pub struct MockHttpClient {
     responses: Mutex<HashMap<String, String>>,
@@ -46,11 +48,10 @@ impl HttpClient for MockHttpClient {
         let responses = self.responses.lock().unwrap();
         for (pattern, body) in responses.iter() {
             if url.contains(pattern) {
-                return serde_json::from_str(body)
-                    .map_err(|e| anyhow!("Mock JSON parse error for {}: {}", url, e));
+                return Ok(serde_json::from_str(body)?);
             }
         }
-        Err(anyhow!("No mock response for URL: {}", url))
+        Err(MiaoError::Other(format!("No mock response for URL: {}", url)))
     }
 
     async fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
@@ -66,6 +67,6 @@ impl HttpClient for MockHttpClient {
                 return Ok(body.as_bytes().to_vec());
             }
         }
-        Err(anyhow!("No mock byte response for URL: {}", url))
+        Err(MiaoError::Other(format!("No mock byte response for URL: {}", url)))
     }
 }

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use crate::error::Result;
 use serde::de::DeserializeOwned;
 
 #[async_trait::async_trait]

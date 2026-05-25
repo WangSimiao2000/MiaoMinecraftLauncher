@@ -1,4 +1,4 @@
-use anyhow::Result;
+use crate::error::Result;
 
 use crate::config::{DownloadMirror, LauncherConfig};
 use crate::download::DownloadTask;

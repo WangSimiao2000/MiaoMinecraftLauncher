@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
+use crate::error::Result;
 use serde::Deserialize;
 
 use crate::config::{DownloadMirror, LauncherConfig};

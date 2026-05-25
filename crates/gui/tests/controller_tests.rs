@@ -138,8 +138,10 @@ fn mod_search_produces_results_or_error() {
 fn create_instance_with_invalid_version_fails() {
     let (rt, mut controller) = setup();
     let tmp = tempfile::tempdir().unwrap();
-    let mut config = miao_core::config::LauncherConfig::default();
-    config.data_dir = tmp.path().to_path_buf();
+    let config = miao_core::config::LauncherConfig {
+        data_dir: tmp.path().to_path_buf(),
+        ..Default::default()
+    };
 
     controller.send(AppCommand::CreateInstance {
         ver: miao_core::version::VersionInfo {

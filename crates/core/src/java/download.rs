@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use crate::error::Result;
 use serde::Deserialize;
 
 #[derive(Debug, Clone)]
@@ -76,12 +76,12 @@ pub async fn fetch_latest_asset(
         .await?
         .json()
         .await
-        .context("Failed to fetch Adoptium asset")?;
+        ?;
 
     assets
         .into_iter()
         .next()
-        .ok_or_else(|| anyhow::anyhow!("No JRE available for Java {} on {}", major_version, arch))
+        .ok_or_else(|| crate::error::MiaoError::Other(format!("No JRE available for Java {} on {}", major_version, arch)))
 }
 
 pub async fn download_and_extract_java(
@@ -149,7 +149,7 @@ fn find_java_binary(extracted_dir: &Path) -> Result<PathBuf> {
             return Ok(bin_path);
         }
     }
-    anyhow::bail!("Could not find java binary in extracted archive")
+    Err(crate::error::MiaoError::Other("Could not find java binary in extracted archive".to_string()))
 }
 
 #[cfg(test)]

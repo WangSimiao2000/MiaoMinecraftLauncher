@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use anyhow::Result;
+use crate::error::Result;
 
 use crate::auth::AuthMethod;
 use crate::config::LauncherConfig;

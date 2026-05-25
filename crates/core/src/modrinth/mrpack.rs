@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::config::LauncherConfig;
@@ -56,7 +56,7 @@ pub async fn import_mrpack(
     let index: MrpackIndex = {
         let mut index_file = archive
             .by_name("modrinth.index.json")
-            .context("modrinth.index.json not found in mrpack")?;
+            ?;
         let mut content = String::new();
         index_file.read_to_string(&mut content)?;
         serde_json::from_str(&content)?
@@ -66,7 +66,7 @@ pub async fn import_mrpack(
     let mc_version = index
         .dependencies
         .get("minecraft")
-        .ok_or_else(|| anyhow::anyhow!("No minecraft version in mrpack dependencies"))?
+        .ok_or_else(|| crate::error::MiaoError::Other("No minecraft version in mrpack dependencies".to_string()))?
         .clone();
 
     let name = {
