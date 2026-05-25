@@ -52,7 +52,7 @@ pub fn collect_client_download(
     let dest = config
         .versions_dir()
         .join(&meta.id)
-        .join(format!("{}.jar", &meta.id));
+        .join(format!("{}.jar", meta.id));
 
     DownloadTask {
         url: transform_url(&meta.downloads.client.url, mirror),
@@ -70,7 +70,7 @@ pub fn collect_asset_index_download(
     let dest = config
         .assets_dir()
         .join("indexes")
-        .join(format!("{}.json", &meta.asset_index.id));
+        .join(format!("{}.json", meta.asset_index.id));
 
     DownloadTask {
         url: transform_url(&meta.asset_index.url, mirror),
@@ -83,7 +83,7 @@ pub fn collect_asset_index_download(
 pub fn save_version_meta(meta: &VersionMeta, config: &LauncherConfig) -> Result<()> {
     let dir = config.versions_dir().join(&meta.id);
     std::fs::create_dir_all(&dir)?;
-    let path = dir.join(format!("{}.json", &meta.id));
+    let path = dir.join(format!("{}.json", meta.id));
     let content = serde_json::to_string_pretty(meta)?;
     std::fs::write(&path, content)?;
     Ok(())
