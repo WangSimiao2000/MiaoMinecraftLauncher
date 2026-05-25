@@ -12,8 +12,8 @@ use miao_core::version::VersionInfo;
 use std::sync::{Arc, Mutex};
 
 pub use crate::state::{
-    AppView, AsyncState, DetailTab, Dialog, ModSearchState, NewInstanceInput, SettingsTab,
-    SharedAsyncState, VersionsState,
+    AppView, AsyncState, DetailTab, Dialog, I18n, InstanceSettingsEdit, Language, ModSearchState,
+    NewInstanceInput, SettingsTab, SharedAsyncState, VersionsState,
 };
 use crate::theme;
 
@@ -41,6 +41,11 @@ pub struct MiaoApp {
     pub refresh_counter: u32,
     #[allow(dead_code)]
     pub theme_preset: crate::theme::ThemePreset,
+
+    pub instance_settings_edit: InstanceSettingsEdit,
+    pub language: Language,
+    pub mirror_custom_url: String,
+    pub max_downloads_input: String,
 }
 
 impl MiaoApp {
@@ -67,12 +72,13 @@ impl MiaoApp {
                 if let Ok(all_versions) =
                     miao_core::version::manifest::fetch_version_manifest(&http, &mirror).await
                 {
-                    let releases: Vec<_> = all_versions
-                        .into_iter()
-                        .filter(|v| v.is_release())
-                        .take(50)
-                        .collect();
                     let mut state = state_clone.lock().unwrap();
+                    let releases: Vec<_> = all_versions
+                        .iter()
+                        .filter(|v| v.is_release())
+                        .cloned()
+                        .collect();
+                    state.versions.all_versions = all_versions;
                     state.versions.versions = releases;
                     state.versions.loading = false;
                 } else {
@@ -83,8 +89,13 @@ impl MiaoApp {
         });
 
         let data_dir_input = config.data_dir.display().to_string();
+        let mirror_custom_url = match &config.download_mirror {
+            miao_core::config::DownloadMirror::Custom(url) => url.clone(),
+            _ => String::new(),
+        };
+        let max_downloads_input = config.max_concurrent_downloads.to_string();
 
-        Self {
+        let app = Self {
             config,
             instances,
             async_state,
@@ -103,7 +114,14 @@ impl MiaoApp {
             cached_javas: None,
             refresh_counter: 0,
             theme_preset: crate::theme::ThemePreset::Dark,
-        }
+            instance_settings_edit: InstanceSettingsEdit::default(),
+            language: Language::default(),
+            mirror_custom_url,
+            max_downloads_input,
+        };
+
+        app.check_for_updates();
+        app
     }
 
     pub fn open_new_instance_dialog(&mut self) {
@@ -139,6 +157,7 @@ impl eframe::App for MiaoApp {
                 if s.starts_with('✓') {
                     self.instances =
                         instance::list_instances(&self.config.instances_dir()).unwrap_or_default();
+                    self.cached_javas = None;
                 }
             }
         }
@@ -161,9 +180,45 @@ impl eframe::App for MiaoApp {
             || state.auth.logging_in
             || state.loader.loading
             || self.mod_search.searching
+            || state.game_log.running
         {
             ctx.request_repaint();
         }
+
+        let lang = self.language;
+
+        if let Some(launch_idx) = state.java_installed_launch_idx {
+            self.async_state.lock().unwrap().java_installed_launch_idx = None;
+            self.cached_javas = None;
+            self.launch_instance(launch_idx);
+        }
+
+        egui::TopBottomPanel::bottom("status_bar")
+            .frame(theme::bottom_bar_frame())
+            .show(ctx, |ui| {
+                if state.install.installing && state.install.progress_total > 0 {
+                    let fraction = state.install.progress_completed as f32
+                        / state.install.progress_total.max(1) as f32;
+                    let text = format!(
+                        "{} ({}/{})",
+                        state.install.progress_label,
+                        state.install.progress_completed,
+                        state.install.progress_total
+                    );
+                    ui.add(
+                        egui::ProgressBar::new(fraction)
+                            .text(text)
+                            .fill(theme::Colors::ACCENT),
+                    );
+                } else if state.install.installing {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(theme::status_text(&self.status));
+                    });
+                } else {
+                    ui.label(theme::status_text(&self.status));
+                }
+            });
 
         match self.app_view {
             AppView::Settings => {
@@ -171,11 +226,11 @@ impl eframe::App for MiaoApp {
                     .frame(theme::top_bar_frame())
                     .show(ctx, |ui| {
                         ui.horizontal(|ui| {
-                            if ui.button("< Back").clicked() {
+                            if ui.button(I18n::t(lang, "back")).clicked() {
                                 self.app_view = AppView::Main;
                             }
                             ui.add_space(8.0);
-                            ui.label(theme::heading("Settings"));
+                            ui.label(theme::heading(I18n::t(lang, "settings")));
                         });
                     });
                 egui::CentralPanel::default().show(ctx, |ui| {
@@ -193,34 +248,12 @@ impl eframe::App for MiaoApp {
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    if ui.button("Settings").clicked() {
+                                    if ui.button(I18n::t(lang, "settings")).clicked() {
                                         self.app_view = AppView::Settings;
                                     }
                                 },
                             );
                         });
-                    });
-
-                egui::TopBottomPanel::bottom("status_bar")
-                    .frame(theme::bottom_bar_frame())
-                    .show(ctx, |ui| {
-                        if state.install.installing && state.install.progress_total > 0 {
-                            let fraction = state.install.progress_completed as f32
-                                / state.install.progress_total.max(1) as f32;
-                            let text = format!(
-                                "{} ({}/{})",
-                                state.install.progress_label,
-                                state.install.progress_completed,
-                                state.install.progress_total
-                            );
-                            ui.add(
-                                egui::ProgressBar::new(fraction)
-                                    .text(text)
-                                    .fill(theme::Colors::ACCENT),
-                            );
-                        } else {
-                            ui.label(theme::status_text(&self.status));
-                        }
                     });
 
                 self.render_sidebar(ctx);
@@ -237,6 +270,12 @@ impl eframe::App for MiaoApp {
 
                 match self.active_dialog {
                     Dialog::NewInstance => self.render_new_instance_dialog(ctx, &state),
+                    Dialog::ConfirmJavaDownload {
+                        instance_idx,
+                        java_major,
+                    } => {
+                        self.render_java_download_confirm(ctx, instance_idx, java_major);
+                    }
                     Dialog::None => {}
                 }
             }
@@ -254,7 +293,7 @@ impl MiaoApp {
             .cloned()
             .unwrap_or_else(|| AuthMethod::Offline(create_offline_account("Player")));
 
-        let java_installations = java::detect_system_java();
+        let java_installations = java::detect_java_with_data_dir(&self.config.data_dir);
         let meta_path = self
             .config
             .versions_dir()
@@ -289,8 +328,11 @@ impl MiaoApp {
         });
 
         let Some(java_path) = java_path else {
-            self.status = format!("Java {} not found, downloading...", required_java);
-            self.download_java_for_instance(idx);
+            self.status = format!("Java {} not found. Confirm download?", required_java);
+            self.active_dialog = Dialog::ConfirmJavaDownload {
+                instance_idx: idx,
+                java_major: required_java,
+            };
             return;
         };
 
@@ -306,10 +348,22 @@ impl MiaoApp {
 
         match build_launch_command(&options) {
             Ok(mut cmd) => {
-                cmd.stdout(std::process::Stdio::null());
-                cmd.stderr(std::process::Stdio::null());
+                cmd.stdout(std::process::Stdio::piped());
+                cmd.stderr(std::process::Stdio::piped());
                 match cmd.spawn() {
-                    Ok(_) => self.status = format!("Launched {}", inst.name),
+                    Ok(child) => {
+                        self.status = format!("Launched {}", inst.name);
+                        {
+                            let mut s = self.async_state.lock().unwrap();
+                            s.game_log.lines.clear();
+                            s.game_log.running = true;
+                        }
+                        let state = self.async_state.clone();
+                        let ctx = self.ctx.clone();
+                        std::thread::spawn(move || {
+                            Self::stream_game_output(child, state, ctx);
+                        });
+                    }
                     Err(e) => self.status = format!("Launch failed: {}", e),
                 }
             }
@@ -342,7 +396,12 @@ impl MiaoApp {
         };
 
         let required = meta.required_java_major();
-        if java::find_compatible_java(&java::detect_system_java(), required).is_some() {
+        if java::find_compatible_java(
+            &java::detect_java_with_data_dir(&self.config.data_dir),
+            required,
+        )
+        .is_some()
+        {
             self.status = format!("Java {} already available.", required);
             return;
         }
@@ -360,6 +419,8 @@ impl MiaoApp {
         self.status = format!("Downloading Java {}...", required);
         let state = self.async_state.clone();
         let java_dir = self.config.data_dir.join("java");
+        let launch_idx = idx;
+        let ctx = self.ctx.clone();
 
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
@@ -400,16 +461,16 @@ impl MiaoApp {
                 s.install.installing = false;
                 match result {
                     Ok(path) => {
-                        s.install.status = Some(format!(
-                            "✓ Java {} installed at {}",
-                            required,
-                            path.display()
-                        ));
+                        s.install.status =
+                            Some(format!("✓ Java {} installed — launching game...", required,));
+                        s.java_installed_launch_idx = Some(launch_idx);
+                        let _ = &path;
                     }
                     Err(e) => {
                         s.install.status = Some(format!("✗ Java download failed: {}", e));
                     }
                 }
+                ctx.request_repaint();
             });
         });
     }
@@ -695,6 +756,170 @@ impl MiaoApp {
             .and_then(|lt| state.loader.versions.get(&lt))
             .map(|v| v.iter().collect())
             .unwrap_or_default()
+    }
+
+    fn stream_game_output(
+        mut child: std::process::Child,
+        state: SharedAsyncState,
+        ctx: egui::Context,
+    ) {
+        use crate::state::GameLogState;
+        use std::io::BufRead;
+
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+
+        let state2 = state.clone();
+        let ctx2 = ctx.clone();
+
+        let stdout_handle = stdout.map(|out| {
+            let s = state.clone();
+            let c = ctx.clone();
+            std::thread::spawn(move || {
+                let reader = std::io::BufReader::new(out);
+                for line in reader.lines() {
+                    let Ok(line) = line else { break };
+                    let mut st = s.lock().unwrap();
+                    if st.game_log.lines.len() >= GameLogState::MAX_LINES {
+                        st.game_log.lines.pop_front();
+                    }
+                    st.game_log.lines.push_back(line);
+                    drop(st);
+                    c.request_repaint();
+                }
+            })
+        });
+
+        let stderr_handle = stderr.map(|err| {
+            let s = state2.clone();
+            let c = ctx2.clone();
+            std::thread::spawn(move || {
+                let reader = std::io::BufReader::new(err);
+                for line in reader.lines() {
+                    let Ok(line) = line else { break };
+                    let mut st = s.lock().unwrap();
+                    if st.game_log.lines.len() >= GameLogState::MAX_LINES {
+                        st.game_log.lines.pop_front();
+                    }
+                    st.game_log.lines.push_back(format!("[ERR] {}", line));
+                    drop(st);
+                    c.request_repaint();
+                }
+            })
+        });
+
+        if let Some(h) = stdout_handle {
+            let _ = h.join();
+        }
+        if let Some(h) = stderr_handle {
+            let _ = h.join();
+        }
+        let _ = child.wait();
+        state2.lock().unwrap().game_log.running = false;
+        ctx2.request_repaint();
+    }
+
+    pub fn load_instance_settings_edit(&mut self, idx: usize) {
+        let inst = &self.instances[idx];
+        self.instance_settings_edit = InstanceSettingsEdit {
+            memory_max: inst.memory_max_mb.to_string(),
+            memory_min: inst.memory_min_mb.to_string(),
+            resolution_width: inst
+                .resolution
+                .as_ref()
+                .map(|r| r.width.to_string())
+                .unwrap_or_default(),
+            resolution_height: inst
+                .resolution
+                .as_ref()
+                .map(|r| r.height.to_string())
+                .unwrap_or_default(),
+            java_path: inst
+                .java_path
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default(),
+            jvm_args: inst.jvm_args.join(" "),
+            dirty: false,
+        };
+    }
+
+    pub fn save_instance_settings(&mut self) {
+        let Some(idx) = self.selected_instance else {
+            return;
+        };
+        let inst = &mut self.instances[idx];
+
+        if let Ok(v) = self.instance_settings_edit.memory_max.parse::<u32>() {
+            inst.memory_max_mb = v;
+        }
+        if let Ok(v) = self.instance_settings_edit.memory_min.parse::<u32>() {
+            inst.memory_min_mb = v;
+        }
+
+        let w = self
+            .instance_settings_edit
+            .resolution_width
+            .parse::<u32>()
+            .ok();
+        let h = self
+            .instance_settings_edit
+            .resolution_height
+            .parse::<u32>()
+            .ok();
+        inst.resolution = match (w, h) {
+            (Some(w), Some(h)) if w > 0 && h > 0 => Some(instance::Resolution {
+                width: w,
+                height: h,
+            }),
+            _ => None,
+        };
+
+        let jp = &self.instance_settings_edit.java_path;
+        inst.java_path = if jp.is_empty() {
+            None
+        } else {
+            Some(std::path::PathBuf::from(jp))
+        };
+
+        let args_str = &self.instance_settings_edit.jvm_args;
+        inst.jvm_args = if args_str.is_empty() {
+            Vec::new()
+        } else {
+            args_str.split_whitespace().map(|s| s.to_string()).collect()
+        };
+
+        let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
+        let _ = inst.save_to(&instance_dir);
+        self.instance_settings_edit.dirty = false;
+        self.status = I18n::t(self.language, "saved").to_string();
+    }
+
+    pub fn check_for_updates(&self) {
+        let state = self.async_state.clone();
+        let ctx = self.ctx.clone();
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let http = reqwest::Client::builder()
+                    .user_agent("MMCL/0.1.0")
+                    .build()
+                    .unwrap();
+                let url = "https://api.github.com/repos/WangSimiao2000/MiaoMinecraftLauncher/releases/latest";
+                if let Ok(resp) = http.get(url).send().await
+                    && let Ok(json) = resp.json::<serde_json::Value>().await
+                    && let Some(tag) = json.get("tag_name").and_then(|v| v.as_str())
+                {
+                    let current = env!("CARGO_PKG_VERSION");
+                    let remote = tag.trim_start_matches('v');
+                    if remote != current {
+                        let mut s = state.lock().unwrap();
+                        s.update_available = Some(tag.to_string());
+                    }
+                }
+                ctx.request_repaint();
+            });
+        });
     }
 }
 

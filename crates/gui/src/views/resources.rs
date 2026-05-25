@@ -1,21 +1,23 @@
 use eframe::egui;
 use std::path::Path;
 
-use crate::app::MiaoApp;
+use crate::app::{I18n, MiaoApp};
 use crate::theme;
 
 impl MiaoApp {
     pub fn render_resources_tab(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
+        let lang = self.language;
         let res_dir = miao_core::instance::Instance::resourcepacks_dir(instance_dir);
         let packs = miao_core::resource::scan_resourcepacks(&res_dir);
 
         ui.horizontal(|ui| {
             ui.label(theme::subheading(&format!(
-                "Resource Packs ({})",
+                "{} ({})",
+                I18n::t(lang, "tab_resources"),
                 packs.len()
             )));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("Open folder").clicked() {
+                if ui.button(I18n::t(lang, "open")).clicked() {
                     let _ = miao_core::instance::open_folder(&res_dir);
                 }
             });
@@ -23,17 +25,40 @@ impl MiaoApp {
         ui.add_space(theme::Spacing::SMALL_GAP);
 
         if packs.is_empty() {
-            ui.label(theme::muted("No resource packs"));
+            ui.add_space(20.0);
+            ui.vertical_centered(|ui| {
+                ui.label(theme::muted("No resource packs"));
+                ui.add_space(8.0);
+                ui.label(theme::small(
+                    "Drop .zip packs into the resourcepacks folder",
+                ));
+            });
         } else {
             for p in &packs {
-                ui.horizontal(|ui| {
-                    ui.label(theme::body(&p.name));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Del").clicked() {
-                            let _ = p.delete();
-                        }
+                theme::list_item_card().show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.label(theme::body(&p.name));
+                        let kind = if p.path.is_dir() { "folder" } else { "zip" };
+                        ui.label(theme::small(&format!("[{}]", kind)));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.small_button("Del").clicked() {
+                                let _ = p.delete();
+                            }
+                            if !p.path.is_dir()
+                                && let Ok(meta) = std::fs::metadata(&p.path)
+                            {
+                                let size_kb = meta.len() as f64 / 1024.0;
+                                if size_kb > 1024.0 {
+                                    ui.label(theme::small(&format!("{:.1} MB", size_kb / 1024.0)));
+                                } else {
+                                    ui.label(theme::small(&format!("{:.0} KB", size_kb)));
+                                }
+                            }
+                        });
                     });
                 });
+                ui.add_space(2.0);
             }
         }
 
@@ -47,7 +72,7 @@ impl MiaoApp {
         ui.horizontal(|ui| {
             ui.label(theme::subheading(&format!("Shaders ({})", shaders.len())));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("Open folder").clicked() {
+                if ui.button(I18n::t(lang, "open")).clicked() {
                     let _ = miao_core::instance::open_folder(&shader_dir);
                 }
             });
@@ -55,17 +80,40 @@ impl MiaoApp {
         ui.add_space(theme::Spacing::SMALL_GAP);
 
         if shaders.is_empty() {
-            ui.label(theme::muted("No shaders"));
+            ui.add_space(20.0);
+            ui.vertical_centered(|ui| {
+                ui.label(theme::muted("No shaders"));
+                ui.add_space(8.0);
+                ui.label(theme::small(
+                    "Drop shader packs into the shaderpacks folder",
+                ));
+            });
         } else {
             for s in &shaders {
-                ui.horizontal(|ui| {
-                    ui.label(theme::body(&s.name));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Del").clicked() {
-                            let _ = s.delete();
-                        }
+                theme::list_item_card().show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.label(theme::body(&s.name));
+                        let kind = if s.path.is_dir() { "folder" } else { "zip" };
+                        ui.label(theme::small(&format!("[{}]", kind)));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.small_button("Del").clicked() {
+                                let _ = s.delete();
+                            }
+                            if !s.path.is_dir()
+                                && let Ok(meta) = std::fs::metadata(&s.path)
+                            {
+                                let size_kb = meta.len() as f64 / 1024.0;
+                                if size_kb > 1024.0 {
+                                    ui.label(theme::small(&format!("{:.1} MB", size_kb / 1024.0)));
+                                } else {
+                                    ui.label(theme::small(&format!("{:.0} KB", size_kb)));
+                                }
+                            }
+                        });
                     });
                 });
+                ui.add_space(2.0);
             }
         }
     }

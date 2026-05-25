@@ -27,7 +27,10 @@ impl Default for LauncherConfig {
     fn default() -> Self {
         let data_dir = std::env::current_exe()
             .ok()
-            .and_then(|p| p.parent().map(|d| d.join("mmcl-data")))
+            .and_then(|p| p.canonicalize().ok())
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+            .filter(|d| !d.starts_with("/tmp"))
+            .map(|d| d.join("mmcl-data"))
             .unwrap_or_else(|| {
                 dirs::data_dir()
                     .unwrap_or_else(|| PathBuf::from("~/.local/share"))
@@ -184,6 +187,16 @@ mod tests {
         let deserialized: DownloadMirror = serde_json::from_str(&json).unwrap();
         assert!(
             matches!(deserialized, DownloadMirror::Custom(url) if url == "https://my-mirror.com")
+        );
+    }
+
+    #[test]
+    fn default_data_dir_not_in_tmp() {
+        let config = LauncherConfig::default();
+        assert!(
+            !config.data_dir.starts_with("/tmp"),
+            "data_dir should not be in /tmp: {:?}",
+            config.data_dir
         );
     }
 }

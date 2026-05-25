@@ -20,12 +20,15 @@ impl JavaInstallation {
 }
 
 pub fn detect_system_java() -> Vec<JavaInstallation> {
+    let data_dir = crate::config::LauncherConfig::default().data_dir;
+    detect_java_with_data_dir(&data_dir)
+}
+
+pub fn detect_java_with_data_dir(data_dir: &Path) -> Vec<JavaInstallation> {
     let mut installations =
         detect_java_in_paths(&["/usr/lib/jvm", "/usr/local/lib/jvm", "/usr/java"]);
 
-    let launcher_java_dir = crate::config::LauncherConfig::default()
-        .data_dir
-        .join("java");
+    let launcher_java_dir = data_dir.join("java");
     if launcher_java_dir.exists() {
         installations.extend(detect_java_recursive(&launcher_java_dir));
     }
@@ -380,5 +383,21 @@ mod tests {
     fn detect_java_in_empty_paths() {
         let result = detect_java_in_paths(&[]);
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn detect_java_with_data_dir_nonexistent() {
+        let dir = PathBuf::from("/nonexistent_data_dir_xyz");
+        let result = detect_java_with_data_dir(&dir);
+        assert!(result.iter().all(|j| !j.path.starts_with(&dir)));
+    }
+
+    #[test]
+    fn detect_java_with_data_dir_empty_java_subdir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let java_dir = tmp.path().join("java");
+        std::fs::create_dir_all(&java_dir).unwrap();
+        let result = detect_java_with_data_dir(tmp.path());
+        assert!(result.iter().all(|j| !j.path.starts_with(&java_dir)));
     }
 }

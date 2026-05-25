@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use crate::app::{AsyncState, Dialog, MiaoApp};
+use crate::app::{AsyncState, Dialog, I18n, MiaoApp};
 use crate::theme;
 
 impl MiaoApp {
@@ -15,14 +15,15 @@ impl MiaoApp {
             self.fetch_loader_versions(&mc_ver);
         }
 
+        let lang = self.language;
         let mut open = true;
-        egui::Window::new("New Instance")
+        egui::Window::new(I18n::t(lang, "create_instance"))
             .open(&mut open)
             .resizable(false)
-            .default_width(450.0)
+            .default_width(500.0)
             .collapsible(false)
             .show(ctx, |ui| {
-                ui.label(theme::subheading("Create New Instance"));
+                ui.label(theme::subheading(I18n::t(lang, "create_instance")));
                 ui.add_space(theme::Spacing::SMALL_GAP);
 
                 ui.horizontal(|ui| {
@@ -68,6 +69,35 @@ impl MiaoApp {
                         ui.label("Loading versions...");
                     }
                 });
+
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(theme::small("Show:"));
+                    ui.add_space(4.0);
+                    let mut show_snap = state.versions.show_snapshots;
+                    let mut show_beta = state.versions.show_old_beta;
+                    let mut show_alpha = state.versions.show_old_alpha;
+
+                    if ui
+                        .checkbox(&mut show_snap, I18n::t(lang, "show_snapshots"))
+                        .changed()
+                    {
+                        self.update_version_filter(show_snap, show_beta, show_alpha);
+                    }
+                    if ui
+                        .checkbox(&mut show_beta, I18n::t(lang, "show_old_beta"))
+                        .changed()
+                    {
+                        self.update_version_filter(show_snap, show_beta, show_alpha);
+                    }
+                    if ui
+                        .checkbox(&mut show_alpha, I18n::t(lang, "show_old_alpha"))
+                        .changed()
+                    {
+                        self.update_version_filter(show_snap, show_beta, show_alpha);
+                    }
+                });
+                ui.add_space(4.0);
 
                 ui.horizontal(|ui| {
                     ui.label("Mod Loader:");
@@ -165,5 +195,39 @@ impl MiaoApp {
         if !open {
             self.active_dialog = Dialog::None;
         }
+    }
+
+    pub fn update_version_filter(
+        &mut self,
+        show_snapshots: bool,
+        show_old_beta: bool,
+        show_old_alpha: bool,
+    ) {
+        use miao_core::version::VersionType;
+
+        let mut s = self.async_state.lock().unwrap();
+        s.versions.show_snapshots = show_snapshots;
+        s.versions.show_old_beta = show_old_beta;
+        s.versions.show_old_alpha = show_old_alpha;
+
+        let filtered: Vec<_> = s
+            .versions
+            .all_versions
+            .iter()
+            .filter(|v| match v.version_type {
+                VersionType::Release => true,
+                VersionType::Snapshot => show_snapshots,
+                VersionType::OldBeta => show_old_beta,
+                VersionType::OldAlpha => show_old_alpha,
+            })
+            .cloned()
+            .collect();
+
+        s.versions.versions = filtered;
+        drop(s);
+
+        self.new_instance.version_idx = 0;
+        self.new_instance.loader = 0;
+        self.new_instance.loader_version_idx = 0;
     }
 }

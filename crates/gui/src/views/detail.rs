@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use crate::app::{DetailTab, MiaoApp};
+use crate::app::{DetailTab, I18n, MiaoApp};
 use crate::theme;
 
 impl MiaoApp {
@@ -26,17 +26,16 @@ impl MiaoApp {
             DetailTab::Resources => self.render_resources_tab(ui, &instance_dir),
             DetailTab::Worlds => self.render_worlds_tab(ui, &instance_dir),
             DetailTab::Log => self.render_log_tab(ui, &instance_dir),
+            DetailTab::Settings => self.render_instance_settings_tab(ui),
         });
     }
 
     fn render_welcome(&self, ui: &mut egui::Ui) {
         ui.add_space(100.0);
         ui.vertical_centered(|ui| {
-            ui.label(theme::heading("Welcome to MMCL"));
+            ui.label(theme::heading(I18n::t(self.language, "welcome")));
             ui.add_space(theme::Spacing::SECTION_GAP);
-            ui.label(theme::muted(
-                "Select an instance from the left panel,\nor click '+ New' to create one.",
-            ));
+            ui.label(theme::muted(I18n::t(self.language, "welcome_hint")));
         });
     }
 
@@ -72,10 +71,10 @@ impl MiaoApp {
                             self.launch_instance(idx);
                         }
                         ui.add_space(8.0);
-                        if ui.button("Export").clicked() {
+                        if ui.button(I18n::t(self.language, "export")).clicked() {
                             self.export_instance_with_dialog(idx);
                         }
-                        if ui.button("Open").clicked() {
+                        if ui.button(I18n::t(self.language, "open")).clicked() {
                             let dir = miao_core::instance::Instance::instance_dir(
                                 &self.config.instances_dir(),
                                 &inst.name,
@@ -85,11 +84,14 @@ impl MiaoApp {
                         ui.add_space(8.0);
                         if self.confirm_delete == Some(idx) {
                             ui.label(
-                                egui::RichText::new("Confirm?")
+                                egui::RichText::new(I18n::t(self.language, "confirm"))
                                     .color(theme::Colors::DANGER)
                                     .size(12.0),
                             );
-                            if ui.add(theme::danger_button("Yes")).clicked() {
+                            if ui
+                                .add(theme::danger_button(I18n::t(self.language, "yes")))
+                                .clicked()
+                            {
                                 let name = inst.name.clone();
                                 if let Err(e) = miao_core::instance::delete_instance(
                                     &self.config.instances_dir(),
@@ -106,10 +108,13 @@ impl MiaoApp {
                                 }
                                 self.confirm_delete = None;
                             }
-                            if ui.button("No").clicked() {
+                            if ui.button(I18n::t(self.language, "no")).clicked() {
                                 self.confirm_delete = None;
                             }
-                        } else if ui.add(theme::danger_button("Delete")).clicked() {
+                        } else if ui
+                            .add(theme::danger_button(I18n::t(self.language, "delete")))
+                            .clicked()
+                        {
                             self.confirm_delete = Some(idx);
                         }
                     });
@@ -119,12 +124,15 @@ impl MiaoApp {
 
     fn render_tabs(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            for (tab, label) in [
-                (DetailTab::Mods, "Mods"),
-                (DetailTab::Resources, "Resources"),
-                (DetailTab::Worlds, "Worlds"),
-                (DetailTab::Log, "Log"),
+            let lang = self.language;
+            for (tab, key) in [
+                (DetailTab::Mods, "tab_mods"),
+                (DetailTab::Resources, "tab_resources"),
+                (DetailTab::Worlds, "tab_worlds"),
+                (DetailTab::Log, "tab_log"),
+                (DetailTab::Settings, "tab_settings"),
             ] {
+                let label = I18n::t(lang, key);
                 let selected = self.active_tab == tab;
                 let text = if selected {
                     egui::RichText::new(label)
@@ -150,6 +158,12 @@ impl MiaoApp {
                 }
 
                 if response.clicked() {
+                    if tab == DetailTab::Settings
+                        && self.active_tab != DetailTab::Settings
+                        && let Some(idx) = self.selected_instance
+                    {
+                        self.load_instance_settings_edit(idx);
+                    }
                     self.active_tab = tab;
                 }
             }

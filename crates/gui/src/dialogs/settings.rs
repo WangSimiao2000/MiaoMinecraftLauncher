@@ -1,8 +1,9 @@
 use eframe::egui;
 use miao_core::auth::AuthMethod;
 use miao_core::auth::offline::create_offline_account;
+use miao_core::config::DownloadMirror;
 
-use crate::app::{AsyncState, MiaoApp, SettingsTab};
+use crate::app::{AsyncState, I18n, Language, MiaoApp, SettingsTab};
 use crate::theme;
 
 impl MiaoApp {
@@ -34,16 +35,17 @@ impl MiaoApp {
     }
 
     fn render_settings_nav(&mut self, ui: &mut egui::Ui) {
+        let lang = self.language;
         ui.vertical(|ui| {
             ui.set_min_width(140.0);
             ui.set_max_width(140.0);
             ui.add_space(8.0);
 
             let tabs = [
-                (SettingsTab::Account, "Account"),
-                (SettingsTab::Data, "Data"),
-                (SettingsTab::Java, "Java"),
-                (SettingsTab::About, "About"),
+                (SettingsTab::Account, I18n::t(lang, "account")),
+                (SettingsTab::Data, I18n::t(lang, "data")),
+                (SettingsTab::Java, I18n::t(lang, "java")),
+                (SettingsTab::About, I18n::t(lang, "about")),
             ];
 
             for (tab, label) in tabs {
@@ -81,21 +83,34 @@ impl MiaoApp {
     }
 
     fn render_tab_account(&mut self, ui: &mut egui::Ui, state: &AsyncState) {
-        ui.label(theme::subheading("Active Account"));
+        let lang = self.language;
+        ui.label(theme::subheading(I18n::t(lang, "active_account")));
         ui.add_space(8.0);
 
         if self.config.accounts.is_empty() {
-            ui.label(theme::muted("No accounts configured yet."));
+            ui.label(theme::muted(I18n::t(lang, "no_accounts")));
         } else {
-            for (i, acc) in self.config.accounts.iter().enumerate() {
-                let active = self.config.active_account_index == Some(i);
-                let (prefix, acc_type) = match acc {
-                    AuthMethod::Offline(a) => (a.username.as_str(), "Offline"),
-                    AuthMethod::Microsoft(a) => (a.username.as_str(), "Microsoft"),
-                };
+            let account_info: Vec<(String, &'static str, bool)> = self
+                .config
+                .accounts
+                .iter()
+                .enumerate()
+                .map(|(i, acc)| {
+                    let active = self.config.active_account_index == Some(i);
+                    let (name, kind) = match acc {
+                        AuthMethod::Offline(a) => (a.username.clone(), "Offline"),
+                        AuthMethod::Microsoft(a) => (a.username.clone(), "Microsoft"),
+                    };
+                    (name, kind, active)
+                })
+                .collect();
 
+            let mut to_delete: Option<usize> = None;
+            let mut set_active: Option<usize> = None;
+
+            for (i, (name, kind, active)) in account_info.iter().enumerate() {
                 egui::Frame::none()
-                    .fill(if active {
+                    .fill(if *active {
                         theme::Colors::BG_WIDGET_HOVER
                     } else {
                         theme::Colors::BG_ELEVATED
@@ -105,36 +120,68 @@ impl MiaoApp {
                     .show(ui, |ui| {
                         ui.set_min_width(ui.available_width());
                         ui.horizontal(|ui| {
-                            let dot = if active { "●" } else { "○" };
-                            ui.label(egui::RichText::new(dot).color(if active {
+                            let dot = if *active { "●" } else { "○" };
+                            ui.label(egui::RichText::new(dot).color(if *active {
                                 theme::Colors::SUCCESS
                             } else {
                                 theme::Colors::TEXT_MUTED
                             }));
-                            ui.label(theme::body(prefix));
-                            ui.label(theme::small(acc_type));
+                            ui.label(theme::body(name));
+                            ui.label(theme::small(kind));
+
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui
+                                        .add(egui::Button::new(
+                                            egui::RichText::new("✕")
+                                                .size(12.0)
+                                                .color(theme::Colors::DANGER),
+                                        ))
+                                        .clicked()
+                                    {
+                                        to_delete = Some(i);
+                                    }
+                                    if !*active && ui.small_button("Set Active").clicked() {
+                                        set_active = Some(i);
+                                    }
+                                },
+                            );
                         });
                     });
-
-                let rect = ui.min_rect();
-                if ui
-                    .interact(rect, egui::Id::new(("acc", i)), egui::Sense::click())
-                    .clicked()
-                {
-                    self.config.active_account_index = Some(i);
-                    let _ = self.config.save();
-                }
                 ui.add_space(4.0);
+            }
+
+            if let Some(idx) = set_active {
+                self.config.active_account_index = Some(idx);
+                let _ = self.config.save();
+            }
+
+            if let Some(idx) = to_delete {
+                self.config.accounts.remove(idx);
+                if let Some(active) = self.config.active_account_index {
+                    if active == idx {
+                        self.config.active_account_index = if self.config.accounts.is_empty() {
+                            None
+                        } else {
+                            Some(0)
+                        };
+                    } else if active > idx {
+                        self.config.active_account_index = Some(active - 1);
+                    }
+                }
+                let _ = self.config.save();
+                self.status = "Account removed.".to_string();
             }
         }
 
         ui.add_space(16.0);
-        ui.label(theme::subheading("Add Account"));
+        ui.label(theme::subheading(I18n::t(lang, "add_account")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::body("Offline Account"));
+            ui.label(theme::body(I18n::t(lang, "offline_account")));
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.add(
@@ -160,7 +207,7 @@ impl MiaoApp {
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::body("Microsoft Account"));
+            ui.label(theme::body(I18n::t(lang, "ms_account")));
             ui.add_space(6.0);
             if state.auth.logging_in {
                 if let Some(ref dc) = state.auth.device_code {
@@ -188,7 +235,7 @@ impl MiaoApp {
             } else {
                 ui.label(theme::muted("Sign in with your Microsoft account."));
                 ui.add_space(4.0);
-                if ui.button("Sign In").clicked() {
+                if ui.button(I18n::t(lang, "sign_in")).clicked() {
                     self.start_ms_login();
                 }
             }
@@ -196,6 +243,8 @@ impl MiaoApp {
     }
 
     fn render_tab_data(&mut self, ui: &mut egui::Ui) {
+        let lang = self.language;
+
         ui.label(theme::subheading("Data Directory"));
         ui.add_space(8.0);
 
@@ -221,7 +270,7 @@ impl MiaoApp {
             });
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button("Apply").clicked() {
+                if ui.button(I18n::t(lang, "apply")).clicked() {
                     let new_path = std::path::PathBuf::from(&self.data_dir_input);
                     let _ = std::fs::create_dir_all(&new_path);
                     self.config.data_dir = new_path;
@@ -253,21 +302,94 @@ impl MiaoApp {
         });
 
         ui.add_space(16.0);
-        ui.label(theme::subheading("Downloads"));
+        ui.label(theme::subheading(I18n::t(lang, "mirror")));
+        ui.add_space(8.0);
+
+        theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+
+            let current_mirror = match &self.config.download_mirror {
+                DownloadMirror::Official => 0,
+                DownloadMirror::Bmclapi => 1,
+                DownloadMirror::Custom(_) => 2,
+            };
+            let mut selected = current_mirror;
+
+            ui.horizontal(|ui| {
+                ui.radio_value(&mut selected, 0, I18n::t(lang, "mirror_official"));
+                ui.radio_value(&mut selected, 1, I18n::t(lang, "mirror_bmclapi"));
+                ui.radio_value(&mut selected, 2, I18n::t(lang, "mirror_custom"));
+            });
+
+            if selected == 2 {
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    ui.label("URL:");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.mirror_custom_url)
+                            .vertical_align(egui::Align::Center)
+                            .min_size(ui.spacing().interact_size)
+                            .hint_text("https://my-mirror.example.com"),
+                    );
+                });
+            }
+
+            if selected != current_mirror {
+                let new_mirror = match selected {
+                    0 => DownloadMirror::Official,
+                    1 => DownloadMirror::Bmclapi,
+                    _ => DownloadMirror::Custom(self.mirror_custom_url.clone()),
+                };
+                self.config.download_mirror = new_mirror;
+                let _ = self.config.save();
+                self.status = "Mirror updated.".to_string();
+            }
+
+            ui.add_space(12.0);
+            ui.separator();
+            ui.add_space(8.0);
+
+            ui.horizontal(|ui| {
+                ui.label(theme::body(I18n::t(lang, "max_concurrent")));
+                ui.add_space(8.0);
+                let resp = ui.add(
+                    egui::TextEdit::singleline(&mut self.max_downloads_input)
+                        .desired_width(60.0)
+                        .vertical_align(egui::Align::Center),
+                );
+                if resp.lost_focus() {
+                    if let Ok(v) = self.max_downloads_input.parse::<usize>() {
+                        let v = v.clamp(1, 256);
+                        self.config.max_concurrent_downloads = v;
+                        self.max_downloads_input = v.to_string();
+                        let _ = self.config.save();
+                    } else {
+                        self.max_downloads_input = self.config.max_concurrent_downloads.to_string();
+                    }
+                }
+            });
+        });
+
+        ui.add_space(16.0);
+        ui.label(theme::subheading(I18n::t(lang, "language")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.label(theme::body("Mirror:"));
-                ui.label(theme::muted(&format!("{:?}", self.config.download_mirror)));
-            });
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.label(theme::body("Max concurrent:"));
-                ui.label(theme::muted(
-                    &self.config.max_concurrent_downloads.to_string(),
-                ));
+                for l in Language::ALL {
+                    let selected = self.language == l;
+                    let text = if selected {
+                        egui::RichText::new(l.name())
+                            .strong()
+                            .color(theme::Colors::ACCENT_LIGHT)
+                    } else {
+                        egui::RichText::new(l.name()).color(theme::Colors::TEXT_SECONDARY)
+                    };
+                    if ui.selectable_label(selected, text).clicked() {
+                        self.language = l;
+                    }
+                }
             });
         });
     }
@@ -284,7 +406,9 @@ impl MiaoApp {
         ui.add_space(8.0);
 
         if self.cached_javas.is_none() {
-            self.cached_javas = Some(miao_core::java::detect_system_java());
+            self.cached_javas = Some(miao_core::java::detect_java_with_data_dir(
+                &self.config.data_dir,
+            ));
         }
 
         if let Some(ref javas) = self.cached_javas {
@@ -333,6 +457,45 @@ impl MiaoApp {
             ui.add_space(4.0);
             ui.label(theme::body("A feature-rich Minecraft launcher for Linux."));
         });
+
+        let state = self.async_state.lock().unwrap();
+        if let Some(ref version) = state.update_available {
+            let ver = version.clone();
+            drop(state);
+            ui.add_space(12.0);
+            egui::Frame::none()
+                .fill(theme::Colors::BG_ELEVATED)
+                .rounding(egui::Rounding::same(6.0))
+                .inner_margin(egui::Margin::same(12.0))
+                .stroke(egui::Stroke::new(1.5, theme::Colors::WARNING))
+                .show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new("⬆")
+                                .size(16.0)
+                                .color(theme::Colors::WARNING),
+                        );
+                        ui.label(theme::body(&format!(
+                            "{}: {}",
+                            I18n::t(self.language, "update_available"),
+                            ver
+                        )));
+                        ui.with_layout(
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                if ui.button("Download").clicked() {
+                                    let _ = open::that(
+                                        "https://github.com/WangSimiao2000/MiaoMinecraftLauncher/releases",
+                                    );
+                                }
+                            },
+                        );
+                    });
+                });
+        } else {
+            drop(state);
+        }
 
         ui.add_space(16.0);
         ui.label(theme::subheading("Author"));

@@ -1,22 +1,23 @@
 use eframe::egui;
 
-use crate::app::{DetailTab, MiaoApp};
+use crate::app::{DetailTab, I18n, MiaoApp};
 use crate::theme;
 
 impl MiaoApp {
     pub fn render_sidebar(&mut self, ctx: &egui::Context) {
+        let lang = self.language;
         egui::SidePanel::left("instance_list")
             .resizable(true)
             .default_width(240.0)
             .frame(theme::panel_frame())
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(theme::subheading("Instances"));
+                    ui.label(theme::subheading(I18n::t(lang, "instances")));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Import").clicked() {
+                        if ui.small_button(I18n::t(lang, "import")).clicked() {
                             self.import_with_dialog();
                         }
-                        if ui.small_button("+ New").clicked() {
+                        if ui.small_button(I18n::t(lang, "new")).clicked() {
                             self.open_new_instance_dialog();
                         }
                     });
@@ -28,9 +29,9 @@ impl MiaoApp {
                 if self.instances.is_empty() {
                     ui.add_space(40.0);
                     ui.vertical_centered(|ui| {
-                        ui.label(theme::muted("No instances yet"));
+                        ui.label(theme::muted(I18n::t(lang, "no_instances")));
                         ui.add_space(8.0);
-                        ui.label(theme::small("Click '+ New' to create one"));
+                        ui.label(theme::small(I18n::t(lang, "no_instances_hint")));
                     });
                 } else {
                     egui::ScrollArea::vertical().show(ui, |ui| {
