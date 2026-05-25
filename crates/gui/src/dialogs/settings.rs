@@ -464,7 +464,7 @@ impl MiaoApp {
                 .fill(theme::Colors::BG_ELEVATED)
                 .rounding(egui::Rounding::same(6.0))
                 .inner_margin(egui::Margin::same(12.0))
-                .stroke(egui::Stroke::new(1.5, theme::Colors::WARNING))
+                .stroke(egui::Stroke::new(1.5_f32, theme::Colors::WARNING))
                 .show(ui, |ui| {
                     ui.set_min_width(ui.available_width());
                     ui.horizontal(|ui| {

@@ -139,7 +139,7 @@ pub fn card_frame() -> egui::Frame {
         .fill(Colors::BG_ELEVATED)
         .rounding(Rounding::same(8.0))
         .inner_margin(Margin::same(14.0))
-        .stroke(Stroke::new(1.0, Color32::from_white_alpha(6)))
+        .stroke(Stroke::new(1.0_f32, Color32::from_white_alpha(6)))
 }
 
 #[allow(dead_code)]
@@ -149,7 +149,7 @@ pub fn subtle_separator(ui: &mut egui::Ui) {
     let y = rect.top();
     ui.painter().line_segment(
         [egui::pos2(rect.left(), y), egui::pos2(rect.right(), y)],
-        Stroke::new(0.5, Color32::from_white_alpha(15)),
+        Stroke::new(0.5_f32, Color32::from_white_alpha(15)),
     );
     ui.add_space(4.0);
 }
@@ -250,12 +250,12 @@ pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
     style.visuals.widgets.hovered.bg_fill = Colors::BG_WIDGET_HOVER;
     style.visuals.widgets.active.bg_fill = accent;
 
-    style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Colors::TEXT_PRIMARY);
-    style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::WHITE);
-    style.visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+    style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, Colors::TEXT_PRIMARY);
+    style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
+    style.visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
 
     style.visuals.selection.bg_fill = accent;
-    style.visuals.selection.stroke = Stroke::new(1.0, Color32::WHITE);
+    style.visuals.selection.stroke = Stroke::new(1.0_f32, Color32::WHITE);
 
     style.visuals.window_rounding = Radii::WINDOW;
     style.visuals.window_shadow = egui::epaint::Shadow {
@@ -291,12 +291,12 @@ pub fn apply_global_style(ctx: &egui::Context) {
     style.visuals.widgets.hovered.bg_fill = Colors::BG_WIDGET_HOVER;
     style.visuals.widgets.active.bg_fill = Colors::BG_WIDGET_ACTIVE;
 
-    style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Colors::TEXT_PRIMARY);
-    style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::WHITE);
-    style.visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+    style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, Colors::TEXT_PRIMARY);
+    style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
+    style.visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
 
     style.visuals.selection.bg_fill = Colors::ACCENT;
-    style.visuals.selection.stroke = Stroke::new(1.0, Color32::WHITE);
+    style.visuals.selection.stroke = Stroke::new(1.0_f32, Color32::WHITE);
 
     style.visuals.window_rounding = Radii::WINDOW;
     style.visuals.window_shadow = egui::epaint::Shadow {

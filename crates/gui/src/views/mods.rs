@@ -287,7 +287,7 @@ impl MiaoApp {
             .fill(theme::Colors::BG_ELEVATED)
             .rounding(egui::Rounding::same(8.0))
             .inner_margin(egui::Margin::same(14.0))
-            .stroke(egui::Stroke::new(1.5, theme::Colors::ACCENT))
+            .stroke(egui::Stroke::new(1.5_f32, theme::Colors::ACCENT))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
                 ui.label(theme::subheading("Confirm Installation"));
