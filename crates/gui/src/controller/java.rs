@@ -13,7 +13,7 @@ pub fn handle_download_java(
     http: Arc<reqwest::Client>,
     tx: mpsc::UnboundedSender<AppEvent>,
     ctx: Context,
-) {
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let result = match miao_core::java::download::fetch_latest_asset(&http, required_major)
             .await
@@ -61,5 +61,5 @@ pub fn handle_download_java(
             }
         }
         ctx.request_repaint();
-    });
+    })
 }

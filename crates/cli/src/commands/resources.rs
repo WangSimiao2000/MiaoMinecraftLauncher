@@ -1,13 +1,14 @@
 use anyhow::Result;
-use miao_core::config::LauncherConfig;
 use miao_core::instance::{self, Instance};
+use miao_core::service::LauncherService;
 
 pub fn cmd_resources(
-    config: &LauncherConfig,
+    service: &LauncherService,
     instance_name: &str,
     delete: Option<&str>,
 ) -> Result<()> {
-    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    let instance_dir =
+        Instance::instance_dir(&service.config().instances_dir(), instance_name);
     let dir = Instance::resourcepacks_dir(&instance_dir);
     let packs = miao_core::resource::scan_resourcepacks(&dir);
 
@@ -32,11 +33,12 @@ pub fn cmd_resources(
 }
 
 pub fn cmd_shaders(
-    config: &LauncherConfig,
+    service: &LauncherService,
     instance_name: &str,
     delete: Option<&str>,
 ) -> Result<()> {
-    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    let instance_dir =
+        Instance::instance_dir(&service.config().instances_dir(), instance_name);
     let dir = Instance::shaderpacks_dir(&instance_dir);
     let shaders = miao_core::resource::scan_shaderpacks(&dir);
 
@@ -60,8 +62,13 @@ pub fn cmd_shaders(
     Ok(())
 }
 
-pub fn cmd_saves(config: &LauncherConfig, instance_name: &str, delete: Option<&str>) -> Result<()> {
-    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+pub fn cmd_saves(
+    service: &LauncherService,
+    instance_name: &str,
+    delete: Option<&str>,
+) -> Result<()> {
+    let instance_dir =
+        Instance::instance_dir(&service.config().instances_dir(), instance_name);
     let saves = instance::list_saves(&instance_dir);
 
     if let Some(name) = delete {

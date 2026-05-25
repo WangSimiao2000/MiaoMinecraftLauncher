@@ -1,13 +1,11 @@
 use anyhow::Result;
-use miao_core::config::LauncherConfig;
-use miao_core::instance::Instance;
-use miao_core::modloader::{self, ModLoaderType};
+use miao_core::modloader::ModLoaderType;
+use miao_core::service::LauncherService;
 
-pub async fn cmd_loaders(_config: &LauncherConfig, mc_version: &str) -> Result<()> {
-    let http = reqwest::Client::new();
+pub async fn cmd_loaders(service: &LauncherService, mc_version: &str) -> Result<()> {
     println!("Fetching loader compatibility for {}...", mc_version);
 
-    let versions = modloader::fetch_all_loader_versions(&http, mc_version).await?;
+    let versions = service.fetch_loader_versions(mc_version).await?;
 
     if versions.is_empty() {
         println!("No mod loaders available for {}.", mc_version);
@@ -33,71 +31,39 @@ pub async fn cmd_loaders(_config: &LauncherConfig, mc_version: &str) -> Result<(
 }
 
 pub async fn cmd_upgrade_loader(
-    config: &LauncherConfig,
+    service: &LauncherService,
     instance_name: &str,
     target_version: Option<&str>,
 ) -> Result<()> {
-    use miao_core::modloader::{fabric, forge, neoforge, quilt};
-
-    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
-    let mut inst = Instance::load_from(&instance_dir)?;
-    let mc_version = inst.minecraft_version.clone();
-    let http = reqwest::Client::new();
-
-    let Some(current_loader) = &inst.mod_loader else {
-        anyhow::bail!(
-            "Instance '{}' has no mod loader installed. Use 'miao new' with --loader to create a modded instance.",
+    let inst = service.load_instance(instance_name)?;
+    let current_loader = inst.mod_loader.as_ref().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Instance '{}' has no mod loader installed.",
             instance_name
-        );
-    };
+        )
+    })?;
 
-    let current_type = current_loader.loader_type.clone();
-    let current_ver = current_loader.version.clone();
-
-    let new_ver = match target_version {
-        Some(v) => v.to_string(),
-        None => match &current_type {
-            ModLoaderType::Fabric => {
-                let versions = fabric::fetch_loader_versions(&http, &mc_version).await?;
-                versions
-                    .iter()
-                    .find(|v| v.loader.stable)
-                    .or(versions.first())
-                    .map(|v| v.loader.version.clone())
-                    .ok_or_else(|| anyhow::anyhow!("No Fabric versions available"))?
-            }
-            ModLoaderType::Quilt => {
-                let versions = quilt::fetch_loader_versions(&http, &mc_version).await?;
-                versions
-                    .first()
-                    .map(|v| v.loader.version.clone())
-                    .ok_or_else(|| anyhow::anyhow!("No Quilt versions available"))?
-            }
-            ModLoaderType::NeoForge => {
-                let versions = neoforge::fetch_versions(&http, &mc_version).await?;
-                versions
-                    .first()
-                    .cloned()
-                    .ok_or_else(|| anyhow::anyhow!("No NeoForge versions available"))?
-            }
-            ModLoaderType::Forge => forge::fetch_recommended_version(&http, &mc_version)
-                .await?
-                .ok_or_else(|| anyhow::anyhow!("No Forge versions available"))?,
-        },
-    };
+    let current_type = &current_loader.loader_type;
+    let current_ver = &current_loader.version;
 
     println!(
-        "Upgrading {} {} → {}...",
-        current_type, current_ver, new_ver
+        "Upgrading {} for '{}'...",
+        current_type, instance_name
     );
-    let loader_config =
-        modloader::install_loader(&http, &current_type, &mc_version, &new_ver, config).await?;
-    inst.mod_loader = Some(loader_config);
-    inst.save_to(&instance_dir)?;
+
+    let updated = service
+        .upgrade_loader(instance_name, target_version)
+        .await?;
+
+    let new_ver = updated
+        .mod_loader
+        .as_ref()
+        .map(|l| l.version.as_str())
+        .unwrap_or("?");
 
     println!(
-        "✓ {} upgraded to {} for '{}'",
-        current_type, new_ver, instance_name
+        "✓ {} upgraded {} → {} for '{}'",
+        current_type, current_ver, new_ver, instance_name
     );
     Ok(())
 }

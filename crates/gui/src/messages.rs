@@ -86,6 +86,7 @@ pub enum AppCommand {
 
     // ── Misc ──
     CheckForUpdates,
+    CancelCurrentTask,
 }
 
 // ─── Events (Controller → UI) ───────────────────────────────────────────────
@@ -151,5 +152,6 @@ pub enum AppEvent {
 
     // ── Misc ──
     UpdateAvailable(String),
+    TaskCancelled,
     Error(String),
 }

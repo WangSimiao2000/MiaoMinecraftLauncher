@@ -24,6 +24,9 @@ pub enum MiaoError {
     Launch(#[from] LaunchError),
 
     #[error(transparent)]
+    Version(#[from] VersionError),
+
+    #[error(transparent)]
     Modrinth(#[from] ModrinthError),
 
     #[error(transparent)]
@@ -53,6 +56,9 @@ pub enum InstanceError {
 
     #[error("failed to write instance config: {0}")]
     ConfigWrite(std::io::Error),
+
+    #[error("instance '{name}' has no mod loader installed")]
+    NoModLoader { name: String },
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
@@ -152,6 +158,19 @@ pub enum AuthError {
 
     #[error("token refresh failed: {0}")]
     RefreshFailed(String),
+}
+
+/// Version-related errors.
+#[derive(Debug, Error)]
+pub enum VersionError {
+    #[error("version '{version}' not found in manifest")]
+    NotFound { version: String },
+
+    #[error("version metadata file not found for MC {version}")]
+    MetaNotFound { version: String },
+
+    #[error("failed to parse version metadata: {0}")]
+    ParseFailed(#[from] serde_json::Error),
 }
 
 /// Game launch errors.

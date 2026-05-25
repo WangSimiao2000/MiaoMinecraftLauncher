@@ -1,10 +1,9 @@
 use anyhow::Result;
-use miao_core::config::LauncherConfig;
-use miao_core::instance::Instance;
 use miao_core::java;
+use miao_core::service::LauncherService;
 
-pub fn cmd_java() {
-    let installations = java::detect_system_java();
+pub fn cmd_java(service: &LauncherService) {
+    let installations = service.detect_java();
 
     if installations.is_empty() {
         println!("No Java installations found in standard paths.");
@@ -24,11 +23,11 @@ pub fn cmd_java() {
     }
 }
 
-pub async fn cmd_download_java(config: &LauncherConfig, instance_name: &str) -> Result<()> {
-    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
-    let inst = Instance::load_from(&instance_dir)?;
+pub async fn cmd_download_java(service: &LauncherService, instance_name: &str) -> Result<()> {
+    let inst = service.load_instance(instance_name)?;
 
-    let meta_path = config
+    let meta_path = service
+        .config()
         .versions_dir()
         .join(&inst.minecraft_version)
         .join(format!("{}.json", &inst.minecraft_version));
@@ -52,17 +51,8 @@ pub async fn cmd_download_java(config: &LauncherConfig, instance_name: &str) -> 
         required
     );
 
-    let http = reqwest::Client::new();
-    let asset = miao_core::java::download::fetch_latest_asset(&http, required).await?;
-    let total_mb = asset.binary.package.size as f64 / 1_000_000.0;
-    println!("Downloading {} ({:.1} MB)...", asset.release_name, total_mb);
-
-    let java_dir = config.data_dir.join("java");
-    let java_bin = miao_core::java::download::download_and_extract_java_with_progress(
-        &http,
-        &asset,
-        &java_dir,
-        |phase| {
+    let java_bin = service
+        .download_java_for_instance(instance_name, Some(|phase| {
             use miao_core::java::download::DownloadPhase;
             match phase {
                 DownloadPhase::Downloading { downloaded, total } => {
@@ -76,9 +66,8 @@ pub async fn cmd_download_java(config: &LauncherConfig, instance_name: &str) -> 
                     eprintln!("\r  Extracting...          ");
                 }
             }
-        },
-    )
-    .await?;
+        }))
+        .await?;
 
     println!("\n✓ Java {} installed at {}", required, java_bin.display());
     Ok(())

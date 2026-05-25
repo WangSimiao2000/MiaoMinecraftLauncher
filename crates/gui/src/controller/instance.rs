@@ -17,7 +17,7 @@ pub fn handle_create_instance(
     http: Arc<reqwest::Client>,
     tx: mpsc::UnboundedSender<AppEvent>,
     ctx: Context,
-) {
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let _ = tx.send(AppEvent::InstallStatus(format!("Creating '{}'...", name)));
         ctx.request_repaint();
@@ -48,7 +48,7 @@ pub fn handle_create_instance(
             }
         }
         ctx.request_repaint();
-    });
+    })
 }
 
 pub fn handle_launch_instance(

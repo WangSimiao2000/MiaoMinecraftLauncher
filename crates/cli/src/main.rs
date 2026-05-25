@@ -2,6 +2,7 @@ mod commands;
 
 use clap::{Parser, Subcommand};
 use miao_core::config::LauncherConfig;
+use miao_core::service::LauncherService;
 
 #[derive(Parser)]
 #[command(
@@ -160,11 +161,12 @@ async fn main() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
     let config = LauncherConfig::load().unwrap_or_default();
+    let mut service = LauncherService::new(config);
 
     match cli.command {
-        Commands::List => commands::instance::cmd_list(&config)?,
+        Commands::List => commands::instance::cmd_list(&service)?,
         Commands::Versions { snapshots } => {
-            commands::instance::cmd_versions(&config, snapshots).await?
+            commands::instance::cmd_versions(&service, snapshots).await?
         }
         Commands::New {
             version,
@@ -173,7 +175,7 @@ async fn main() -> anyhow::Result<()> {
             loader_version,
         } => {
             commands::instance::cmd_new(
-                &config,
+                &service,
                 &version,
                 name.as_deref(),
                 loader.as_deref(),
@@ -181,47 +183,54 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?
         }
-        Commands::Launch { instance } => commands::instance::cmd_launch(&config, &instance).await?,
-        Commands::Delete { instance } => commands::instance::cmd_delete(&config, &instance)?,
-        Commands::Account { username } => commands::instance::cmd_account(&config, &username)?,
-        Commands::Java => commands::java::cmd_java(),
+        Commands::Launch { instance } => {
+            commands::instance::cmd_launch(&service, &instance).await?
+        }
+        Commands::Delete { instance } => commands::instance::cmd_delete(&service, &instance)?,
+        Commands::Account { username } => {
+            commands::instance::cmd_account(&mut service, &username)?
+        }
+        Commands::Java => commands::java::cmd_java(&service),
         Commands::DownloadJava { instance } => {
-            commands::java::cmd_download_java(&config, &instance).await?
+            commands::java::cmd_download_java(&service, &instance).await?
         }
         Commands::Mods {
             instance,
             toggle,
             delete,
-        } => commands::mods::cmd_mods(&config, &instance, toggle.as_deref(), delete.as_deref())?,
+        } => commands::mods::cmd_mods(&service, &instance, toggle.as_deref(), delete.as_deref())?,
         Commands::Resources { instance, delete } => {
-            commands::resources::cmd_resources(&config, &instance, delete.as_deref())?
+            commands::resources::cmd_resources(&service, &instance, delete.as_deref())?
         }
         Commands::Shaders { instance, delete } => {
-            commands::resources::cmd_shaders(&config, &instance, delete.as_deref())?
+            commands::resources::cmd_shaders(&service, &instance, delete.as_deref())?
         }
         Commands::Saves { instance, delete } => {
-            commands::resources::cmd_saves(&config, &instance, delete.as_deref())?
+            commands::resources::cmd_saves(&service, &instance, delete.as_deref())?
         }
-        Commands::Open { instance } => commands::instance::cmd_open(&config, &instance)?,
-        Commands::Loaders { version } => commands::loaders::cmd_loaders(&config, &version).await?,
+        Commands::Open { instance } => commands::instance::cmd_open(&service, &instance)?,
+        Commands::Loaders { version } => {
+            commands::loaders::cmd_loaders(&service, &version).await?
+        }
         Commands::ModSearch {
             query,
             mc_version,
             loader,
         } => {
-            commands::mods::cmd_mod_search(&query, mc_version.as_deref(), loader.as_deref()).await?
+            commands::mods::cmd_mod_search(&service, &query, mc_version.as_deref(), loader.as_deref())
+                .await?
         }
         Commands::ModInstall { instance, project } => {
-            commands::mods::cmd_mod_install(&config, &instance, &project).await?
+            commands::mods::cmd_mod_install(&service, &instance, &project).await?
         }
         Commands::Export { instance, output } => {
-            commands::instance::cmd_export(&config, &instance, output.as_deref())?
+            commands::instance::cmd_export(&service, &instance, output.as_deref())?
         }
         Commands::Import { path, name } => {
-            commands::instance::cmd_import(&config, &path, name.as_deref()).await?
+            commands::instance::cmd_import(&service, &path, name.as_deref()).await?
         }
         Commands::UpgradeLoader { instance, version } => {
-            commands::loaders::cmd_upgrade_loader(&config, &instance, version.as_deref()).await?
+            commands::loaders::cmd_upgrade_loader(&service, &instance, version.as_deref()).await?
         }
     }
 

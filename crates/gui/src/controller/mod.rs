@@ -43,6 +43,8 @@ async fn controller_loop(
     ctx: Context,
     http: Arc<reqwest::Client>,
 ) {
+    let mut active_task: Option<tokio::task::JoinHandle<()>> = None;
+
     while let Some(cmd) = cmd_rx.recv().await {
         match cmd {
             AppCommand::CreateInstance {
@@ -51,7 +53,7 @@ async fn controller_loop(
                 loader,
                 config,
             } => {
-                instance::handle_create_instance(
+                active_task = Some(instance::handle_create_instance(
                     ver,
                     name,
                     loader,
@@ -59,7 +61,7 @@ async fn controller_loop(
                     http.clone(),
                     event_tx.clone(),
                     ctx.clone(),
-                );
+                ));
             }
             AppCommand::LaunchInstance {
                 idx,
@@ -88,14 +90,14 @@ async fn controller_loop(
                 java_dir,
                 launch_idx,
             } => {
-                java::handle_download_java(
+                active_task = Some(java::handle_download_java(
                     required_major,
                     java_dir,
                     launch_idx,
                     http.clone(),
                     event_tx.clone(),
                     ctx.clone(),
-                );
+                ));
             }
             AppCommand::FetchVersionManifest { mirror } => {
                 versions::handle_fetch_manifest(mirror, http.clone(), event_tx.clone(), ctx.clone());
@@ -166,6 +168,13 @@ async fn controller_loop(
             }
             AppCommand::CheckForUpdates => {
                 versions::handle_check_updates(event_tx.clone(), ctx.clone());
+            }
+            AppCommand::CancelCurrentTask => {
+                if let Some(handle) = active_task.take() {
+                    handle.abort();
+                    let _ = event_tx.send(AppEvent::TaskCancelled);
+                    ctx.request_repaint();
+                }
             }
         }
     }

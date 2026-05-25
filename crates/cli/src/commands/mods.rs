@@ -1,16 +1,17 @@
 use anyhow::Result;
-use miao_core::config::LauncherConfig;
 use miao_core::instance::Instance;
+use miao_core::service::LauncherService;
 
 use super::{format_downloads, truncate};
 
 pub fn cmd_mods(
-    config: &LauncherConfig,
+    service: &LauncherService,
     instance_name: &str,
     toggle: Option<&str>,
     delete: Option<&str>,
 ) -> Result<()> {
-    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
+    let instance_dir =
+        Instance::instance_dir(&service.config().instances_dir(), instance_name);
     let mods_dir = Instance::mods_dir(&instance_dir);
     let mut mods = miao_core::modmanager::scan_mods_dir(&mods_dir);
 
@@ -49,13 +50,12 @@ pub fn cmd_mods(
 }
 
 pub async fn cmd_mod_search(
+    service: &LauncherService,
     query: &str,
     mc_version: Option<&str>,
     loader: Option<&str>,
 ) -> Result<()> {
-    let http = reqwest::Client::new();
-    let result =
-        miao_core::modrinth::api::search_mods(&http, query, mc_version, loader, 15).await?;
+    let result = service.search_mods(query, mc_version, loader, 15).await?;
 
     if result.hits.is_empty() {
         println!("No mods found for '{}'.", query);
@@ -77,13 +77,11 @@ pub async fn cmd_mod_search(
 }
 
 pub async fn cmd_mod_install(
-    config: &LauncherConfig,
+    service: &LauncherService,
     instance_name: &str,
     project: &str,
 ) -> Result<()> {
-    let instance_dir = Instance::instance_dir(&config.instances_dir(), instance_name);
-    let inst = Instance::load_from(&instance_dir)?;
-
+    let inst = service.load_instance(instance_name)?;
     let loader = inst
         .mod_loader
         .as_ref()
@@ -95,16 +93,7 @@ pub async fn cmd_mod_install(
         project, inst.minecraft_version, loader
     );
 
-    let mods_dir = Instance::mods_dir(&instance_dir);
-    let http = reqwest::Client::new();
-    let results = miao_core::modrinth::api::install_mod_with_dependencies(
-        &http,
-        project,
-        &inst.minecraft_version,
-        loader,
-        &mods_dir,
-    )
-    .await?;
+    let results = service.install_mod(instance_name, project).await?;
 
     if results.is_empty() {
         println!("No compatible version found for '{}'.", project);

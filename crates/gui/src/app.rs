@@ -303,6 +303,11 @@ impl MiaoApp {
                 AppEvent::UpdateAvailable(version) => {
                     self.update_available = Some(version);
                 }
+                AppEvent::TaskCancelled => {
+                    self.installing = false;
+                    self.install_progress = None;
+                    self.status = "Cancelled.".to_string();
+                }
                 AppEvent::Error(msg) => {
                     self.status = msg;
                 }
@@ -350,21 +355,32 @@ impl eframe::App for MiaoApp {
                             "{} ({}/{})",
                             progress.label, progress.completed, progress.total
                         );
-                        ui.add(
-                            egui::ProgressBar::new(fraction)
-                                .text(text)
-                                .fill(theme::Colors::ACCENT),
-                        );
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                egui::ProgressBar::new(fraction)
+                                    .text(text)
+                                    .fill(theme::Colors::ACCENT),
+                            );
+                            if ui.small_button("✕").clicked() {
+                                self.cancel_current_task();
+                            }
+                        });
                     } else {
                         ui.horizontal(|ui| {
                             ui.spinner();
                             ui.label(theme::status_text(&self.status));
+                            if ui.small_button("✕").clicked() {
+                                self.cancel_current_task();
+                            }
                         });
                     }
                 } else if self.installing {
                     ui.horizontal(|ui| {
                         ui.spinner();
                         ui.label(theme::status_text(&self.status));
+                        if ui.small_button("✕").clicked() {
+                            self.cancel_current_task();
+                        }
                     });
                 } else {
                     ui.label(theme::status_text(&self.status));
@@ -591,6 +607,10 @@ impl MiaoApp {
         self.controller.send(AppCommand::ImportMrpack {
             config: self.config.clone(),
         });
+    }
+
+    pub fn cancel_current_task(&mut self) {
+        self.controller.send(AppCommand::CancelCurrentTask);
     }
 
     pub fn fetch_loader_versions(&mut self, mc_version: &str) {
