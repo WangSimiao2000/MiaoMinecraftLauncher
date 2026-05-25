@@ -15,8 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: nightly-2026-04-14
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
 
@@ -42,7 +43,9 @@ jobs:
     needs: check
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-04-14
       - uses: Swatinem/rust-cache@v2
 
       - name: Install system dependencies
@@ -59,7 +62,9 @@ jobs:
     needs: check
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-04-14
       - uses: Swatinem/rust-cache@v2
 
       - name: Install system dependencies
