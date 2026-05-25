@@ -245,29 +245,26 @@ impl MiaoApp {
         let ctx = self.ctx.clone();
         self.mod_search.searching = true;
 
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let http = reqwest::Client::new();
-                let result = miao_core::modrinth::api::search_mods(
-                    &http,
-                    &query,
-                    Some(&mc_version),
-                    loader.as_deref(),
-                    20,
-                )
-                .await;
-                let mut s = state.lock().unwrap();
-                match result {
-                    Ok(r) => {
-                        s.mod_search_hits = Some(r.hits);
-                    }
-                    Err(e) => {
-                        s.install.status = Some(format!("Search failed: {}", e));
-                    }
+        self.rt.spawn(async move {
+            let http = reqwest::Client::new();
+            let result = miao_core::modrinth::api::search_mods(
+                &http,
+                &query,
+                Some(&mc_version),
+                loader.as_deref(),
+                20,
+            )
+            .await;
+            let mut s = state.lock().unwrap();
+            match result {
+                Ok(r) => {
+                    s.mod_search_hits = Some(r.hits);
                 }
-                ctx.request_repaint();
-            });
+                Err(e) => {
+                    s.install.status = Some(format!("Search failed: {}", e));
+                }
+            }
+            ctx.request_repaint();
         });
     }
 
@@ -289,28 +286,25 @@ impl MiaoApp {
         let ctx = self.ctx.clone();
         self.mod_search.searching = true;
 
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let http = reqwest::Client::new();
-                let result = miao_core::modrinth::api::get_project_versions(
-                    &http,
-                    &project_slug,
-                    Some(&mc_version),
-                    loader.as_deref(),
-                )
-                .await;
-                let mut s = state.lock().unwrap();
-                match result {
-                    Ok(versions) => {
-                        s.mod_versions = Some(versions);
-                    }
-                    Err(e) => {
-                        s.install.status = Some(format!("Failed: {}", e));
-                    }
+        self.rt.spawn(async move {
+            let http = reqwest::Client::new();
+            let result = miao_core::modrinth::api::get_project_versions(
+                &http,
+                &project_slug,
+                Some(&mc_version),
+                loader.as_deref(),
+            )
+            .await;
+            let mut s = state.lock().unwrap();
+            match result {
+                Ok(versions) => {
+                    s.mod_versions = Some(versions);
                 }
-                ctx.request_repaint();
-            });
+                Err(e) => {
+                    s.install.status = Some(format!("Failed: {}", e));
+                }
+            }
+            ctx.request_repaint();
         });
     }
 
@@ -406,35 +400,32 @@ impl MiaoApp {
         self.status = format!("Resolving dependencies for {}...", hit.title);
         self.mod_search.searching = true;
 
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let http = reqwest::Client::new();
-                match miao_core::modrinth::api::resolve_dependencies(
-                    &http,
-                    &project_slug,
-                    &mc_version,
-                    &loader,
-                )
-                .await
-                {
-                    Ok(deps) => {
-                        let mut s = state.lock().unwrap();
-                        s.pending_mod_install = Some(crate::state::PendingModInstall {
-                            project_slug,
-                            deps,
-                            instance_dir,
-                            mc_version,
-                            loader,
-                        });
-                    }
-                    Err(e) => {
-                        let mut s = state.lock().unwrap();
-                        s.install.status = Some(format!("Resolve failed: {}", e));
-                    }
+        self.rt.spawn(async move {
+            let http = reqwest::Client::new();
+            match miao_core::modrinth::api::resolve_dependencies(
+                &http,
+                &project_slug,
+                &mc_version,
+                &loader,
+            )
+            .await
+            {
+                Ok(deps) => {
+                    let mut s = state.lock().unwrap();
+                    s.pending_mod_install = Some(crate::state::PendingModInstall {
+                        project_slug,
+                        deps,
+                        instance_dir,
+                        mc_version,
+                        loader,
+                    });
                 }
-                ctx.request_repaint();
-            });
+                Err(e) => {
+                    let mut s = state.lock().unwrap();
+                    s.install.status = Some(format!("Resolve failed: {}", e));
+                }
+            }
+            ctx.request_repaint();
         });
     }
 
@@ -454,41 +445,38 @@ impl MiaoApp {
         self.mod_search.active = false;
         self.mod_search.searching = false;
 
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let http = reqwest::Client::new();
-                let result = if include_deps {
-                    miao_core::modrinth::api::install_mod_with_dependencies(
-                        &http,
-                        &pending.project_slug,
-                        &pending.mc_version,
-                        &pending.loader,
-                        &mods_dir,
-                    )
-                    .await
-                } else {
-                    miao_core::modrinth::api::install_mod_only(
-                        &http,
-                        &pending.project_slug,
-                        &pending.mc_version,
-                        &pending.loader,
-                        &mods_dir,
-                    )
-                    .await
-                };
+        self.rt.spawn(async move {
+            let http = reqwest::Client::new();
+            let result = if include_deps {
+                miao_core::modrinth::api::install_mod_with_dependencies(
+                    &http,
+                    &pending.project_slug,
+                    &pending.mc_version,
+                    &pending.loader,
+                    &mods_dir,
+                )
+                .await
+            } else {
+                miao_core::modrinth::api::install_mod_only(
+                    &http,
+                    &pending.project_slug,
+                    &pending.mc_version,
+                    &pending.loader,
+                    &mods_dir,
+                )
+                .await
+            };
 
-                let mut s = state.lock().unwrap();
-                match result {
-                    Ok(results) => {
-                        s.install.status = Some(format!("Installed {} mod(s)", results.len()));
-                    }
-                    Err(e) => {
-                        s.install.status = Some(format!("Install failed: {}", e));
-                    }
+            let mut s = state.lock().unwrap();
+            match result {
+                Ok(results) => {
+                    s.install.status = Some(format!("Installed {} mod(s)", results.len()));
                 }
-                ctx.request_repaint();
-            });
+                Err(e) => {
+                    s.install.status = Some(format!("Install failed: {}", e));
+                }
+            }
+            ctx.request_repaint();
         });
     }
 }

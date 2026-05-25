@@ -10,6 +10,7 @@ use miao_core::launch::{LaunchOptions, build_launch_command};
 use miao_core::modloader::{ModLoaderType, ModLoaderVersion};
 use miao_core::version::VersionInfo;
 use std::sync::{Arc, Mutex};
+use tokio::runtime::Runtime;
 
 pub use crate::state::{
     AppView, AsyncState, DetailTab, Dialog, I18n, InstanceSettingsEdit, Language, ModSearchState,
@@ -46,6 +47,7 @@ pub struct MiaoApp {
     pub language: Language,
     pub mirror_custom_url: String,
     pub max_downloads_input: String,
+    pub rt: Arc<Runtime>,
 }
 
 impl MiaoApp {
@@ -61,31 +63,30 @@ impl MiaoApp {
             ..Default::default()
         }));
 
+        let rt = Arc::new(Runtime::new().expect("failed to create tokio runtime"));
+
         let state_clone = async_state.clone();
         let mirror = config.download_mirror.clone();
         let ctx = cc.egui_ctx.clone();
 
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let http = reqwest::Client::new();
-                if let Ok(all_versions) =
-                    miao_core::version::manifest::fetch_version_manifest(&http, &mirror).await
-                {
-                    let mut state = state_clone.lock().unwrap();
-                    let releases: Vec<_> = all_versions
-                        .iter()
-                        .filter(|v| v.is_release())
-                        .cloned()
-                        .collect();
-                    state.versions.all_versions = all_versions;
-                    state.versions.versions = releases;
-                    state.versions.loading = false;
-                } else {
-                    state_clone.lock().unwrap().versions.loading = false;
-                }
-                ctx.request_repaint();
-            });
+        rt.spawn(async move {
+            let http = reqwest::Client::new();
+            if let Ok(all_versions) =
+                miao_core::version::manifest::fetch_version_manifest(&http, &mirror).await
+            {
+                let mut state = state_clone.lock().unwrap();
+                let releases: Vec<_> = all_versions
+                    .iter()
+                    .filter(|v| v.is_release())
+                    .cloned()
+                    .collect();
+                state.versions.all_versions = all_versions;
+                state.versions.versions = releases;
+                state.versions.loading = false;
+            } else {
+                state_clone.lock().unwrap().versions.loading = false;
+            }
+            ctx.request_repaint();
         });
 
         let data_dir_input = config.data_dir.display().to_string();
@@ -118,6 +119,7 @@ impl MiaoApp {
             language: Language::default(),
             mirror_custom_url,
             max_downloads_input,
+            rt,
         };
 
         app.check_for_updates();
@@ -422,56 +424,53 @@ impl MiaoApp {
         let launch_idx = idx;
         let ctx = self.ctx.clone();
 
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let http = reqwest::Client::new();
-                let result =
-                    match miao_core::java::download::fetch_latest_asset(&http, required).await {
-                        Ok(asset) => {
-                            let sp = state.clone();
-                            miao_core::java::download::download_and_extract_java_with_progress(
-                                &http,
-                                &asset,
-                                &java_dir,
-                                move |phase| {
-                                    use miao_core::java::download::DownloadPhase;
-                                    let msg = match phase {
-                                        DownloadPhase::Downloading { downloaded, total } => {
-                                            format!(
-                                                "Java {}: {:.1}/{:.1} MB",
-                                                required,
-                                                downloaded as f64 / 1_000_000.0,
-                                                total as f64 / 1_000_000.0
-                                            )
-                                        }
-                                        DownloadPhase::Extracting => {
-                                            format!("Java {}: extracting...", required)
-                                        }
-                                    };
-                                    sp.lock().unwrap().install.status = Some(msg);
-                                },
-                            )
-                            .await
-                        }
-                        Err(e) => Err(e),
-                    };
-
-                let mut s = state.lock().unwrap();
-                s.install.installing = false;
-                match result {
-                    Ok(path) => {
-                        s.install.status =
-                            Some(format!("✓ Java {} installed — launching game...", required,));
-                        s.java_installed_launch_idx = Some(launch_idx);
-                        let _ = &path;
-                    }
-                    Err(e) => {
-                        s.install.status = Some(format!("✗ Java download failed: {}", e));
-                    }
+        self.rt.spawn(async move {
+            let http = reqwest::Client::new();
+            let result = match miao_core::java::download::fetch_latest_asset(&http, required).await
+            {
+                Ok(asset) => {
+                    let sp = state.clone();
+                    miao_core::java::download::download_and_extract_java_with_progress(
+                        &http,
+                        &asset,
+                        &java_dir,
+                        move |phase| {
+                            use miao_core::java::download::DownloadPhase;
+                            let msg = match phase {
+                                DownloadPhase::Downloading { downloaded, total } => {
+                                    format!(
+                                        "Java {}: {:.1}/{:.1} MB",
+                                        required,
+                                        downloaded as f64 / 1_000_000.0,
+                                        total as f64 / 1_000_000.0
+                                    )
+                                }
+                                DownloadPhase::Extracting => {
+                                    format!("Java {}: extracting...", required)
+                                }
+                            };
+                            sp.lock().unwrap().install.status = Some(msg);
+                        },
+                    )
+                    .await
                 }
-                ctx.request_repaint();
-            });
+                Err(e) => Err(e),
+            };
+
+            let mut s = state.lock().unwrap();
+            s.install.installing = false;
+            match result {
+                Ok(path) => {
+                    s.install.status =
+                        Some(format!("✓ Java {} installed — launching game...", required,));
+                    s.java_installed_launch_idx = Some(launch_idx);
+                    let _ = &path;
+                }
+                Err(e) => {
+                    s.install.status = Some(format!("✗ Java download failed: {}", e));
+                }
+            }
+            ctx.request_repaint();
         });
     }
 
@@ -496,28 +495,25 @@ impl MiaoApp {
         let config = self.config.clone();
         let ctx = self.ctx.clone();
 
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let result = do_create_instance(
-                    &ver,
-                    &name,
-                    loader.as_ref().map(|(lt, lv)| (lt.as_str(), lv.as_str())),
-                    &config,
-                    state.clone(),
-                    ctx.clone(),
-                )
-                .await;
-                let mut s = state.lock().unwrap();
-                s.install.installing = false;
-                s.install.progress_total = 0;
-                s.install.progress_completed = 0;
-                match result {
-                    Ok(_) => s.install.status = Some(format!("✓ '{}' created!", name)),
-                    Err(e) => s.install.status = Some(format!("✗ Failed: {}", e)),
-                }
-                ctx.request_repaint();
-            });
+        self.rt.spawn(async move {
+            let result = do_create_instance(
+                &ver,
+                &name,
+                loader.as_ref().map(|(lt, lv)| (lt.as_str(), lv.as_str())),
+                &config,
+                state.clone(),
+                ctx.clone(),
+            )
+            .await;
+            let mut s = state.lock().unwrap();
+            s.install.installing = false;
+            s.install.progress_total = 0;
+            s.install.progress_completed = 0;
+            match result {
+                Ok(_) => s.install.status = Some(format!("✓ '{}' created!", name)),
+                Err(e) => s.install.status = Some(format!("✗ Failed: {}", e)),
+            }
+            ctx.request_repaint();
         });
     }
 
@@ -534,81 +530,78 @@ impl MiaoApp {
         let mut config = self.config.clone();
         let ctx = self.ctx.clone();
 
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let auth = MicrosoftAuth::new(MS_CLIENT_ID.to_string());
-                let device_code = match auth.request_device_code().await {
-                    Ok(dc) => dc,
-                    Err(e) => {
-                        let mut s = state.lock().unwrap();
-                        s.auth.logging_in = false;
-                        s.install.status = Some(format!("Login error: {}", e));
+        self.rt.spawn(async move {
+            let auth = MicrosoftAuth::new(MS_CLIENT_ID.to_string());
+            let device_code = match auth.request_device_code().await {
+                Ok(dc) => dc,
+                Err(e) => {
+                    let mut s = state.lock().unwrap();
+                    s.auth.logging_in = false;
+                    s.install.status = Some(format!("Login error: {}", e));
+                    ctx.request_repaint();
+                    return;
+                }
+            };
+
+            let _ = open::that(&device_code.verification_uri);
+            let code = device_code.device_code.clone();
+            let interval = device_code.interval;
+            state.lock().unwrap().auth.device_code = Some(device_code);
+            ctx.request_repaint();
+
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
+                match auth.poll_for_token(&code).await {
+                    Ok(PollResult::Success(access_token, refresh_token)) => {
+                        match auth
+                            .authenticate_with_microsoft_token(
+                                &access_token,
+                                refresh_token.as_deref(),
+                            )
+                            .await
+                        {
+                            Ok(account) => {
+                                let name = account.username.clone();
+                                config.accounts.push(AuthMethod::Microsoft(account));
+                                if config.active_account_index.is_none() {
+                                    config.active_account_index = Some(0);
+                                }
+                                let _ = config.save();
+                                let mut s = state.lock().unwrap();
+                                s.auth.device_code = None;
+                                s.auth.logging_in = false;
+                                s.install.status = Some(format!("✓ Logged in as {}", name));
+                            }
+                            Err(e) => {
+                                let mut s = state.lock().unwrap();
+                                s.auth.device_code = None;
+                                s.auth.logging_in = false;
+                                s.install.status = Some(format!("Auth error: {}", e));
+                            }
+                        }
                         ctx.request_repaint();
                         return;
                     }
-                };
-
-                let _ = open::that(&device_code.verification_uri);
-                let code = device_code.device_code.clone();
-                let interval = device_code.interval;
-                state.lock().unwrap().auth.device_code = Some(device_code);
-                ctx.request_repaint();
-
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
-                    match auth.poll_for_token(&code).await {
-                        Ok(PollResult::Success(access_token, refresh_token)) => {
-                            match auth
-                                .authenticate_with_microsoft_token(
-                                    &access_token,
-                                    refresh_token.as_deref(),
-                                )
-                                .await
-                            {
-                                Ok(account) => {
-                                    let name = account.username.clone();
-                                    config.accounts.push(AuthMethod::Microsoft(account));
-                                    if config.active_account_index.is_none() {
-                                        config.active_account_index = Some(0);
-                                    }
-                                    let _ = config.save();
-                                    let mut s = state.lock().unwrap();
-                                    s.auth.device_code = None;
-                                    s.auth.logging_in = false;
-                                    s.install.status = Some(format!("✓ Logged in as {}", name));
-                                }
-                                Err(e) => {
-                                    let mut s = state.lock().unwrap();
-                                    s.auth.device_code = None;
-                                    s.auth.logging_in = false;
-                                    s.install.status = Some(format!("Auth error: {}", e));
-                                }
-                            }
-                            ctx.request_repaint();
-                            return;
-                        }
-                        Ok(PollResult::Pending) | Ok(PollResult::SlowDown) => continue,
-                        Ok(PollResult::Expired) => {
-                            let mut s = state.lock().unwrap();
-                            s.auth.device_code = None;
-                            s.auth.logging_in = false;
-                            s.install.status = Some("Code expired.".to_string());
-                            ctx.request_repaint();
-                            return;
-                        }
-                        Ok(PollResult::Error(e)) => {
-                            let mut s = state.lock().unwrap();
-                            s.auth.device_code = None;
-                            s.auth.logging_in = false;
-                            s.install.status = Some(format!("Error: {}", e));
-                            ctx.request_repaint();
-                            return;
-                        }
-                        Err(_) => continue,
+                    Ok(PollResult::Pending) | Ok(PollResult::SlowDown) => continue,
+                    Ok(PollResult::Expired) => {
+                        let mut s = state.lock().unwrap();
+                        s.auth.device_code = None;
+                        s.auth.logging_in = false;
+                        s.install.status = Some("Code expired.".to_string());
+                        ctx.request_repaint();
+                        return;
                     }
+                    Ok(PollResult::Error(e)) => {
+                        let mut s = state.lock().unwrap();
+                        s.auth.device_code = None;
+                        s.auth.logging_in = false;
+                        s.install.status = Some(format!("Error: {}", e));
+                        ctx.request_repaint();
+                        return;
+                    }
+                    Err(_) => continue,
                 }
-            });
+            }
         });
     }
 
@@ -677,7 +670,10 @@ impl MiaoApp {
             }
             ctx.request_repaint();
 
-            let rt = tokio::runtime::Runtime::new().unwrap();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
             rt.block_on(async {
                 match miao_core::modrinth::mrpack::import_mrpack(&mrpack_path, &config, None).await
                 {
@@ -719,18 +715,16 @@ impl MiaoApp {
         let mc_version = mc_version.to_string();
         let ctx = self.ctx.clone();
 
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
+        self.rt.spawn(async move {
             let http = reqwest::Client::new();
-            rt.block_on(async {
-                let versions =
-                    miao_core::modloader::fetch_all_loader_versions(&http, &mc_version).await;
-                let mut s = state.lock().unwrap();
-                s.loader.loading = false;
-                if let Ok(v) = versions {
-                    s.loader.versions = v;
-                }
-            });
+            let versions =
+                miao_core::modloader::fetch_all_loader_versions(&http, &mc_version).await;
+            let mut s = state.lock().unwrap();
+            s.loader.loading = false;
+            if let Ok(v) = versions {
+                s.loader.versions = v;
+            }
+            drop(s);
             ctx.request_repaint();
         });
     }
@@ -898,27 +892,24 @@ impl MiaoApp {
     pub fn check_for_updates(&self) {
         let state = self.async_state.clone();
         let ctx = self.ctx.clone();
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let http = reqwest::Client::builder()
-                    .user_agent("MMCL/0.1.0")
-                    .build()
-                    .unwrap();
-                let url = "https://api.github.com/repos/WangSimiao2000/MiaoMinecraftLauncher/releases/latest";
-                if let Ok(resp) = http.get(url).send().await
-                    && let Ok(json) = resp.json::<serde_json::Value>().await
-                    && let Some(tag) = json.get("tag_name").and_then(|v| v.as_str())
-                {
-                    let current = env!("CARGO_PKG_VERSION");
-                    let remote = tag.trim_start_matches('v');
-                    if remote != current {
-                        let mut s = state.lock().unwrap();
-                        s.update_available = Some(tag.to_string());
-                    }
+        self.rt.spawn(async move {
+            let Ok(http) = reqwest::Client::builder().user_agent("MMCL/0.1.0").build() else {
+                return;
+            };
+            let url =
+                "https://api.github.com/repos/WangSimiao2000/MiaoMinecraftLauncher/releases/latest";
+            if let Ok(resp) = http.get(url).send().await
+                && let Ok(json) = resp.json::<serde_json::Value>().await
+                && let Some(tag) = json.get("tag_name").and_then(|v| v.as_str())
+            {
+                let current = env!("CARGO_PKG_VERSION");
+                let remote = tag.trim_start_matches('v');
+                if remote != current {
+                    let mut s = state.lock().unwrap();
+                    s.update_available = Some(tag.to_string());
                 }
-                ctx.request_repaint();
-            });
+            }
+            ctx.request_repaint();
         });
     }
 }
