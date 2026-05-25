@@ -15,6 +15,7 @@ use crate::messages::{AppCommand, AppEvent};
 pub struct AppController {
     cmd_tx: mpsc::UnboundedSender<AppCommand>,
     event_rx: mpsc::UnboundedReceiver<AppEvent>,
+    _loop_handle: tokio::task::JoinHandle<()>,
 }
 
 impl AppController {
@@ -23,9 +24,13 @@ impl AppController {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
 
         let http = Arc::new(reqwest::Client::new());
-        rt.spawn(controller_loop(cmd_rx, event_tx, ctx, http));
+        let handle = rt.spawn(controller_loop(cmd_rx, event_tx, ctx, http));
 
-        Self { cmd_tx, event_rx }
+        Self {
+            cmd_tx,
+            event_rx,
+            _loop_handle: handle,
+        }
     }
 
     pub fn send(&self, cmd: AppCommand) {

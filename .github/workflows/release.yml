@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+
+      - name: Build release binaries
+        run: cargo build --release --workspace
+
+      - name: Package binaries
+        run: |
+          mkdir -p dist
+          cp target/release/miao-gui dist/
+          cp target/release/miao-cli dist/
+          chmod +x dist/miao-gui dist/miao-cli
+          tar czf dist/mmcl-linux-x86_64.tar.gz -C dist miao-gui miao-cli
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmcl-linux-x86_64
+          path: dist/mmcl-linux-x86_64.tar.gz
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/mmcl-linux-x86_64.tar.gz
+          generate_release_notes: true
