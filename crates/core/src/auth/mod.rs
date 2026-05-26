@@ -1,16 +1,19 @@
+pub mod authlib_injector;
 pub mod microsoft;
 pub mod offline;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// Microsoft OAuth client ID used for device code flow.
+pub use authlib_injector::AuthlibInjectorAccount;
+
 pub const MS_CLIENT_ID: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AuthMethod {
     Microsoft(MicrosoftAccount),
     Offline(OfflineAccount),
+    AuthlibInjector(AuthlibInjectorAccount),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,6 +43,7 @@ impl AuthMethod {
         match self {
             Self::Microsoft(acc) => &acc.username,
             Self::Offline(acc) => &acc.username,
+            Self::AuthlibInjector(acc) => &acc.username,
         }
     }
 
@@ -47,6 +51,7 @@ impl AuthMethod {
         match self {
             Self::Microsoft(acc) => &acc.uuid,
             Self::Offline(acc) => &acc.uuid,
+            Self::AuthlibInjector(acc) => &acc.uuid,
         }
     }
 
@@ -54,6 +59,7 @@ impl AuthMethod {
         match self {
             Self::Microsoft(acc) => &acc.access_token,
             Self::Offline(_) => "0",
+            Self::AuthlibInjector(acc) => &acc.access_token,
         }
     }
 
@@ -63,6 +69,17 @@ impl AuthMethod {
 
     pub fn is_offline(&self) -> bool {
         matches!(self, Self::Offline(_))
+    }
+
+    pub fn is_authlib_injector(&self) -> bool {
+        matches!(self, Self::AuthlibInjector(_))
+    }
+
+    pub fn authlib_injector_server_url(&self) -> Option<&str> {
+        match self {
+            Self::AuthlibInjector(acc) => Some(&acc.server_url),
+            _ => None,
+        }
     }
 }
 

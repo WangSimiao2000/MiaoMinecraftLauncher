@@ -90,7 +90,7 @@ impl MiaoApp {
         if self.config.accounts.is_empty() {
             ui.label(theme::muted(I18n::t(lang, "no_accounts")));
         } else {
-            let account_info: Vec<(String, &'static str, bool)> = self
+            let account_info: Vec<(String, String, bool)> = self
                 .config
                 .accounts
                 .iter()
@@ -98,8 +98,11 @@ impl MiaoApp {
                 .map(|(i, acc)| {
                     let active = self.config.active_account_index == Some(i);
                     let (name, kind) = match acc {
-                        AuthMethod::Offline(a) => (a.username.clone(), "Offline"),
-                        AuthMethod::Microsoft(a) => (a.username.clone(), "Microsoft"),
+                        AuthMethod::Offline(a) => (a.username.clone(), "Offline".to_string()),
+                        AuthMethod::Microsoft(a) => (a.username.clone(), "Microsoft".to_string()),
+                        AuthMethod::AuthlibInjector(a) => {
+                            (a.username.clone(), a.server_name.clone())
+                        }
                     };
                     (name, kind, active)
                 })
