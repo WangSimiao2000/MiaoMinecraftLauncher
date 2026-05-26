@@ -41,7 +41,7 @@ impl<'a> InstanceCard<'a> {
             if self.selected {
                 egui::Color32::WHITE
             } else {
-                theme::Colors::TEXT_PRIMARY
+                theme::Colors::text_primary()
             },
         );
 
@@ -52,7 +52,7 @@ impl<'a> InstanceCard<'a> {
                 egui::Align2::RIGHT_CENTER,
                 &badge_text,
                 egui::FontId::proportional(11.0),
-                theme::Colors::TEXT_MUTED,
+                theme::Colors::text_muted(),
             );
         }
 

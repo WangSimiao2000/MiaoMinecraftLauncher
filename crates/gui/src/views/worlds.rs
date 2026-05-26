@@ -40,7 +40,7 @@ impl MiaoApp {
                         ui.label(
                             egui::RichText::new("🌍")
                                 .size(14.0)
-                                .color(theme::Colors::ACCENT_LIGHT),
+                                .color(theme::Colors::accent_light()),
                         );
                         ui.label(theme::body(&s.name));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

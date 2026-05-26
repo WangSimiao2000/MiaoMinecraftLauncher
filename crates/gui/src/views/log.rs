@@ -31,7 +31,7 @@ impl MiaoApp {
 
         if has_live_log {
             egui::Frame::none()
-                .fill(theme::Colors::BG_DARK)
+                .fill(theme::Colors::bg_dark())
                 .rounding(theme::Radii::WIDGET)
                 .inner_margin(egui::Margin::same(8.0))
                 .show(ui, |ui| {
@@ -41,11 +41,11 @@ impl MiaoApp {
                         .show(ui, |ui| {
                             for line in &live_lines {
                                 let color = if line.starts_with("[ERR]") {
-                                    theme::Colors::DANGER
+                                    theme::Colors::danger()
                                 } else if line.contains("WARN") {
-                                    theme::Colors::WARNING
+                                    theme::Colors::warning()
                                 } else {
-                                    theme::Colors::TEXT_SECONDARY
+                                    theme::Colors::text_secondary()
                                 };
                                 ui.label(
                                     egui::RichText::new(line)
@@ -63,7 +63,7 @@ impl MiaoApp {
             let tail = &lines[tail_start..];
 
             egui::Frame::none()
-                .fill(theme::Colors::BG_DARK)
+                .fill(theme::Colors::bg_dark())
                 .rounding(theme::Radii::WIDGET)
                 .inner_margin(egui::Margin::same(8.0))
                 .show(ui, |ui| {
@@ -76,7 +76,7 @@ impl MiaoApp {
                                     egui::RichText::new(*line)
                                         .monospace()
                                         .size(11.0)
-                                        .color(theme::Colors::TEXT_SECONDARY),
+                                        .color(theme::Colors::text_secondary()),
                                 );
                             }
                         });

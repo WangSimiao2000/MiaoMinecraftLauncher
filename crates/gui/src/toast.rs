@@ -15,10 +15,10 @@ pub enum ToastLevel {
 impl ToastLevel {
     fn color(&self) -> egui::Color32 {
         match self {
-            ToastLevel::Success => theme::Colors::SUCCESS,
-            ToastLevel::Warning => theme::Colors::WARNING,
-            ToastLevel::Error => theme::Colors::DANGER,
-            ToastLevel::Info => theme::Colors::ACCENT,
+            ToastLevel::Success => theme::Colors::success(),
+            ToastLevel::Warning => theme::Colors::warning(),
+            ToastLevel::Error => theme::Colors::danger(),
+            ToastLevel::Info => theme::Colors::accent(),
         }
     }
 
@@ -117,7 +117,7 @@ impl ToastQueue {
 
         let screen_rect = ctx.screen_rect();
         let toast_width = 320.0_f32.min(screen_rect.width() - 32.0);
-        let start_x = screen_rect.right() - toast_width - 16.0;
+        let base_x = screen_rect.right() - toast_width - 16.0;
         let mut y = screen_rect.top() + 50.0;
 
         for toast in &self.toasts {
@@ -130,15 +130,23 @@ impl ToastQueue {
                 255
             };
 
+            let slide_in = if progress < 0.1 {
+                let t = progress / 0.1;
+                let ease = t * t * (3.0 - 2.0 * t);
+                (1.0 - ease) * 40.0
+            } else {
+                0.0
+            };
+
             let area = egui::Area::new(egui::Id::new(&toast.message).with(toast.created_at))
-                .fixed_pos(egui::pos2(start_x, y))
+                .fixed_pos(egui::pos2(base_x + slide_in, y))
                 .interactable(false)
                 .order(egui::Order::Foreground);
 
             let response = area.show(ctx, |ui| {
                 let color = toast.level.color();
                 let frame = egui::Frame::none()
-                    .fill(theme::Colors::BG_ELEVATED.gamma_multiply(alpha as f32 / 255.0))
+                    .fill(theme::Colors::bg_elevated().gamma_multiply(alpha as f32 / 255.0))
                     .rounding(egui::Rounding::same(6.0))
                     .inner_margin(egui::Margin::symmetric(12.0, 8.0))
                     .stroke(egui::Stroke::new(
@@ -157,7 +165,7 @@ impl ToastQueue {
                         ui.label(
                             egui::RichText::new(&toast.message)
                                 .color(
-                                    theme::Colors::TEXT_PRIMARY
+                                    theme::Colors::text_primary()
                                         .gamma_multiply(alpha as f32 / 255.0),
                                 )
                                 .size(13.0),

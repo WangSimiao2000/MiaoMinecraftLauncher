@@ -46,7 +46,7 @@ impl MiaoApp {
         idx: usize,
     ) {
         egui::Frame::none()
-            .fill(theme::Colors::BG_ELEVATED)
+            .fill(theme::Colors::bg_elevated())
             .rounding(theme::Radii::WIDGET)
             .inner_margin(egui::Margin::same(12.0))
             .show(ui, |ui| {
@@ -85,7 +85,7 @@ impl MiaoApp {
                         if self.confirm_delete == Some(idx) {
                             ui.label(
                                 egui::RichText::new(I18n::t(self.language, "confirm"))
-                                    .color(theme::Colors::DANGER)
+                                    .color(theme::Colors::danger())
                                     .size(12.0),
                             );
                             if ui
@@ -137,9 +137,9 @@ impl MiaoApp {
                 let text = if selected {
                     egui::RichText::new(label)
                         .strong()
-                        .color(theme::Colors::ACCENT_LIGHT)
+                        .color(theme::Colors::accent_light())
                 } else {
-                    egui::RichText::new(label).color(theme::Colors::TEXT_SECONDARY)
+                    egui::RichText::new(label).color(theme::Colors::text_secondary())
                 };
 
                 let response = ui.selectable_label(false, text);
@@ -153,7 +153,7 @@ impl MiaoApp {
                             egui::pos2(rect.right() - 2.0, bottom),
                         ),
                         egui::Rounding::same(1.5),
-                        theme::Colors::ACCENT,
+                        theme::Colors::accent(),
                     );
                 }
 

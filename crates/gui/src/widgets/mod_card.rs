@@ -27,7 +27,7 @@ impl<'a> ModCard<'a> {
                 if self.enabled {
                     let btn = egui::Button::new(
                         egui::RichText::new("ON")
-                            .color(theme::Colors::SUCCESS)
+                            .color(theme::Colors::success())
                             .size(12.0),
                     );
                     if ui.add(btn).clicked() {
@@ -37,13 +37,13 @@ impl<'a> ModCard<'a> {
                 } else {
                     let btn = egui::Button::new(
                         egui::RichText::new("OFF")
-                            .color(theme::Colors::TEXT_MUTED)
+                            .color(theme::Colors::text_muted())
                             .size(12.0),
                     );
                     if ui.add(btn).clicked() {
                         action = ModCardAction::Toggle;
                     }
-                    ui.label(egui::RichText::new(self.name).color(theme::Colors::TEXT_DISABLED));
+                    ui.label(egui::RichText::new(self.name).color(theme::Colors::text_disabled()));
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.small_button("Del").clicked() {

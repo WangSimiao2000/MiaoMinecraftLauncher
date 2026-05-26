@@ -11,7 +11,7 @@ impl MiaoApp {
         egui::SidePanel::left("settings_nav")
             .resizable(false)
             .exact_width(150.0)
-            .frame(egui::Frame::none().inner_margin(egui::Margin::same(0.0)))
+            .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(6.0, 0.0)))
             .show_inside(ui, |ui| {
                 self.render_settings_nav(ui);
             });
@@ -38,8 +38,7 @@ impl MiaoApp {
     fn render_settings_nav(&mut self, ui: &mut egui::Ui) {
         let lang = self.language;
         ui.vertical(|ui| {
-            ui.set_min_width(140.0);
-            ui.set_max_width(140.0);
+            ui.set_min_width(ui.available_width());
             ui.add_space(8.0);
 
             let tabs = [
@@ -55,9 +54,9 @@ impl MiaoApp {
                 let text = if selected {
                     egui::RichText::new(label)
                         .strong()
-                        .color(theme::Colors::ACCENT_LIGHT)
+                        .color(theme::Colors::accent_light())
                 } else {
-                    egui::RichText::new(label).color(theme::Colors::TEXT_SECONDARY)
+                    egui::RichText::new(label).color(theme::Colors::text_secondary())
                 };
 
                 let response = ui.add_sized(
@@ -73,7 +72,7 @@ impl MiaoApp {
                             egui::pos2(rect.right(), rect.bottom() - 4.0),
                         ),
                         egui::Rounding::same(1.5),
-                        theme::Colors::ACCENT,
+                        theme::Colors::accent(),
                     );
                 }
 
@@ -116,9 +115,9 @@ impl MiaoApp {
             for (i, (name, kind, active)) in account_info.iter().enumerate() {
                 egui::Frame::none()
                     .fill(if *active {
-                        theme::Colors::BG_WIDGET_HOVER
+                        theme::Colors::bg_widget_hover()
                     } else {
-                        theme::Colors::BG_ELEVATED
+                        theme::Colors::bg_elevated()
                     })
                     .rounding(egui::Rounding::same(6.0))
                     .inner_margin(egui::Margin::symmetric(12.0, 8.0))
@@ -127,9 +126,9 @@ impl MiaoApp {
                         ui.horizontal(|ui| {
                             let dot = if *active { "●" } else { "○" };
                             ui.label(egui::RichText::new(dot).color(if *active {
-                                theme::Colors::SUCCESS
+                                theme::Colors::success()
                             } else {
-                                theme::Colors::TEXT_MUTED
+                                theme::Colors::text_muted()
                             }));
                             ui.label(theme::body(name));
                             ui.label(theme::small(kind));
@@ -141,7 +140,7 @@ impl MiaoApp {
                                         .add(egui::Button::new(
                                             egui::RichText::new("✕")
                                                 .size(12.0)
-                                                .color(theme::Colors::DANGER),
+                                                .color(theme::Colors::danger()),
                                         ))
                                         .clicked()
                                     {
@@ -236,7 +235,7 @@ impl MiaoApp {
                             egui::RichText::new(&dc.user_code)
                                 .strong()
                                 .size(16.0)
-                                .color(theme::Colors::ACCENT_LIGHT),
+                                .color(theme::Colors::accent_light()),
                         );
                     });
                     ui.add_space(4.0);
@@ -280,9 +279,9 @@ impl MiaoApp {
                     let text = if selected {
                         egui::RichText::new(preset.name())
                             .strong()
-                            .color(theme::Colors::ACCENT_LIGHT)
+                            .color(theme::Colors::accent_light())
                     } else {
-                        egui::RichText::new(preset.name()).color(theme::Colors::TEXT_PRIMARY)
+                        egui::RichText::new(preset.name()).color(theme::Colors::text_primary())
                     };
 
                     if ui.add(egui::SelectableLabel::new(selected, text)).clicked() && !selected {
@@ -524,9 +523,9 @@ impl MiaoApp {
                     let text = if selected {
                         egui::RichText::new(l.name())
                             .strong()
-                            .color(theme::Colors::ACCENT_LIGHT)
+                            .color(theme::Colors::accent_light())
                     } else {
-                        egui::RichText::new(l.name()).color(theme::Colors::TEXT_SECONDARY)
+                        egui::RichText::new(l.name()).color(theme::Colors::text_secondary())
                     };
                     if ui.selectable_label(selected, text).clicked() {
                         self.language = l;
@@ -571,7 +570,7 @@ impl MiaoApp {
                             ui.label(
                                 egui::RichText::new(format!("Java {}", j.major_version))
                                     .strong()
-                                    .color(theme::Colors::TEXT_PRIMARY),
+                                    .color(theme::Colors::text_primary()),
                             );
                             ui.label(theme::muted(&format!("({})", j.version)));
                         });
@@ -593,7 +592,7 @@ impl MiaoApp {
                 egui::RichText::new("MMCL")
                     .size(24.0)
                     .strong()
-                    .color(theme::Colors::ACCENT_LIGHT),
+                    .color(theme::Colors::accent_light()),
             );
             ui.label(theme::muted("MiaoMinecraftLauncher v0.1.0"));
             ui.add_space(4.0);
@@ -603,17 +602,17 @@ impl MiaoApp {
         if let Some(ref version) = self.update_available.clone() {
             ui.add_space(12.0);
             egui::Frame::none()
-                .fill(theme::Colors::BG_ELEVATED)
+                .fill(theme::Colors::bg_elevated())
                 .rounding(egui::Rounding::same(6.0))
                 .inner_margin(egui::Margin::same(12.0))
-                .stroke(egui::Stroke::new(1.5_f32, theme::Colors::WARNING))
+                .stroke(egui::Stroke::new(1.5_f32, theme::Colors::warning()))
                 .show(ui, |ui| {
                     ui.set_min_width(ui.available_width());
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new("⬆")
                                 .size(16.0)
-                                .color(theme::Colors::WARNING),
+                                .color(theme::Colors::warning()),
                         );
                         ui.label(theme::body(&format!(
                             "{}: {}",

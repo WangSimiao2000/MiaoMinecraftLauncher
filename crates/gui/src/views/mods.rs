@@ -19,7 +19,7 @@ impl MiaoApp {
                     egui::Button::new(
                         egui::RichText::new("Search Modrinth").color(egui::Color32::WHITE),
                     )
-                    .fill(theme::Colors::ACCENT)
+                    .fill(theme::Colors::accent())
                 } else {
                     egui::Button::new("Search Modrinth")
                 };
@@ -114,7 +114,7 @@ impl MiaoApp {
                 let pointer_pos = ui.ctx().input(|inp| inp.pointer.hover_pos());
 
                 let frame_response = egui::Frame::none()
-                    .fill(theme::Colors::BG_ELEVATED)
+                    .fill(theme::Colors::bg_elevated())
                     .rounding(egui::Rounding::same(6.0))
                     .inner_margin(egui::Margin::symmetric(12.0, 8.0))
                     .show(ui, |ui| {
@@ -125,7 +125,7 @@ impl MiaoApp {
                                     egui::RichText::new(&hit.title)
                                         .size(13.0)
                                         .strong()
-                                        .color(theme::Colors::TEXT_PRIMARY),
+                                        .color(theme::Colors::text_primary()),
                                 );
                                 let desc: String = hit.description.chars().take(60).collect();
                                 ui.label(theme::small(&desc));
@@ -145,7 +145,7 @@ impl MiaoApp {
 
                 if is_selected || is_hovered {
                     let fill = if is_selected {
-                        theme::Colors::BG_WIDGET_HOVER
+                        theme::Colors::bg_widget_hover()
                     } else {
                         egui::Color32::from_white_alpha(8)
                     };
@@ -261,10 +261,10 @@ impl MiaoApp {
         let dep_mods: Vec<_> = pending.deps.iter().filter(|d| d.is_dependency).collect();
 
         egui::Frame::none()
-            .fill(theme::Colors::BG_ELEVATED)
+            .fill(theme::Colors::bg_elevated())
             .rounding(egui::Rounding::same(8.0))
             .inner_margin(egui::Margin::same(14.0))
-            .stroke(egui::Stroke::new(1.5_f32, theme::Colors::ACCENT))
+            .stroke(egui::Stroke::new(1.5_f32, theme::Colors::accent()))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
                 ui.label(theme::subheading("Confirm Installation"));

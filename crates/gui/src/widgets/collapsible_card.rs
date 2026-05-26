@@ -32,7 +32,7 @@ impl<'a> CollapsibleCard<'a> {
             .data_mut(|d| *d.get_persisted_mut_or(self.id, self.default_open));
 
         let frame = egui::Frame::none()
-            .fill(theme::Colors::BG_ELEVATED)
+            .fill(theme::Colors::bg_elevated())
             .rounding(egui::Rounding::same(8.0))
             .inner_margin(egui::Margin::same(0.0))
             .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(6)));
@@ -47,7 +47,7 @@ impl<'a> CollapsibleCard<'a> {
                     ui.label(
                         egui::RichText::new(arrow)
                             .size(10.0)
-                            .color(theme::Colors::TEXT_MUTED),
+                            .color(theme::Colors::text_muted()),
                     );
                     ui.label(theme::subheading(self.title));
                 })
