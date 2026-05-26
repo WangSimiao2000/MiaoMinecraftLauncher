@@ -19,9 +19,9 @@ use crate::controller::AppController;
 use crate::messages::{AppCommand, AppEvent};
 use crate::navigation::{NavigationStack, Page};
 pub use crate::state::{
-    AppView, AuthUiState, DetailTab, Dialog, GameLogState, I18n, InstallProgress,
-    InstanceSettingsEdit, Language, LoaderUiState, ModSearchState, NewInstanceInput,
-    PendingModInstall, SettingsTab, VersionsUiState,
+    AuthUiState, DetailTab, Dialog, GameLogState, I18n, InstallProgress, InstanceSettingsEdit,
+    Language, LoaderUiState, ModSearchState, NewInstanceInput, PendingModInstall, SettingsTab,
+    VersionsUiState,
 };
 use crate::theme;
 use crate::toast::ToastQueue;
@@ -40,7 +40,6 @@ pub struct MiaoApp {
     pub config: LauncherConfig,
     pub instances: Vec<Instance>,
 
-    pub app_view: AppView,
     pub nav_stack: NavigationStack,
     pub active_dialog: Dialog,
     pub active_tab: DetailTab,
@@ -162,7 +161,6 @@ impl MiaoApp {
         Self {
             config,
             instances,
-            app_view: AppView::Main,
             nav_stack: NavigationStack::new(Page::Main),
             active_dialog: Dialog::None,
             active_tab: DetailTab::Mods,
@@ -408,11 +406,6 @@ impl eframe::App for MiaoApp {
 
         let _transition_alpha = self.nav_stack.animate(ctx);
 
-        self.app_view = match self.nav_stack.current() {
-            Page::Main | Page::ModDetail { .. } => AppView::Main,
-            Page::Settings => AppView::Settings,
-        };
-
         egui::TopBottomPanel::bottom("status_bar")
             .frame(theme::bottom_bar_frame())
             .show(ctx, |ui| {
@@ -467,60 +460,54 @@ impl eframe::App for MiaoApp {
                 }
             });
 
-        match self.app_view {
-            AppView::Settings => {
-                egui::TopBottomPanel::top("top_bar")
-                    .frame(theme::top_bar_frame())
-                    .show(ctx, |ui| {
-                        self.render_title_bar(ui, ctx, true);
-                    });
-                egui::CentralPanel::default().show(ctx, |ui| {
+        egui::TopBottomPanel::top("top_bar")
+            .frame(theme::top_bar_frame())
+            .show(ctx, |ui| {
+                self.render_title_bar(ui, ctx, false);
+            });
+
+        self.render_sidebar(ctx);
+
+        let in_settings = matches!(self.nav_stack.current(), Page::Settings);
+        let content_opacity = _transition_alpha;
+
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::none()
+                    .fill(theme::Colors::bg_main())
+                    .inner_margin(egui::Margin::same(12.0)),
+            )
+            .show(ctx, |ui| {
+                ui.set_opacity(content_opacity);
+                if in_settings {
                     self.render_settings_page(ui);
+                } else {
+                    self.render_detail(ui);
+                }
+            });
+
+        if self.active_dialog != Dialog::None {
+            let screen = ctx.screen_rect();
+            egui::Area::new(egui::Id::new("dialog_blur_backdrop"))
+                .fixed_pos(screen.min)
+                .interactable(false)
+                .order(egui::Order::Middle)
+                .show(ctx, |ui| {
+                    ui.set_clip_rect(screen);
+                    let tint = egui::Color32::from_black_alpha(120);
+                    crate::blur::blur_behind(ui, &self.blur_renderer, screen, 12.0, tint);
                 });
+        }
+
+        match self.active_dialog {
+            Dialog::NewInstance => self.render_new_instance_dialog(ctx),
+            Dialog::ConfirmJavaDownload {
+                instance_idx,
+                java_major,
+            } => {
+                self.render_java_download_confirm(ctx, instance_idx, java_major);
             }
-            AppView::Main => {
-                egui::TopBottomPanel::top("top_bar")
-                    .frame(theme::top_bar_frame())
-                    .show(ctx, |ui| {
-                        self.render_title_bar(ui, ctx, false);
-                    });
-
-                self.render_sidebar(ctx);
-
-                egui::CentralPanel::default()
-                    .frame(
-                        egui::Frame::none()
-                            .fill(theme::Colors::bg_main())
-                            .inner_margin(egui::Margin::same(12.0)),
-                    )
-                    .show(ctx, |ui| {
-                        self.render_detail(ui);
-                    });
-
-                if self.active_dialog != Dialog::None {
-                    let screen = ctx.screen_rect();
-                    egui::Area::new(egui::Id::new("dialog_blur_backdrop"))
-                        .fixed_pos(screen.min)
-                        .interactable(false)
-                        .order(egui::Order::Middle)
-                        .show(ctx, |ui| {
-                            ui.set_clip_rect(screen);
-                            let tint = egui::Color32::from_black_alpha(120);
-                            crate::blur::blur_behind(ui, &self.blur_renderer, screen, 12.0, tint);
-                        });
-                }
-
-                match self.active_dialog {
-                    Dialog::NewInstance => self.render_new_instance_dialog(ctx),
-                    Dialog::ConfirmJavaDownload {
-                        instance_idx,
-                        java_major,
-                    } => {
-                        self.render_java_download_confirm(ctx, instance_idx, java_major);
-                    }
-                    Dialog::None => {}
-                }
-            }
+            Dialog::None => {}
         }
 
         self.toasts.render(ctx);
