@@ -17,6 +17,8 @@ pub struct LauncherConfig {
     pub curseforge_api_key: Option<String>,
     #[serde(default)]
     pub theme: ThemePreset,
+    #[serde(skip)]
+    pub config_file_override: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -79,6 +81,7 @@ impl Default for LauncherConfig {
             active_account_index: None,
             curseforge_api_key: None,
             theme: ThemePreset::default(),
+            config_file_override: None,
         }
     }
 }
@@ -102,7 +105,10 @@ impl LauncherConfig {
     }
 
     pub fn save(&self) -> Result<()> {
-        let path = Self::config_path();
+        let path = self
+            .config_file_override
+            .clone()
+            .unwrap_or_else(Self::config_path);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }

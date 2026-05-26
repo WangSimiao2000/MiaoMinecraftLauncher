@@ -99,6 +99,7 @@ mod tests {
     fn make_config(tmp: &std::path::Path) -> LauncherConfig {
         LauncherConfig {
             data_dir: tmp.to_path_buf(),
+            config_file_override: Some(tmp.join("config.toml")),
             ..Default::default()
         }
     }
