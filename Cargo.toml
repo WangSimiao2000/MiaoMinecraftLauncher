@@ -56,7 +56,7 @@ indicatif = "0.17"
 
 # GUI
 eframe = "0.30"
-egui = "0.30"
+egui = "0.34"
 
 # OAuth2
 oauth2 = "5"
