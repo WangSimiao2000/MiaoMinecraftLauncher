@@ -48,7 +48,7 @@ Comparison baseline: PCL2 (Plain Craft Launcher 2) — the most popular Chinese 
 
 | Feature | MMCL | PCL2 | Priority | Notes |
 |---------|------|------|----------|-------|
-| 自定义背景图 + 模糊 | ✅ | ✅ | — | `gui/src/background.rs` |
+| ~~自定义背景图 + 模糊~~ | ❌ | ✅ | — | 已移除，不需要此功能 |
 | 主题色切换 | ✅ | ✅ | — | ThemePreset 已启用 + 持久化 |
 | 自定义背景音乐 | ❌ | ✅ | Low | |
 | 自定义主页 (XAML) | ❌ | ✅ | Low | 不适用于 egui |
@@ -109,54 +109,66 @@ FormMain.xaml (主窗口)
 
 ```
 main.rs (入口)
-└── app.rs (MiaoApp — 全状态单体结构)
-    ├── views/ (视图渲染 — 函数式)
-    │   ├── sidebar.rs      → 实例列表侧边栏
-    │   ├── detail.rs       → 中央面板路由 (Tab 分发)
-    │   ├── mods.rs         → Mod 管理 Tab
-    │   ├── resources.rs    → 资源包/光影 Tab
-    │   ├── worlds.rs       → 世界存档 Tab
-    │   ├── log.rs          → 游戏日志 Tab
-    │   └── instance_settings.rs → 实例设置 Tab
-    │
-    ├── dialogs/ (弹窗)
-    │   ├── new_instance.rs → 新建实例
-    │   ├── settings.rs     → 全局设置（全页面）
-    │   └── java_confirm.rs → Java 下载确认
-    │
-    ├── controller/ (异步业务层)
-    │   ├── mod.rs          → 事件循环 + 任务调度
-    │   ├── instance.rs     → 实例操作
-    │   ├── auth.rs         → 登录
-    │   ├── java.rs         → Java 下载
-    │   ├── versions.rs     → 版本/加载器获取
-    │   └── mods.rs         → Mod 搜索安装
-    │
-    ├── state.rs            → UI 状态定义
-    ├── messages.rs         → 命令/事件协议
-    └── theme.rs            → 设计令牌 + 样式函数
+├── app.rs (MiaoApp — 全状态单体结构)
+├── icons.rs              → Bootstrap Icons 常量
+├── navigation.rs         → NavigationStack + 页面过渡动画
+├── toast.rs              → Toast 通知队列
+├── theme.rs              → 设计令牌 + 4 套调色板
+├── blur.rs               → GPU 高斯模糊 shader (对话框背景)
+│
+├── views/ (视图渲染 — 函数式)
+│   ├── sidebar.rs        → 实例列表 + Settings 按钮
+│   ├── detail.rs         → 中央面板路由 (Tab 分发)
+│   ├── mods.rs           → Mod 管理 (统一搜索 Modrinth/CurseForge)
+│   ├── resources.rs      → 资源包/光影 Tab
+│   ├── worlds.rs         → 世界存档 Tab
+│   ├── log.rs            → 游戏日志 Tab
+│   └── instance_settings.rs → 实例设置 Tab
+│
+├── dialogs/ (弹窗/全页面)
+│   ├── new_instance.rs   → 新建实例
+│   ├── settings.rs       → 全局设置（Account/Appearance/Data/Java/About）
+│   └── java_confirm.rs   → Java 下载确认
+│
+├── controller/ (异步业务层)
+│   ├── mod.rs            → 事件循环 + 命令分发
+│   ├── instance.rs       → 实例创建/启动/导入导出
+│   ├── auth.rs           → MS OAuth 登录 + 皮肤获取
+│   ├── java.rs           → Java 下载
+│   ├── versions.rs       → 版本/加载器获取
+│   └── mods.rs           → Modrinth + CurseForge 搜索/安装
+│
+├── widgets/
+│   ├── instance_card.rs  → 实例卡片
+│   ├── mod_card.rs       → Mod 卡片 (启用/禁用/删除)
+│   └── collapsible_card.rs → 可折叠区域
+│
+└── state.rs + messages.rs → UI 状态 + 命令/事件协议
 ```
 
 **MMCL UI 特点:**
-- **扁平 2 层路由**: Main (侧栏+Tab) / Settings，无导航栈
-- **无自定义控件**: 所有 UI 元素直接用 egui 原语 + theme 辅助函数内联构建
-- **单体状态**: `MiaoApp` 结构持有 ~30 个字段，所有页面共享
-- **Immediate Mode**: egui 每帧重绘，无 retained widget state
-- **Controller 分离**: 异步业务逻辑与 UI 渲染解耦（channel 通信）
+- **导航栈路由**: Main / Settings / ModDetail，支持 push/pop + 0.2s 淡入动画
+- **自定义 Widget 库**: InstanceCard, ModCard, CollapsibleCard
+- **图标系统**: Bootstrap Icons 字体内嵌（464KB），15 个矢量图标常量
+- **字体**: MiSans Medium 内嵌（7.8MB），统一中英文渲染
+- **单体状态**: `MiaoApp` 结构持有所有 UI 状态，各页面共享
+- **Immediate Mode**: egui 每帧重绘，Toast 队列 + 动画值插值
+- **Controller 分离**: 异步业务逻辑与 UI 渲染通过 mpsc channel 解耦
+- **皮肤系统**: Mojang session server → 本地裁剪缓存 → file:// 加载
 
 ### 值得借鉴的 PCL2 设计模式
 
 | PCL2 模式 | MMCL 现状 | 建议改进 |
 |-----------|----------|---------|
-| **自定义控件库** — 20+ 独立可复用控件 | 无独立控件，所有 UI 内联 | 抽取 `widgets/` 目录：ModCard, InstanceCard, SearchBox, ProgressCard, HintBanner |
-| **卡片容器 (MyCard)** — 可展开/折叠 + 标题 | 直接用 egui::Frame | 实现 `CollapsibleCard` widget — 设置页/Mod 列表都需要 |
-| **深层导航栈** — 页面可任意嵌套 + 返回 | 仅 2 个顶级 AppView | 加入 `NavigationStack<Page>` — 支持 Mod 详情页、版本详情页等深层页面 |
+| **自定义控件库** — 20+ 独立可复用控件 | ✅ widgets/ 已有 3 个控件 | 继续抽取：SearchBox, ProgressCard, HintBanner |
+| **卡片容器 (MyCard)** — 可展开/折叠 + 标题 | ✅ CollapsibleCard 已实现 | — |
+| **深层导航栈** — 页面可任意嵌套 + 返回 | ✅ NavigationStack 已实现 | 可扩展更多 Page 类型 |
 | **虚拟化长列表** | egui ScrollArea 全量渲染 | 对 Mod 列表/版本列表使用 egui 的 `show_rows()` 虚拟化 |
-| **消息/Toast 系统** | 仅底部状态栏文字 | 加入 Toast 通知队列 — 成功/警告/错误有不同样式和自动消失 |
+| **消息/Toast 系统** | ✅ ToastQueue 已实现 | — |
 | **左右分栏范式** | 侧栏 + Tab 内容 | 下载页/Mod 详情页采用左列表右详情的分栏 |
-| **提示条 (MyHint)** | 无 | 在关键操作前显示 info/warn 提示条 |
-| **异步图片加载** | egui_extras image_loaders 已启用 | 利用已有能力给 Mod 搜索结果加图标/缩略图 |
-| **页面切换动画** | 无任何过渡 | egui 支持 `lerp` 和 `animate_value_with_time`，可做淡入/滑动 |
+| **提示条 (MyHint)** | Toast 部分覆盖 | 在关键操作前显示 info/warn 提示条 |
+| **异步图片加载** | ✅ egui_extras all_loaders | 利用已有能力给 Mod 搜索结果加图标/缩略图 |
+| **页面切换动画** | ✅ 0.2s opacity transition | — |
 
 ---
 
@@ -177,7 +189,7 @@ main.rs (入口)
 | # | Feature | 状态 | 模块 |
 |---|---------|------|------|
 | 6 | UI 主题切换（启用 ThemePreset + 用户自定义色） | ✅ Done | `core/src/config.rs`, `gui/src/theme.rs`, `gui/src/dialogs/settings.rs` |
-| 7 | 自定义背景图 + 亚克力模糊 | ✅ Done | `gui/src/background.rs` |
+| 7 | ~~自定义背景图 + 亚克力模糊~~ | ❌ Removed | 已移除，功能不需要 |
 | 8 | Toast 通知系统 | ✅ Done | `gui/src/toast.rs` |
 | 9 | Widget 抽取（ModCard, InstanceCard, CollapsibleCard） | ✅ Done | `gui/src/widgets/` |
 | 10 | 导航栈 + 页面过渡动画 | ✅ Done | `gui/src/navigation.rs` |

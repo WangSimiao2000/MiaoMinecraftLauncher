@@ -7,7 +7,7 @@ A feature-rich Minecraft launcher built in Rust with cross-platform support. Shi
 - **Instance Management** — Create, configure, and launch isolated Minecraft instances
 - **Mod Loader Support** — Fabric, Quilt, NeoForge, and Forge with one-click install
 - **Modrinth Integration** — Search, install mods with automatic dependency resolution
-- **CurseForge Integration** — Search, install mods with dependency resolution (API key required)
+- **CurseForge Integration** — Search, install mods with dependency resolution (built-in API key)
 - **Modpack Support** — Import/export `.mrpack` modpacks
 - **Java Auto-Detection** — Finds compatible system Java or downloads from Adoptium
 - **Download Mirrors** — BMCLAPI mirror with multi-source failover and automatic retry
@@ -114,6 +114,9 @@ cargo tarpaulin -p miao-core --skip-clean
 | GUI | egui 0.30 / eframe |
 | CLI | clap (derive) |
 | Serialization | serde + toml/json |
+| Font | MiSans Medium (bundled, 7.8MB) |
+| Icons | Bootstrap Icons (bundled TTF) |
+| Skin | Mojang session server → local crop & cache |
 
 ## Contributing
 
