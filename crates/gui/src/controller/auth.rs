@@ -43,6 +43,13 @@ pub fn handle_ms_login(
                                 config.active_account_index = Some(0);
                             }
                             let _ = config.save();
+
+                            let http = reqwest::Client::new();
+                            let uuid = account.uuid.as_simple().to_string();
+                            let cache = miao_core::skin::SkinCache::new(&config.data_dir);
+                            let _ = miao_core::skin::fetch_and_cache_textures(&http, &uuid, &cache)
+                                .await;
+
                             let _ = tx.send(AppEvent::LoginComplete {
                                 account: AuthMethod::Microsoft(account),
                             });

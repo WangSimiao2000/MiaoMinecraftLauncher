@@ -116,17 +116,27 @@ impl AuthMethod {
         }
     }
 
-    pub fn avatar_url(&self) -> String {
-        let uuid = self.uuid().as_hyphenated().to_string();
-        format!("https://crafatar.com/avatars/{}?size=64&overlay", uuid)
+    pub fn avatar_path(&self, data_dir: &std::path::Path) -> std::path::PathBuf {
+        let cache = crate::skin::SkinCache::new(data_dir);
+        let uuid = self.uuid().as_simple().to_string();
+        let path = cache.avatar_path(&uuid);
+        if path.exists() {
+            path
+        } else {
+            let img = crate::skin::default_head_for_uuid(&uuid);
+            let _ = img.save(&path);
+            path
+        }
     }
 
-    pub fn cape_url(&self) -> Option<String> {
+    pub fn cape_path(&self, data_dir: &std::path::Path) -> Option<std::path::PathBuf> {
         if self.is_offline() {
             return None;
         }
-        let uuid = self.uuid().as_hyphenated().to_string();
-        Some(format!("https://crafatar.com/capes/{}", uuid))
+        let cache = crate::skin::SkinCache::new(data_dir);
+        let uuid = self.uuid().as_simple().to_string();
+        let path = cache.cape_path(&uuid);
+        if path.exists() { Some(path) } else { None }
     }
 }
 
