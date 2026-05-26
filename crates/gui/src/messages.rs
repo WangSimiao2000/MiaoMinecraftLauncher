@@ -148,7 +148,9 @@ pub enum AppEvent {
 
     // ── Game log ──
     GameLogLine(String),
-    GameExited,
+    GameExited {
+        exit_code: Option<i32>,
+    },
 
     // ── Instance ──
     ExportResult(String),
