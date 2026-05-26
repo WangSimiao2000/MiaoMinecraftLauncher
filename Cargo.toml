@@ -63,3 +63,8 @@ oauth2 = "5"
 
 # Internal crates
 miao-core = { path = "crates/core" }
+
+[profile.release]
+lto = "thin"
+strip = true
+codegen-units = 1
