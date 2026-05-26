@@ -51,6 +51,9 @@ impl MiaoApp {
                                 self.selected_instance = Some(i);
                                 self.active_tab = DetailTab::Mods;
                                 self.confirm_delete = None;
+                                if matches!(self.nav_stack.current(), Page::Settings) {
+                                    self.nav_stack.pop();
+                                }
                             }
                         }
                     });

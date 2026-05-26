@@ -211,7 +211,7 @@ impl MiaoApp {
                     egui::TextEdit::singleline(&mut self.offline_username_input)
                         .vertical_align(egui::Align::Center)
                         .min_size(ui.spacing().interact_size)
-                        .hint_text("Username"),
+                        .hint_text(I18n::t(lang, "username")),
                 );
             });
             ui.add_space(4.0);
@@ -233,7 +233,8 @@ impl MiaoApp {
                 }
             });
             ui.add_space(6.0);
-            if ui.button("Add").clicked() && !self.offline_username_input.is_empty() {
+            if ui.button(I18n::t(lang, "add")).clicked() && !self.offline_username_input.is_empty()
+            {
                 let account = miao_core::auth::offline::create_offline_account_with_model(
                     &self.offline_username_input,
                     self.offline_skin_model,
@@ -333,7 +334,7 @@ impl MiaoApp {
         });
 
         ui.add_space(16.0);
-        ui.label(theme::subheading("Background"));
+        ui.label(theme::subheading(I18n::t(lang, "background")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
@@ -353,7 +354,7 @@ impl MiaoApp {
 
             ui.horizontal(|ui| {
                 ui.label(theme::body(&display_path));
-                if ui.button("Browse").clicked()
+                if ui.button(I18n::t(lang, "browse")).clicked()
                     && let Some(path) = rfd::FileDialog::new()
                         .set_title("Select background image")
                         .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "webp"])
@@ -364,7 +365,7 @@ impl MiaoApp {
                         self.status = format!("✗ Save failed: {}", e);
                     }
                 }
-                if has_bg && ui.button("Clear").clicked() {
+                if has_bg && ui.button(I18n::t(lang, "clear")).clicked() {
                     self.config.background_image = None;
                     if let Err(e) = self.config.save() {
                         self.status = format!("✗ Save failed: {}", e);
@@ -409,7 +410,7 @@ impl MiaoApp {
                         .vertical_align(egui::Align::Center)
                         .min_size(ui.spacing().interact_size),
                 );
-                if ui.button("Browse").clicked()
+                if ui.button(I18n::t(lang, "browse")).clicked()
                     && let Some(folder) = rfd::FileDialog::new()
                         .set_title("Select data directory")
                         .pick_folder()
@@ -604,10 +605,11 @@ impl MiaoApp {
     }
 
     fn render_tab_java(&mut self, ui: &mut egui::Ui) {
+        let lang = self.language;
         ui.horizontal(|ui| {
             ui.label(theme::subheading("Java Installations"));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("Refresh").clicked() {
+                if ui.button(I18n::t(lang, "refresh")).clicked() {
                     self.cached_javas = None;
                 }
             });
@@ -651,7 +653,8 @@ impl MiaoApp {
     }
 
     fn render_tab_about(&mut self, ui: &mut egui::Ui) {
-        ui.label(theme::subheading("About MMCL"));
+        let lang = self.language;
+        ui.label(theme::subheading(I18n::t(lang, "about")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
@@ -690,7 +693,7 @@ impl MiaoApp {
                         ui.with_layout(
                             egui::Layout::right_to_left(egui::Align::Center),
                             |ui| {
-                                if ui.button("Download").clicked() {
+                                if ui.button(I18n::t(lang, "download")).clicked() {
                                     let _ = open::that(
                                         "https://github.com/WangSimiao2000/MiaoMinecraftLauncher/releases",
                                     );
@@ -702,7 +705,7 @@ impl MiaoApp {
         }
 
         ui.add_space(16.0);
-        ui.label(theme::subheading("Author"));
+        ui.label(theme::subheading(I18n::t(lang, "author")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {

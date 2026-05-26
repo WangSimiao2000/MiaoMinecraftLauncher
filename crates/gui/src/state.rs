@@ -31,6 +31,13 @@ pub enum DetailTab {
     Settings,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ModSource {
+    #[default]
+    Modrinth,
+    CurseForge,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dialog {
     None,
@@ -84,8 +91,21 @@ pub struct ModSearchState {
 pub struct CfSearchState {
     pub query: String,
     pub results: Vec<miao_core::curseforge::api::CfMod>,
+    pub files: Vec<miao_core::curseforge::api::CfFile>,
+    pub selected_mod_id: Option<u32>,
+    pub selected_mod_name: Option<String>,
     pub searching: bool,
     pub active: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CfPendingInstall {
+    pub mod_name: String,
+    pub deps: Vec<miao_core::curseforge::api::CfResolvedDep>,
+    pub instance_dir: std::path::PathBuf,
+    pub mc_version: String,
+    pub loader: String,
+    pub api_key: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -161,8 +181,8 @@ impl I18n {
             (Language::Chinese, "ready") => "就绪",
             (Language::English, "settings") => "Settings",
             (Language::Chinese, "settings") => "设置",
-            (Language::English, "back") => "< Back",
-            (Language::Chinese, "back") => "< 返回",
+            (Language::English, "back") => "← Back",
+            (Language::Chinese, "back") => "← 返回",
             (Language::English, "instances") => "Instances",
             (Language::Chinese, "instances") => "实例",
             (Language::English, "new") => "+ New",
@@ -283,6 +303,89 @@ impl I18n {
             (Language::Chinese, "sign_in") => "登录",
             (Language::English, "update_available") => "Update available",
             (Language::Chinese, "update_available") => "有新版本可用",
+
+            (Language::English, "search_mods") => "🔍 Search Mods",
+            (Language::Chinese, "search_mods") => "🔍 搜索模组",
+            (Language::English, "close_search") => "⊘ Close Search",
+            (Language::Chinese, "close_search") => "⊘ 关闭搜索",
+            (Language::English, "open_folder") => "Open folder",
+            (Language::Chinese, "open_folder") => "打开文件夹",
+            (Language::English, "search") => "Search:",
+            (Language::Chinese, "search") => "搜索：",
+            (Language::English, "go") => "Go",
+            (Language::Chinese, "go") => "搜索",
+            (Language::English, "install") => "Install",
+            (Language::Chinese, "install") => "安装",
+            (Language::English, "install_all") => "Install All",
+            (Language::Chinese, "install_all") => "全部安装",
+            (Language::English, "only_this_mod") => "Only This Mod",
+            (Language::Chinese, "only_this_mod") => "仅安装此模组",
+            (Language::English, "confirm_install") => "Confirm Installation",
+            (Language::Chinese, "confirm_install") => "确认安装",
+            (Language::English, "confirm_install_cf") => "Confirm Installation (CurseForge)",
+            (Language::Chinese, "confirm_install_cf") => "确认安装 (CurseForge)",
+            (Language::English, "required_deps") => "Required dependencies",
+            (Language::Chinese, "required_deps") => "必需依赖",
+            (Language::English, "versions_for") => "Versions for",
+            (Language::Chinese, "versions_for") => "版本列表：",
+            (Language::English, "no_mods") => "No mods installed",
+            (Language::Chinese, "no_mods") => "未安装模组",
+            (Language::English, "no_mods_hint") => "Click \"Search Mods\" to find and install mods",
+            (Language::Chinese, "no_mods_hint") => "点击\"搜索模组\"查找并安装模组",
+            (Language::English, "no_resource_packs") => "No resource packs",
+            (Language::Chinese, "no_resource_packs") => "暂无资源包",
+            (Language::English, "no_resource_packs_hint") => {
+                "Drop .zip packs into the resourcepacks folder"
+            }
+            (Language::Chinese, "no_resource_packs_hint") => {
+                "将 .zip 资源包放入 resourcepacks 文件夹"
+            }
+            (Language::English, "shaders") => "Shaders",
+            (Language::Chinese, "shaders") => "光影",
+            (Language::English, "no_shaders") => "No shaders",
+            (Language::Chinese, "no_shaders") => "暂无光影",
+            (Language::English, "no_shaders_hint") => {
+                "Drop shader packs into the shaderpacks folder"
+            }
+            (Language::Chinese, "no_shaders_hint") => "将光影包放入 shaderpacks 文件夹",
+            (Language::English, "no_worlds") => "No worlds yet.",
+            (Language::Chinese, "no_worlds") => "暂无存档。",
+            (Language::English, "no_worlds_hint") => "Launch the game to create one.",
+            (Language::Chinese, "no_worlds_hint") => "启动游戏即可生成存档。",
+            (Language::English, "today") => "today",
+            (Language::Chinese, "today") => "今天",
+            (Language::English, "yesterday") => "yesterday",
+            (Language::Chinese, "yesterday") => "昨天",
+            (Language::English, "days_ago") => "d ago",
+            (Language::Chinese, "days_ago") => "天前",
+            (Language::English, "del") => "Del",
+            (Language::Chinese, "del") => "删除",
+            (Language::English, "vanilla") => "Vanilla",
+            (Language::Chinese, "vanilla") => "原版",
+            (Language::English, "create") => "Create",
+            (Language::Chinese, "create") => "创建",
+            (Language::English, "add") => "Add",
+            (Language::Chinese, "add") => "添加",
+            (Language::English, "browse") => "Browse",
+            (Language::Chinese, "browse") => "浏览",
+            (Language::English, "clear") => "Clear",
+            (Language::Chinese, "clear") => "清除",
+            (Language::English, "refresh") => "Refresh",
+            (Language::Chinese, "refresh") => "刷新",
+            (Language::English, "download") => "Download",
+            (Language::Chinese, "download") => "下载",
+            (Language::English, "background") => "Background",
+            (Language::Chinese, "background") => "背景图",
+            (Language::English, "author") => "Author",
+            (Language::Chinese, "author") => "作者",
+            (Language::English, "username") => "Username",
+            (Language::Chinese, "username") => "用户名",
+            (Language::English, "cf_no_key") => {
+                "CurseForge API key not configured. Set it in Settings > Data."
+            }
+            (Language::Chinese, "cf_no_key") => {
+                "CurseForge API 密钥未配置，请在设置 > 数据中填写。"
+            }
             _ => key,
         }
     }

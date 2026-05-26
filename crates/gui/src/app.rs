@@ -19,9 +19,9 @@ use crate::controller::AppController;
 use crate::messages::{AppCommand, AppEvent};
 use crate::navigation::{NavigationStack, Page};
 pub use crate::state::{
-    AuthUiState, CfSearchState, DetailTab, Dialog, GameLogState, I18n, InstallProgress,
-    InstanceSettingsEdit, Language, LoaderUiState, ModSearchState, NewInstanceInput,
-    PendingModInstall, SettingsTab, VersionsUiState,
+    AuthUiState, CfPendingInstall, CfSearchState, DetailTab, Dialog, GameLogState, I18n,
+    InstallProgress, InstanceSettingsEdit, Language, LoaderUiState, ModSearchState, ModSource,
+    NewInstanceInput, PendingModInstall, SettingsTab, VersionsUiState,
 };
 use crate::theme;
 use crate::toast::ToastQueue;
@@ -36,10 +36,7 @@ enum WindowButton {
 
 pub use miao_core::auth::MS_CLIENT_ID;
 
-pub const CF_API_KEY_BUILTIN: &str = match option_env!("CURSEFORGE_API_KEY") {
-    Some(key) => key,
-    None => "",
-};
+pub const CF_API_KEY_BUILTIN: &str = "$2a$10$IlC78/YEUsegXBjlRMkHpOE/./ZkDhzPu0XmjgHkpCV4R3Kqzpc0m";
 
 pub struct MiaoApp {
     pub config: LauncherConfig,
@@ -56,9 +53,13 @@ pub struct MiaoApp {
     pub cf_api_key_input: String,
     pub data_dir_input: String,
     pub new_instance: NewInstanceInput,
+    pub mod_source: ModSource,
+    pub mod_search_active: bool,
+    pub mod_search_query: String,
     pub mod_search: ModSearchState,
     pub cf_search: CfSearchState,
     pub pending_mod_install: Option<PendingModInstall>,
+    pub pending_cf_install: Option<CfPendingInstall>,
 
     pub confirm_delete: Option<usize>,
     pub settings_tab: SettingsTab,
@@ -179,9 +180,13 @@ impl MiaoApp {
             cf_api_key_input,
             data_dir_input,
             new_instance: NewInstanceInput::default(),
+            mod_source: ModSource::default(),
+            mod_search_active: false,
+            mod_search_query: String::new(),
             mod_search: ModSearchState::default(),
             cf_search: CfSearchState::default(),
             pending_mod_install: None,
+            pending_cf_install: None,
             confirm_delete: None,
             settings_tab: SettingsTab::default(),
             cached_javas: None,
@@ -265,6 +270,11 @@ impl MiaoApp {
                         self.instances = instance::list_instances(&self.config.instances_dir())
                             .unwrap_or_default();
                         self.cached_javas = None;
+                        self.selected_instance = Some(self.instances.len().saturating_sub(1));
+                        self.active_tab = DetailTab::Mods;
+                        if matches!(self.nav_stack.current(), Page::Settings) {
+                            self.nav_stack.pop();
+                        }
                     } else {
                         self.toasts.error(&message);
                     }
@@ -333,6 +343,31 @@ impl MiaoApp {
                 }
                 AppEvent::CfSearchResults(mods) => {
                     self.cf_search.results = mods;
+                    self.cf_search.files.clear();
+                    self.cf_search.selected_mod_id = None;
+                    self.cf_search.selected_mod_name = None;
+                    self.cf_search.searching = false;
+                }
+                AppEvent::CfFileVersions(files) => {
+                    self.cf_search.files = files;
+                    self.cf_search.searching = false;
+                }
+                AppEvent::CfPendingInstall {
+                    mod_name,
+                    deps,
+                    instance_dir,
+                    mc_version,
+                    loader,
+                    api_key,
+                } => {
+                    self.pending_cf_install = Some(CfPendingInstall {
+                        mod_name,
+                        deps,
+                        instance_dir,
+                        mc_version,
+                        loader,
+                        api_key,
+                    });
                     self.cf_search.searching = false;
                 }
                 AppEvent::CfInstalled { count } => {
@@ -340,6 +375,7 @@ impl MiaoApp {
                     self.status = msg.clone();
                     self.toasts.success(msg);
                     self.cf_search.searching = false;
+                    self.pending_cf_install = None;
                     self.file_scan_cache.invalidate();
                 }
                 AppEvent::CfError(msg) => {
@@ -379,6 +415,11 @@ impl MiaoApp {
                     if success {
                         self.instances = instance::list_instances(&self.config.instances_dir())
                             .unwrap_or_default();
+                        self.selected_instance = Some(self.instances.len().saturating_sub(1));
+                        self.active_tab = DetailTab::Mods;
+                        if matches!(self.nav_stack.current(), Page::Settings) {
+                            self.nav_stack.pop();
+                        }
                     }
                 }
                 AppEvent::UpdateAvailable(version) => {
@@ -516,12 +557,13 @@ impl eframe::App for MiaoApp {
             let screen = ctx.screen_rect();
             egui::Area::new(egui::Id::new("dialog_blur_backdrop"))
                 .fixed_pos(screen.min)
-                .interactable(false)
+                .interactable(true)
                 .order(egui::Order::Middle)
                 .show(ctx, |ui| {
                     ui.set_clip_rect(screen);
                     let tint = egui::Color32::from_black_alpha(120);
                     crate::blur::blur_behind(ui, &self.blur_renderer, screen, 12.0, tint);
+                    ui.allocate_rect(screen, egui::Sense::click());
                 });
         }
 

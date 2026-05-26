@@ -165,6 +165,75 @@ pub fn handle_cf_search(
     });
 }
 
+pub fn handle_cf_load_files(
+    mod_id: u32,
+    mc_version: String,
+    loader: Option<String>,
+    api_key: String,
+    tx: mpsc::UnboundedSender<AppEvent>,
+    ctx: Context,
+) {
+    tokio::spawn(async move {
+        let client = miao_core::curseforge::api::CurseForgeClient::new(&api_key);
+        let result = client
+            .get_mod_files(mod_id, Some(&mc_version), loader.as_deref())
+            .await;
+        match result {
+            Ok(files) => {
+                let _ = tx.send(AppEvent::CfFileVersions(files));
+            }
+            Err(e) => {
+                let _ = tx.send(AppEvent::CfError(format!(
+                    "Failed to load CurseForge versions: {}",
+                    e
+                )));
+            }
+        }
+        ctx.request_repaint();
+    });
+}
+
+pub fn handle_cf_resolve_deps(
+    mod_id: u32,
+    mc_version: String,
+    loader: String,
+    instance_dir: PathBuf,
+    api_key: String,
+    tx: mpsc::UnboundedSender<AppEvent>,
+    ctx: Context,
+) {
+    tokio::spawn(async move {
+        let client = miao_core::curseforge::api::CurseForgeClient::new(&api_key);
+        let mod_info = client.get_mod(mod_id).await;
+        let mod_name = mod_info
+            .map(|m| m.name)
+            .unwrap_or_else(|_| format!("Mod #{}", mod_id));
+
+        match client
+            .resolve_dependencies(mod_id, &mc_version, &loader)
+            .await
+        {
+            Ok(deps) => {
+                let _ = tx.send(AppEvent::CfPendingInstall {
+                    mod_name,
+                    deps,
+                    instance_dir,
+                    mc_version,
+                    loader,
+                    api_key,
+                });
+            }
+            Err(e) => {
+                let _ = tx.send(AppEvent::CfError(format!(
+                    "Failed to resolve dependencies: {}",
+                    e
+                )));
+            }
+        }
+        ctx.request_repaint();
+    });
+}
+
 pub fn handle_cf_install(
     mod_id: u32,
     mc_version: String,

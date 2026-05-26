@@ -61,7 +61,7 @@ impl MiaoApp {
                                 .mod_loader
                                 .as_ref()
                                 .map(|l| format!("{} {}", l.loader_type, l.version))
-                                .unwrap_or_else(|| "Vanilla".to_string());
+                                .unwrap_or_else(|| I18n::t(self.language, "vanilla").to_string());
                             ui.label(theme::badge_loader(&loader));
                         });
                     });

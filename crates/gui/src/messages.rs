@@ -94,6 +94,19 @@ pub enum AppCommand {
         loader: Option<String>,
         api_key: String,
     },
+    CfLoadFiles {
+        mod_id: u32,
+        mc_version: String,
+        loader: Option<String>,
+        api_key: String,
+    },
+    CfResolveDeps {
+        mod_id: u32,
+        mc_version: String,
+        loader: String,
+        instance_dir: PathBuf,
+        api_key: String,
+    },
     CfInstallMod {
         mod_id: u32,
         mc_version: String,
@@ -163,6 +176,15 @@ pub enum AppEvent {
 
     // ── CurseForge ──
     CfSearchResults(Vec<miao_core::curseforge::api::CfMod>),
+    CfFileVersions(Vec<miao_core::curseforge::api::CfFile>),
+    CfPendingInstall {
+        mod_name: String,
+        deps: Vec<miao_core::curseforge::api::CfResolvedDep>,
+        instance_dir: PathBuf,
+        mc_version: String,
+        loader: String,
+        api_key: String,
+    },
     CfInstalled {
         count: usize,
     },

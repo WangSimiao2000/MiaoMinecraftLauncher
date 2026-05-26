@@ -181,7 +181,7 @@ impl MiaoApp {
 
                 let can_create = !self.versions.versions.is_empty();
                 ui.add_enabled_ui(can_create, |ui| {
-                    if ui.button("Create").clicked() {
+                    if ui.button(I18n::t(self.language, "create")).clicked() {
                         let ver = self.versions.versions[self.new_instance.version_idx].clone();
                         let name = if self.new_instance.name.is_empty() {
                             ver.id.clone()

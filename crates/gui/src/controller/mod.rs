@@ -198,6 +198,38 @@ async fn controller_loop(
                     ctx.clone(),
                 );
             }
+            AppCommand::CfLoadFiles {
+                mod_id,
+                mc_version,
+                loader,
+                api_key,
+            } => {
+                mods::handle_cf_load_files(
+                    mod_id,
+                    mc_version,
+                    loader,
+                    api_key,
+                    event_tx.clone(),
+                    ctx.clone(),
+                );
+            }
+            AppCommand::CfResolveDeps {
+                mod_id,
+                mc_version,
+                loader,
+                instance_dir,
+                api_key,
+            } => {
+                mods::handle_cf_resolve_deps(
+                    mod_id,
+                    mc_version,
+                    loader,
+                    instance_dir,
+                    api_key,
+                    event_tx.clone(),
+                    ctx.clone(),
+                );
+            }
             AppCommand::CfInstallMod {
                 mod_id,
                 mc_version,

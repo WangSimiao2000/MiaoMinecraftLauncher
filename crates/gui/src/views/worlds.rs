@@ -28,9 +28,9 @@ impl MiaoApp {
         if saves.is_empty() {
             ui.add_space(20.0);
             ui.vertical_centered(|ui| {
-                ui.label(theme::muted("No worlds yet."));
+                ui.label(theme::muted(I18n::t(lang, "no_worlds")));
                 ui.add_space(8.0);
-                ui.label(theme::small("Launch the game to create one."));
+                ui.label(theme::small(I18n::t(lang, "no_worlds_hint")));
             });
         } else {
             for s in &saves {
@@ -44,7 +44,7 @@ impl MiaoApp {
                         );
                         ui.label(theme::body(&s.name));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.small_button("Del").clicked() {
+                            if ui.small_button(I18n::t(lang, "del")).clicked() {
                                 let _ = s.delete();
                             }
                             if ui.small_button(I18n::t(lang, "open")).clicked() {
@@ -56,11 +56,11 @@ impl MiaoApp {
                             {
                                 let days = elapsed.as_secs() / 86400;
                                 let label = if days == 0 {
-                                    "today".to_string()
+                                    I18n::t(lang, "today").to_string()
                                 } else if days == 1 {
-                                    "yesterday".to_string()
+                                    I18n::t(lang, "yesterday").to_string()
                                 } else {
-                                    format!("{}d ago", days)
+                                    format!("{}{}", days, I18n::t(lang, "days_ago"))
                                 };
                                 ui.label(theme::small(&label));
                             }

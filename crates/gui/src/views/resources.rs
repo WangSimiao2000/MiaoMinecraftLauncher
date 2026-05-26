@@ -28,11 +28,9 @@ impl MiaoApp {
         if packs.is_empty() {
             ui.add_space(20.0);
             ui.vertical_centered(|ui| {
-                ui.label(theme::muted("No resource packs"));
+                ui.label(theme::muted(I18n::t(lang, "no_resource_packs")));
                 ui.add_space(8.0);
-                ui.label(theme::small(
-                    "Drop .zip packs into the resourcepacks folder",
-                ));
+                ui.label(theme::small(I18n::t(lang, "no_resource_packs_hint")));
             });
         } else {
             for p in &packs {
@@ -43,7 +41,7 @@ impl MiaoApp {
                         let kind = if p.path.is_dir() { "folder" } else { "zip" };
                         ui.label(theme::small(&format!("[{}]", kind)));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.small_button("Del").clicked() {
+                            if ui.small_button(I18n::t(lang, "del")).clicked() {
                                 let _ = p.delete();
                             }
                             if !p.path.is_dir()
@@ -71,7 +69,11 @@ impl MiaoApp {
         let shaders = self.file_scan_cache.shaderpacks.clone();
 
         ui.horizontal(|ui| {
-            ui.label(theme::subheading(&format!("Shaders ({})", shaders.len())));
+            ui.label(theme::subheading(&format!(
+                "{} ({})",
+                I18n::t(lang, "shaders"),
+                shaders.len()
+            )));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button(I18n::t(lang, "open")).clicked() {
                     let _ = miao_core::instance::open_folder(&shader_dir);
@@ -83,11 +85,9 @@ impl MiaoApp {
         if shaders.is_empty() {
             ui.add_space(20.0);
             ui.vertical_centered(|ui| {
-                ui.label(theme::muted("No shaders"));
+                ui.label(theme::muted(I18n::t(lang, "no_shaders")));
                 ui.add_space(8.0);
-                ui.label(theme::small(
-                    "Drop shader packs into the shaderpacks folder",
-                ));
+                ui.label(theme::small(I18n::t(lang, "no_shaders_hint")));
             });
         } else {
             for s in &shaders {
@@ -98,7 +98,7 @@ impl MiaoApp {
                         let kind = if s.path.is_dir() { "folder" } else { "zip" };
                         ui.label(theme::small(&format!("[{}]", kind)));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.small_button("Del").clicked() {
+                            if ui.small_button(I18n::t(lang, "del")).clicked() {
                                 let _ = s.delete();
                             }
                             if !s.path.is_dir()
