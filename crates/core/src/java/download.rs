@@ -55,6 +55,15 @@ pub async fn fetch_available_releases(http: &reqwest::Client) -> Result<Availabl
     Ok(releases)
 }
 
+pub fn adoptium_os() -> &'static str {
+    match std::env::consts::OS {
+        "linux" => "linux",
+        "macos" => "mac",
+        "windows" => "windows",
+        other => other,
+    }
+}
+
 pub async fn fetch_latest_asset(
     http: &reqwest::Client,
     major_version: u32,
@@ -65,17 +74,19 @@ pub async fn fetch_latest_asset(
         other => other,
     };
 
+    let os = adoptium_os();
+
     let url = format!(
-        "{}/assets/latest/{}/hotspot?architecture={}&image_type=jre&os=linux",
-        ADOPTIUM_API, major_version, arch
+        "{}/assets/latest/{}/hotspot?architecture={}&image_type=jre&os={}",
+        ADOPTIUM_API, major_version, arch, os
     );
 
     let assets: Vec<AdoptiumAsset> = http.get(&url).send().await?.json().await?;
 
     assets.into_iter().next().ok_or_else(|| {
         crate::error::MiaoError::Other(format!(
-            "No JRE available for Java {} on {}",
-            major_version, arch
+            "No JRE available for Java {} on {}/{}",
+            major_version, os, arch
         ))
     })
 }
@@ -126,10 +137,17 @@ pub async fn download_and_extract_java_with_progress(
     on_progress(DownloadPhase::Extracting);
 
     let extract_dir = dest_dir.clone();
+    let is_windows = std::env::consts::OS == "windows";
     tokio::task::spawn_blocking(move || -> Result<()> {
-        let tar_gz = flate2::read::GzDecoder::new(&all_bytes[..]);
-        let mut archive = tar::Archive::new(tar_gz);
-        archive.unpack(&extract_dir)?;
+        if is_windows {
+            let reader = std::io::Cursor::new(&all_bytes);
+            let mut archive = zip::ZipArchive::new(reader)?;
+            archive.extract(&extract_dir)?;
+        } else {
+            let tar_gz = flate2::read::GzDecoder::new(&all_bytes[..]);
+            let mut archive = tar::Archive::new(tar_gz);
+            archive.unpack(&extract_dir)?;
+        }
         Ok(())
     })
     .await??;
@@ -139,8 +157,9 @@ pub async fn download_and_extract_java_with_progress(
 }
 
 fn find_java_binary(extracted_dir: &Path) -> Result<PathBuf> {
+    let binary_name = super::java_binary_name();
     for entry in std::fs::read_dir(extracted_dir)?.flatten() {
-        let bin_path = entry.path().join("bin/java");
+        let bin_path = entry.path().join("bin").join(binary_name);
         if bin_path.exists() {
             return Ok(bin_path);
         }

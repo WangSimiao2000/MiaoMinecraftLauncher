@@ -25,8 +25,18 @@ pub fn detect_system_java() -> Vec<JavaInstallation> {
 }
 
 pub fn detect_java_with_data_dir(data_dir: &Path) -> Vec<JavaInstallation> {
-    let mut installations =
-        detect_java_in_paths(&["/usr/lib/jvm", "/usr/local/lib/jvm", "/usr/java"]);
+    let search_paths = system_java_search_paths();
+    let mut installations = detect_java_in_paths(&search_paths.iter().map(|s| s.as_str()).collect::<Vec<_>>());
+
+    if let Ok(java_home) = std::env::var("JAVA_HOME") {
+        let java_home_path = PathBuf::from(&java_home);
+        let java_bin = java_home_path.join("bin").join(java_binary_name());
+        if java_bin.exists()
+            && let Ok(info) = probe_java(&java_bin)
+        {
+            installations.push(info);
+        }
+    }
 
     let launcher_java_dir = data_dir.join("java");
     if launcher_java_dir.exists() {
@@ -38,6 +48,32 @@ pub fn detect_java_with_data_dir(data_dir: &Path) -> Vec<JavaInstallation> {
     installations
 }
 
+fn system_java_search_paths() -> Vec<String> {
+    match std::env::consts::OS {
+        "linux" => vec![
+            "/usr/lib/jvm".to_string(),
+            "/usr/local/lib/jvm".to_string(),
+            "/usr/java".to_string(),
+        ],
+        "macos" => vec![
+            "/Library/Java/JavaVirtualMachines".to_string(),
+            "/usr/local/opt/openjdk".to_string(),
+        ],
+        "windows" => vec![
+            "C:\\Program Files\\Java".to_string(),
+            "C:\\Program Files (x86)\\Java".to_string(),
+        ],
+        _ => vec![],
+    }
+}
+
+pub fn java_binary_name() -> &'static str {
+    match std::env::consts::OS {
+        "windows" => "java.exe",
+        _ => "java",
+    }
+}
+
 fn detect_java_recursive(base: &Path) -> Vec<JavaInstallation> {
     let mut installations = Vec::new();
     let Ok(entries) = std::fs::read_dir(base) else {
@@ -46,7 +82,7 @@ fn detect_java_recursive(base: &Path) -> Vec<JavaInstallation> {
 
     for entry in entries.flatten() {
         let path = entry.path();
-        let java_bin = path.join("bin/java");
+        let java_bin = path.join("bin").join(java_binary_name());
         if java_bin.exists() {
             if let Ok(info) = probe_java(&java_bin) {
                 installations.push(info);
@@ -69,7 +105,7 @@ pub fn detect_java_in_paths(search_paths: &[&str]) -> Vec<JavaInstallation> {
 
         if let Ok(entries) = std::fs::read_dir(&base_path) {
             for entry in entries.flatten() {
-                let java_bin = entry.path().join("bin/java");
+                let java_bin = entry.path().join("bin").join(java_binary_name());
                 if java_bin.exists()
                     && let Ok(info) = probe_java(&java_bin)
                 {
