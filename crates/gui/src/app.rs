@@ -439,17 +439,9 @@ impl MiaoApp {
 }
 
 impl eframe::App for MiaoApp {
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        [0.0, 0.0, 0.0, 0.0]
-    }
-
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.drain_events();
         theme::apply_theme(ctx, self.theme_preset);
-
-        let screen = ctx.screen_rect();
-        let painter = ctx.layer_painter(egui::LayerId::background());
-        painter.rect_filled(screen, egui::Rounding::same(10.0), theme::Colors::bg_main());
 
         self.refresh_counter += 1;
         if self.refresh_counter.is_multiple_of(60) {
