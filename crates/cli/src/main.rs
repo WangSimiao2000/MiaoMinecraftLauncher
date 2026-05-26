@@ -184,7 +184,7 @@ async fn main() -> anyhow::Result<()> {
             .await?
         }
         Commands::Launch { instance } => {
-            commands::instance::cmd_launch(&service, &instance).await?
+            commands::instance::cmd_launch(&mut service, &instance).await?
         }
         Commands::Delete { instance } => commands::instance::cmd_delete(&service, &instance)?,
         Commands::Account { username } => commands::instance::cmd_account(&mut service, &username)?,

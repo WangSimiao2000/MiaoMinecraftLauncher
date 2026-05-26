@@ -129,16 +129,11 @@ impl LauncherService {
 
     // ─── Launch ──────────────────────────────────────────────────────────
 
-    pub async fn launch_instance(&self, name: &str) -> Result<Command> {
+    pub async fn launch_instance(&mut self, name: &str) -> Result<Command> {
         let instance_dir = Instance::instance_dir(&self.config.instances_dir(), name);
         let inst = Instance::load_from(&instance_dir)?;
 
-        let account = self
-            .config
-            .accounts
-            .first()
-            .cloned()
-            .unwrap_or_else(|| AuthMethod::Offline(create_offline_account("Player")));
+        let account = self.get_valid_account().await?;
 
         let meta = self.load_version_meta(&inst.minecraft_version)?;
         let required_java = meta.required_java_major();
@@ -166,6 +161,44 @@ impl LauncherService {
         };
 
         build_launch_command(&options)
+    }
+
+    /// Returns a valid account, refreshing the Microsoft token if expired.
+    /// Falls back to offline account if no accounts are configured.
+    pub async fn get_valid_account(&mut self) -> Result<AuthMethod> {
+        use crate::auth::microsoft::MicrosoftAuth;
+        use crate::auth::MS_CLIENT_ID;
+
+        let idx = self.config.active_account_index.unwrap_or(0);
+        let account = self
+            .config
+            .accounts
+            .get(idx)
+            .cloned()
+            .unwrap_or_else(|| AuthMethod::Offline(create_offline_account("Player")));
+
+        match account {
+            AuthMethod::Microsoft(ref ms_acc) if ms_acc.is_expired() => {
+                let auth = MicrosoftAuth::new(MS_CLIENT_ID.to_string());
+                match auth.refresh(ms_acc).await {
+                    Ok(refreshed) => {
+                        let new_auth = AuthMethod::Microsoft(refreshed);
+                        if let Some(stored) = self.config.accounts.get_mut(idx) {
+                            *stored = new_auth.clone();
+                        }
+                        let _ = self.config.save();
+                        Ok(new_auth)
+                    }
+                    Err(e) => Err(crate::error::MiaoError::Auth(
+                        crate::error::AuthError::RefreshFailed(format!(
+                            "Failed to refresh token for '{}': {}",
+                            ms_acc.username, e
+                        )),
+                    )),
+                }
+            }
+            _ => Ok(account),
+        }
     }
 
     // ─── Java ────────────────────────────────────────────────────────────

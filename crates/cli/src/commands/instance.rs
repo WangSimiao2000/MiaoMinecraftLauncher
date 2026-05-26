@@ -85,7 +85,7 @@ pub async fn cmd_new(
     Ok(())
 }
 
-pub async fn cmd_launch(service: &LauncherService, instance_name: &str) -> Result<()> {
+pub async fn cmd_launch(service: &mut LauncherService, instance_name: &str) -> Result<()> {
     println!("Launching {}...", instance_name);
     let mut cmd = service.launch_instance(instance_name).await?;
     let status = cmd.status()?;

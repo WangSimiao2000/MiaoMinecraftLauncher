@@ -4,6 +4,9 @@ pub mod offline;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Microsoft OAuth client ID used for device code flow.
+pub const MS_CLIENT_ID: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AuthMethod {
     Microsoft(MicrosoftAccount),
@@ -17,6 +20,13 @@ pub struct MicrosoftAccount {
     pub access_token: String,
     pub refresh_token: String,
     pub expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl MicrosoftAccount {
+    /// Returns true if the Minecraft access token has expired or will expire within 5 minutes.
+    pub fn is_expired(&self) -> bool {
+        chrono::Utc::now() + chrono::Duration::minutes(5) >= self.expires_at
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
