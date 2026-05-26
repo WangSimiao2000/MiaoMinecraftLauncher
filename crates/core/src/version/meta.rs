@@ -94,7 +94,7 @@ impl VersionMeta {
         let mut allowed = false;
         for rule in rules {
             let matches = match &rule.os {
-                Some(os) => os.name.as_deref() == Some("linux"),
+                Some(os) => os.name.as_deref() == Some(current_os_name()),
                 None => true,
             };
             if matches {
@@ -102,6 +102,15 @@ impl VersionMeta {
             }
         }
         allowed
+    }
+}
+
+pub fn current_os_name() -> &'static str {
+    match std::env::consts::OS {
+        "linux" => "linux",
+        "macos" => "osx",
+        "windows" => "windows",
+        other => other,
     }
 }
 

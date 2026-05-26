@@ -33,7 +33,7 @@ impl Default for LauncherConfig {
             .map(|d| d.join("mmcl-data"))
             .unwrap_or_else(|| {
                 dirs::data_dir()
-                    .unwrap_or_else(|| PathBuf::from("~/.local/share"))
+                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
                     .join("miao-minecraft-launcher")
             });
 
@@ -51,7 +51,7 @@ impl Default for LauncherConfig {
 impl LauncherConfig {
     pub fn config_path() -> PathBuf {
         dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("~/.config"))
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
             .join("miao-minecraft-launcher")
             .join("config.toml")
     }
