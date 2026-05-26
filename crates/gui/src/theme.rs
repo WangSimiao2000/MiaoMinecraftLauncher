@@ -344,60 +344,91 @@ impl ThemeColors for ThemePreset {
     }
 }
 
-pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
-    ACTIVE_PALETTE.with(|p| {
-        *p.borrow_mut() = Palette::for_preset(preset);
-    });
+/// Build the [`egui::Visuals`] for a palette.
+///
+/// Always starts from [`egui::Visuals::dark`] so that platform-default fields
+/// (notably on Windows under a light system theme) cannot bleed into the UI.
+fn build_visuals(pal: &Palette) -> egui::Visuals {
+    let mut visuals = egui::Visuals::dark();
 
-    let pal = Palette::for_preset(preset);
-    let mut style = (*ctx.style()).clone();
+    // Per-state widget visuals.
+    let widgets = &mut visuals.widgets;
 
-    style.spacing.item_spacing = Spacing::ITEM;
-    style.spacing.interact_size = Spacing::INTERACT_SIZE;
-    style.spacing.button_padding = Spacing::BUTTON_PADDING;
-    style.spacing.window_margin = Spacing::WINDOW_MARGIN;
+    widgets.noninteractive.bg_fill = pal.bg_main;
+    widgets.noninteractive.weak_bg_fill = pal.bg_main;
+    widgets.noninteractive.fg_stroke = Stroke::new(1.0, pal.text_secondary);
 
-    style.visuals.widgets.inactive.rounding = Radii::WIDGET;
-    style.visuals.widgets.hovered.rounding = Radii::WIDGET;
-    style.visuals.widgets.active.rounding = Radii::WIDGET;
+    widgets.inactive.bg_fill = pal.bg_widget;
+    widgets.inactive.weak_bg_fill = pal.bg_widget;
+    widgets.inactive.fg_stroke = Stroke::new(1.0, pal.text_primary);
+    widgets.inactive.rounding = Radii::WIDGET;
 
-    style.visuals.widgets.inactive.bg_fill = pal.bg_widget;
-    style.visuals.widgets.hovered.bg_fill = pal.bg_widget_hover;
-    style.visuals.widgets.active.bg_fill = pal.accent;
+    widgets.hovered.bg_fill = pal.bg_widget_hover;
+    widgets.hovered.weak_bg_fill = pal.bg_widget_hover;
+    widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+    widgets.hovered.rounding = Radii::WIDGET;
 
-    style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, pal.text_primary);
-    style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
-    style.visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
+    widgets.active.bg_fill = pal.accent;
+    widgets.active.weak_bg_fill = pal.accent;
+    widgets.active.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+    widgets.active.rounding = Radii::WIDGET;
 
-    style.visuals.selection.bg_fill = pal.accent;
-    style.visuals.selection.stroke = Stroke::new(1.0_f32, Color32::WHITE);
+    widgets.open.bg_fill = pal.bg_widget_hover;
+    widgets.open.weak_bg_fill = pal.bg_widget_hover;
+    widgets.open.fg_stroke = Stroke::new(1.0, pal.text_primary);
 
-    style.visuals.window_rounding = Radii::WINDOW;
-    style.visuals.window_shadow = egui::epaint::Shadow {
+    // Text & links.
+    visuals.override_text_color = Some(pal.text_primary);
+    visuals.hyperlink_color = pal.accent_light;
+    visuals.code_bg_color = pal.bg_dark;
+
+    // Selection.
+    visuals.selection.bg_fill = pal.accent;
+    visuals.selection.stroke = Stroke::new(1.0, Color32::WHITE);
+
+    // Surfaces.
+    visuals.panel_fill = pal.bg_main;
+    visuals.window_fill = pal.bg_elevated;
+    visuals.window_stroke = Stroke::new(1.0, pal.accent.gamma_multiply(0.3));
+    visuals.window_rounding = Radii::WINDOW;
+    visuals.extreme_bg_color = pal.bg_dark;
+    visuals.faint_bg_color = pal.bg_elevated;
+
+    // Shadows.
+    visuals.window_shadow = egui::epaint::Shadow {
         offset: Vec2::new(0.0, 4.0),
         blur: 12.0,
         spread: 0.0,
         color: Color32::from_black_alpha(60),
     };
-
-    style.visuals.panel_fill = pal.bg_main;
-    style.visuals.extreme_bg_color = pal.bg_dark;
-    style.visuals.faint_bg_color = pal.bg_elevated;
-
-    style.visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);
-    style.visuals.slider_trailing_fill = true;
-
-    style.visuals.window_fill = pal.bg_elevated;
-    style.visuals.window_stroke = Stroke::new(1.0, pal.accent.gamma_multiply(0.3));
-
-    style.visuals.popup_shadow = egui::epaint::Shadow {
+    visuals.popup_shadow = egui::epaint::Shadow {
         offset: Vec2::new(0.0, 8.0),
         blur: 24.0,
         spread: 2.0,
         color: Color32::from_black_alpha(100),
     };
 
-    style.animation_time = 0.15;
+    // Misc.
+    visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);
+    visuals.slider_trailing_fill = true;
 
-    ctx.set_style(style);
+    visuals
+}
+
+/// Apply layout-related (non-visual) tweaks to the global style.
+fn apply_layout(style: &mut egui::Style) {
+    style.spacing.item_spacing = Spacing::ITEM;
+    style.spacing.interact_size = Spacing::INTERACT_SIZE;
+    style.spacing.button_padding = Spacing::BUTTON_PADDING;
+    style.spacing.window_margin = Spacing::WINDOW_MARGIN;
+    style.animation_time = 0.15;
+}
+
+pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
+    let pal = Palette::for_preset(preset);
+
+    ACTIVE_PALETTE.with(|p| *p.borrow_mut() = pal);
+
+    ctx.set_visuals(build_visuals(&pal));
+    ctx.style_mut(apply_layout);
 }

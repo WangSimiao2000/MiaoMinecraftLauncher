@@ -14,6 +14,13 @@ pub mod widgets;
 use anyhow::Result;
 
 fn main() -> Result<()> {
+    // On Windows, ensure the process is per-monitor DPI aware so that winit
+    // reads the correct scale factor from the OS instead of getting a
+    // bitmap-stretched window (which appears blurry on HiDPI displays).
+    // This is a no-op on non-Windows platforms.
+    #[cfg(target_os = "windows")]
+    enable_windows_dpi_awareness();
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([960.0, 640.0])
@@ -68,4 +75,24 @@ fn main() -> Result<()> {
     .map_err(|e| anyhow::anyhow!("eframe error: {}", e))?;
 
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn enable_windows_dpi_awareness() {
+    // Use the Win32 API directly to avoid pulling in an extra dep. Calling
+    // SetProcessDpiAwarenessContext with PER_MONITOR_AWARE_V2 must happen
+    // before any window is created. Failures are non-fatal: an older Windows
+    // build that doesn't support v2 will fall back to the manifest default.
+    use std::ffi::c_void;
+
+    type DpiContext = *mut c_void;
+    const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2: DpiContext = -4_isize as DpiContext;
+
+    unsafe extern "system" {
+        fn SetProcessDpiAwarenessContext(value: DpiContext) -> i32;
+    }
+
+    unsafe {
+        let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
 }
