@@ -10,6 +10,7 @@ use tokio::sync::mpsc;
 use crate::messages::AppEvent;
 
 pub fn handle_create_instance(
+    task_id: String,
     ver: VersionInfo,
     name: String,
     loader: Option<(String, String)>,
@@ -23,6 +24,7 @@ pub fn handle_create_instance(
         ctx.request_repaint();
 
         let result = do_create_instance(
+            &task_id,
             &ver,
             &name,
             loader.as_ref().map(|(lt, lv)| (lt.as_str(), lv.as_str())),
@@ -36,12 +38,14 @@ pub fn handle_create_instance(
         match result {
             Ok(_) => {
                 let _ = tx.send(AppEvent::InstallFinished {
+                    task_id,
                     success: true,
                     message: format!("✓ '{}' created!", name),
                 });
             }
             Err(e) => {
                 let _ = tx.send(AppEvent::InstallFinished {
+                    task_id,
                     success: false,
                     message: format!("✗ Failed: {}", e),
                 });
@@ -103,6 +107,7 @@ pub fn handle_export_instance(
 }
 
 pub fn handle_import_mrpack(
+    task_id: String,
     config: LauncherConfig,
     tx: mpsc::UnboundedSender<AppEvent>,
     ctx: Context,
@@ -115,6 +120,11 @@ pub fn handle_import_mrpack(
 
         let Some(mrpack_path) = file else {
             let _ = tx.send(AppEvent::ImportResult {
+                success: false,
+                message: "Import cancelled.".to_string(),
+            });
+            let _ = tx.send(AppEvent::InstallFinished {
+                task_id,
                 success: false,
                 message: "Import cancelled.".to_string(),
             });
@@ -140,18 +150,30 @@ pub fn handle_import_mrpack(
                         .as_ref()
                         .map(|l| format!(" + {} {}", l.loader_type, l.version))
                         .unwrap_or_default();
+                    let msg = format!(
+                        "✓ Imported '{}' (MC {}{})",
+                        inst.name, inst.minecraft_version, loader_info
+                    );
                     let _ = tx.send(AppEvent::ImportResult {
                         success: true,
-                        message: format!(
-                            "✓ Imported '{}' (MC {}{})",
-                            inst.name, inst.minecraft_version, loader_info
-                        ),
+                        message: msg.clone(),
+                    });
+                    let _ = tx.send(AppEvent::InstallFinished {
+                        task_id,
+                        success: true,
+                        message: msg,
                     });
                 }
                 Err(e) => {
+                    let msg = format!("✗ Import failed: {}", e);
                     let _ = tx.send(AppEvent::ImportResult {
                         success: false,
-                        message: format!("✗ Import failed: {}", e),
+                        message: msg.clone(),
+                    });
+                    let _ = tx.send(AppEvent::InstallFinished {
+                        task_id,
+                        success: false,
+                        message: msg,
                     });
                 }
             }
@@ -163,21 +185,53 @@ pub fn handle_import_mrpack(
 fn stream_game_process(
     _idx: usize,
     instance: Instance,
-    config: LauncherConfig,
+    mut config: LauncherConfig,
     tx: mpsc::UnboundedSender<AppEvent>,
     ctx: Context,
 ) {
     use miao_core::auth::AuthMethod;
+    use miao_core::auth::microsoft::MicrosoftAuth;
     use miao_core::auth::offline::create_offline_account;
+    use miao_core::auth::MS_CLIENT_ID;
     use miao_core::java;
     use miao_core::launch::{LaunchOptions, build_launch_command};
     use std::io::BufRead;
 
+    let idx = config.active_account_index.unwrap_or(0);
     let account = config
         .accounts
-        .first()
+        .get(idx)
         .cloned()
         .unwrap_or_else(|| AuthMethod::Offline(create_offline_account("Player")));
+
+    let account = match &account {
+        AuthMethod::Microsoft(ms_acc) if ms_acc.is_expired() => {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let auth = MicrosoftAuth::new(MS_CLIENT_ID.to_string());
+            match rt.block_on(auth.refresh(ms_acc)) {
+                Ok(refreshed) => {
+                    let new_auth = AuthMethod::Microsoft(refreshed);
+                    if let Some(stored) = config.accounts.get_mut(idx) {
+                        *stored = new_auth.clone();
+                    }
+                    let _ = config.save();
+                    new_auth
+                }
+                Err(e) => {
+                    let _ = tx.send(AppEvent::Error(format!(
+                        "Token refresh failed for '{}': {}. Please re-login.",
+                        ms_acc.username, e
+                    )));
+                    ctx.request_repaint();
+                    return;
+                }
+            }
+        }
+        _ => account,
+    };
 
     let java_installations = java::detect_java_with_data_dir(&config.data_dir);
     let meta_path = config
@@ -303,6 +357,7 @@ fn stream_game_process(
 }
 
 async fn do_create_instance(
+    task_id: &str,
     ver: &VersionInfo,
     instance_name: &str,
     loader: Option<(&str, &str)>,
@@ -322,6 +377,7 @@ async fn do_create_instance(
         miao_core::version::install::all_download_tasks(&meta, config, &config.download_mirror);
 
     let _ = tx.send(AppEvent::InstallProgress {
+        task_id: task_id.to_string(),
         completed: 0,
         total: tasks.len(),
         label: "Downloading libraries".to_string(),
@@ -330,12 +386,14 @@ async fn do_create_instance(
 
     let tx_cb = tx.clone();
     let ctx_cb = ctx.clone();
+    let task_id_cb = task_id.to_string();
     let dm = DownloadManager::new(
         config.download_mirror.clone(),
         config.max_concurrent_downloads,
     )
     .with_progress_callback(Arc::new(move |p| {
         let _ = tx_cb.send(AppEvent::InstallProgress {
+            task_id: task_id_cb.clone(),
             completed: p.completed_files,
             total: p.total_files,
             label: "Downloading libraries".to_string(),
@@ -358,6 +416,7 @@ async fn do_create_instance(
         );
 
         let _ = tx.send(AppEvent::InstallProgress {
+            task_id: task_id.to_string(),
             completed: 0,
             total: asset_tasks.len(),
             label: "Downloading assets".to_string(),
@@ -366,12 +425,14 @@ async fn do_create_instance(
 
         let tx_cb2 = tx.clone();
         let ctx_cb2 = ctx.clone();
+        let task_id_cb2 = task_id.to_string();
         let dm2 = DownloadManager::new(
             config.download_mirror.clone(),
             config.max_concurrent_downloads,
         )
         .with_progress_callback(Arc::new(move |p| {
             let _ = tx_cb2.send(AppEvent::InstallProgress {
+                task_id: task_id_cb2.clone(),
                 completed: p.completed_files,
                 total: p.total_files,
                 label: "Downloading assets".to_string(),
