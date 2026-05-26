@@ -208,3 +208,4 @@ main.rs (入口)
 | Dead code 清理 (theme.rs) | ⬜ | 启用或删除 7 个 unused 项 |
 | MS_CLIENT_ID 环境变量化 | ⬜ | 安全性改善 |
 | 日志系统 (tracing) | ⬜ | GUI 目前无结构化日志 |
+| 升级 eframe 0.30 → 0.34+ | ⬜ | wgpu 后端支持 Wayland 窗口透明/圆角；egui/egui_extras/egui_glow 需同步升级；预计 50-100 行 breaking changes 适配 |
