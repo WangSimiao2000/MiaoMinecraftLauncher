@@ -238,10 +238,10 @@ fn extract_involved_mods(content: &str) -> Vec<String> {
                 continue;
             }
             let trimmed = line.trim();
-            if !trimmed.is_empty() {
-                if let Some(mod_name) = extract_mod_name_from_list_line(trimmed) {
-                    mods.push(mod_name);
-                }
+            if !trimmed.is_empty()
+                && let Some(mod_name) = extract_mod_name_from_list_line(trimmed)
+            {
+                mods.push(mod_name);
             }
         }
     }
@@ -365,10 +365,7 @@ fn extract_mod_from_mixin_error(line: &str) -> Option<String> {
     }
     if let Some(idx) = line.find(".mixins.json") {
         let before = &line[..idx];
-        let start = before
-            .rfind(|c: char| c == '(' || c == ' ' || c == '/')
-            .map(|i| i + 1)
-            .unwrap_or(0);
+        let start = before.rfind(['(', ' ', '/']).map(|i| i + 1).unwrap_or(0);
         return Some(before[start..].to_string());
     }
     None
@@ -376,19 +373,19 @@ fn extract_mod_from_mixin_error(line: &str) -> Option<String> {
 
 fn extract_mod_from_log_line(line: &str) -> Option<String> {
     // Pattern: "[modname/ERROR]" or "[modname]: ERROR"
-    if let Some(start) = line.find('[') {
-        if let Some(end) = line[start..].find(']') {
-            let bracket_content = &line[start + 1..start + end];
-            let parts: Vec<&str> = bracket_content.split('/').collect();
-            if parts.len() >= 2 {
-                let candidate = parts[0].trim();
-                if !candidate.is_empty()
-                    && candidate != "main"
-                    && candidate != "Server thread"
-                    && candidate != "Render thread"
-                {
-                    return Some(candidate.to_string());
-                }
+    if let Some(start) = line.find('[')
+        && let Some(end) = line[start..].find(']')
+    {
+        let bracket_content = &line[start + 1..start + end];
+        let parts: Vec<&str> = bracket_content.split('/').collect();
+        if parts.len() >= 2 {
+            let candidate = parts[0].trim();
+            if !candidate.is_empty()
+                && candidate != "main"
+                && candidate != "Server thread"
+                && candidate != "Render thread"
+            {
+                return Some(candidate.to_string());
             }
         }
     }

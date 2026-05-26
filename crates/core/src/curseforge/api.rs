@@ -202,10 +202,10 @@ impl CurseForgeClient {
         if let Some(mc) = mc_version {
             params.push(format!("gameVersion={}", mc));
         }
-        if let Some(l) = loader {
-            if let Some(loader_type) = loader_to_cf_type(l) {
-                params.push(format!("modLoaderType={}", loader_type));
-            }
+        if let Some(l) = loader
+            && let Some(loader_type) = loader_to_cf_type(l)
+        {
+            params.push(format!("modLoaderType={}", loader_type));
         }
 
         let url = format!("{}/mods/search?{}", CF_API_BASE, params.join("&"));
@@ -234,10 +234,10 @@ impl CurseForgeClient {
         if let Some(mc) = mc_version {
             params.push(format!("gameVersion={}", mc));
         }
-        if let Some(l) = loader {
-            if let Some(loader_type) = loader_to_cf_type(l) {
-                params.push(format!("modLoaderType={}", loader_type));
-            }
+        if let Some(l) = loader
+            && let Some(loader_type) = loader_to_cf_type(l)
+        {
+            params.push(format!("modLoaderType={}", loader_type));
         }
 
         let url = format!("{}/mods/{}/files?{}", CF_API_BASE, mod_id, params.join("&"));
