@@ -7,20 +7,6 @@ use crate::theme::{self, ThemeColors};
 
 impl MiaoApp {
     pub fn render_settings_page(&mut self, ui: &mut egui::Ui) {
-        let lang = self.language;
-
-        ui.horizontal(|ui| {
-            ui.label(theme::heading(I18n::t(lang, "settings")));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(I18n::t(lang, "back")).clicked() {
-                    self.nav_stack.pop();
-                }
-            });
-        });
-        ui.add_space(8.0);
-        ui.separator();
-        ui.add_space(8.0);
-
         egui::SidePanel::left("settings_nav")
             .resizable(false)
             .exact_width(140.0)

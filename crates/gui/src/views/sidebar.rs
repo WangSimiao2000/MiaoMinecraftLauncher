@@ -62,15 +62,24 @@ impl MiaoApp {
                     let (rect, response) =
                         ui.allocate_exact_size(egui::vec2(btn_width, 32.0), egui::Sense::click());
 
-                    if response.hovered() {
-                        ui.painter().rect_filled(
-                            rect,
-                            egui::Rounding::same(4.0),
-                            theme::Colors::bg_widget_hover(),
-                        );
+                    let is_active = matches!(self.nav_stack.current(), Page::Settings);
+
+                    let bg_color = if is_active {
+                        theme::Colors::bg_widget_active().gamma_multiply(0.3)
+                    } else if response.hovered() {
+                        theme::Colors::bg_widget_hover()
+                    } else {
+                        egui::Color32::TRANSPARENT
+                    };
+
+                    if bg_color != egui::Color32::TRANSPARENT {
+                        ui.painter()
+                            .rect_filled(rect, egui::Rounding::same(4.0), bg_color);
                     }
 
-                    let text_color = if response.hovered() {
+                    let text_color = if is_active {
+                        theme::Colors::accent_light()
+                    } else if response.hovered() {
                         theme::Colors::text_primary()
                     } else {
                         theme::Colors::text_secondary()
@@ -85,7 +94,11 @@ impl MiaoApp {
                     );
 
                     if response.clicked() {
-                        self.nav_stack.push(Page::Settings);
+                        if is_active {
+                            self.nav_stack.pop();
+                        } else {
+                            self.nav_stack.push(Page::Settings);
+                        }
                     }
 
                     ui.add_space(4.0);
