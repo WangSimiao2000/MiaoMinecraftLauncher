@@ -26,6 +26,14 @@ pub use crate::state::{
 use crate::theme;
 use crate::toast::ToastQueue;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WindowButton {
+    Close,
+    Maximize,
+    Restore,
+    Minimize,
+}
+
 pub use miao_core::auth::MS_CLIENT_ID;
 
 pub struct MiaoApp {
@@ -528,81 +536,56 @@ impl MiaoApp {
         let lang = self.language;
         ui.set_min_height(30.0);
 
-        let title_bar_rect = ui.max_rect();
-        let drag_response = ui.allocate_rect(title_bar_rect, egui::Sense::click_and_drag());
+        ui.horizontal_centered(|ui| {
+            if is_settings {
+                if ui.button(I18n::t(lang, "back")).clicked() {
+                    self.nav_stack.pop();
+                }
+                ui.add_space(8.0);
+                ui.label(theme::heading(I18n::t(lang, "settings")));
+            } else {
+                ui.label(theme::heading("MMCL"));
+                ui.add_space(8.0);
+                ui.label(theme::small("MiaoMinecraftLauncher"));
+            }
 
-        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(title_bar_rect), |ui| {
-            ui.horizontal_centered(|ui| {
-                if is_settings {
-                    if ui.button(I18n::t(lang, "back")).clicked() {
-                        self.nav_stack.pop();
-                    }
-                    ui.add_space(8.0);
-                    ui.label(theme::heading(I18n::t(lang, "settings")));
-                } else {
-                    ui.label(theme::heading("MMCL"));
-                    ui.add_space(8.0);
-                    ui.label(theme::small("MiaoMinecraftLauncher"));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+
+                if Self::window_control_button(ui, WindowButton::Close).clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
 
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing.x = 2.0;
-                    let btn_size = egui::vec2(36.0, 22.0);
+                let is_maximized = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
+                if Self::window_control_button(
+                    ui,
+                    if is_maximized {
+                        WindowButton::Restore
+                    } else {
+                        WindowButton::Maximize
+                    },
+                )
+                .clicked()
+                {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                }
 
-                    if ui
-                        .add_sized(
-                            btn_size,
-                            egui::Button::new(
-                                egui::RichText::new("✕")
-                                    .size(13.0)
-                                    .color(theme::Colors::text_primary()),
-                            ),
-                        )
-                        .clicked()
-                    {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                    }
+                if Self::window_control_button(ui, WindowButton::Minimize).clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                }
 
-                    let is_maximized = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
-                    let max_icon = if is_maximized { "❐" } else { "□" };
-                    if ui
-                        .add_sized(
-                            btn_size,
-                            egui::Button::new(
-                                egui::RichText::new(max_icon)
-                                    .size(13.0)
-                                    .color(theme::Colors::text_primary()),
-                            ),
-                        )
-                        .clicked()
-                    {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                if !is_settings {
+                    ui.add_space(12.0);
+                    if ui.button(I18n::t(lang, "settings")).clicked() {
+                        self.nav_stack.push(Page::Settings);
                     }
-
-                    if ui
-                        .add_sized(
-                            btn_size,
-                            egui::Button::new(
-                                egui::RichText::new("─")
-                                    .size(13.0)
-                                    .color(theme::Colors::text_primary()),
-                            ),
-                        )
-                        .clicked()
-                    {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                    }
-
-                    if !is_settings {
-                        ui.add_space(12.0);
-                        if ui.button(I18n::t(lang, "settings")).clicked() {
-                            self.nav_stack.push(Page::Settings);
-                        }
-                    }
-                });
+                }
             });
         });
 
+        let title_rect = ui.min_rect();
+        let drag_response =
+            ui.interact(title_rect, egui::Id::new("title_drag"), egui::Sense::drag());
         if drag_response.drag_started_by(egui::PointerButton::Primary) {
             ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
         }
@@ -610,6 +593,77 @@ impl MiaoApp {
             let is_max = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
         }
+    }
+
+    fn window_control_button(ui: &mut egui::Ui, button: WindowButton) -> egui::Response {
+        let size = egui::vec2(46.0, 28.0);
+        let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+
+        let hover_color = match button {
+            WindowButton::Close => egui::Color32::from_rgb(196, 43, 28),
+            _ => theme::Colors::bg_widget_hover(),
+        };
+
+        if response.hovered() {
+            ui.painter()
+                .rect_filled(rect, egui::Rounding::ZERO, hover_color);
+        }
+
+        let icon_color = if response.hovered() && button == WindowButton::Close {
+            egui::Color32::WHITE
+        } else {
+            theme::Colors::text_secondary()
+        };
+
+        let center = rect.center();
+        let painter = ui.painter();
+        let stroke = egui::Stroke::new(1.2, icon_color);
+
+        match button {
+            WindowButton::Close => {
+                let d = 5.0;
+                painter.line_segment(
+                    [center - egui::vec2(d, d), center + egui::vec2(d, d)],
+                    stroke,
+                );
+                painter.line_segment(
+                    [center + egui::vec2(-d, d), center + egui::vec2(d, -d)],
+                    stroke,
+                );
+            }
+            WindowButton::Maximize => {
+                let d = 5.0;
+                painter.rect_stroke(
+                    egui::Rect::from_center_size(center, egui::vec2(d * 2.0, d * 2.0)),
+                    egui::Rounding::ZERO,
+                    stroke,
+                );
+            }
+            WindowButton::Restore => {
+                let d = 4.5;
+                let offset = 2.0;
+                let back = egui::Rect::from_min_size(
+                    center + egui::vec2(-d + offset, -d - offset),
+                    egui::vec2(d * 2.0 - offset, d * 2.0 - offset),
+                );
+                painter.rect_stroke(back, egui::Rounding::ZERO, stroke);
+                let front = egui::Rect::from_min_size(
+                    center + egui::vec2(-d, -d + offset),
+                    egui::vec2(d * 2.0 - offset, d * 2.0 - offset),
+                );
+                painter.rect_filled(front, egui::Rounding::ZERO, theme::Colors::bg_dark());
+                painter.rect_stroke(front, egui::Rounding::ZERO, stroke);
+            }
+            WindowButton::Minimize => {
+                let d = 5.0;
+                painter.line_segment(
+                    [center + egui::vec2(-d, 0.0), center + egui::vec2(d, 0.0)],
+                    stroke,
+                );
+            }
+        }
+
+        response
     }
 }
 
