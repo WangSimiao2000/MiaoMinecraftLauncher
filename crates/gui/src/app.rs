@@ -208,13 +208,20 @@ impl MiaoApp {
                     label,
                 } => {
                     self.active_installs.insert(task_id.clone());
-                    self.install_progress.insert(task_id, InstallProgress {
-                        completed,
-                        total,
-                        label,
-                    });
+                    self.install_progress.insert(
+                        task_id,
+                        InstallProgress {
+                            completed,
+                            total,
+                            label,
+                        },
+                    );
                 }
-                AppEvent::InstallFinished { task_id, success, message } => {
+                AppEvent::InstallFinished {
+                    task_id,
+                    success,
+                    message,
+                } => {
                     self.active_installs.remove(&task_id);
                     self.install_progress.remove(&task_id);
                     self.status = message;
@@ -351,7 +358,10 @@ impl eframe::App for MiaoApp {
                         let text = if task_count > 1 {
                             format!(
                                 "{} ({}/{}) [+{} tasks]",
-                                progress.label, progress.completed, progress.total, task_count - 1
+                                progress.label,
+                                progress.completed,
+                                progress.total,
+                                task_count - 1
                             )
                         } else {
                             format!(

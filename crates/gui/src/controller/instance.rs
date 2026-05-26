@@ -191,9 +191,9 @@ fn stream_game_process(
     ctx: Context,
 ) {
     use miao_core::auth::AuthMethod;
+    use miao_core::auth::MS_CLIENT_ID;
     use miao_core::auth::microsoft::MicrosoftAuth;
     use miao_core::auth::offline::create_offline_account;
-    use miao_core::auth::MS_CLIENT_ID;
     use miao_core::java;
     use miao_core::launch::{LaunchOptions, build_launch_command};
     use std::io::BufRead;

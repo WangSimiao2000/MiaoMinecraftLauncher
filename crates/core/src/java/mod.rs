@@ -26,7 +26,8 @@ pub fn detect_system_java() -> Vec<JavaInstallation> {
 
 pub fn detect_java_with_data_dir(data_dir: &Path) -> Vec<JavaInstallation> {
     let search_paths = system_java_search_paths();
-    let mut installations = detect_java_in_paths(&search_paths.iter().map(|s| s.as_str()).collect::<Vec<_>>());
+    let mut installations =
+        detect_java_in_paths(&search_paths.iter().map(|s| s.as_str()).collect::<Vec<_>>());
 
     if let Ok(java_home) = std::env::var("JAVA_HOME") {
         let java_home_path = PathBuf::from(&java_home);

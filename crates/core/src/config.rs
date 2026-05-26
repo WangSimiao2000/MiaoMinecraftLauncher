@@ -33,7 +33,9 @@ impl Default for LauncherConfig {
             .map(|d| d.join("mmcl-data"))
             .unwrap_or_else(|| {
                 dirs::data_dir()
-                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+                    .unwrap_or_else(|| {
+                        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+                    })
                     .join("miao-minecraft-launcher")
             });
 

@@ -166,8 +166,8 @@ impl LauncherService {
     /// Returns a valid account, refreshing the Microsoft token if expired.
     /// Falls back to offline account if no accounts are configured.
     pub async fn get_valid_account(&mut self) -> Result<AuthMethod> {
-        use crate::auth::microsoft::MicrosoftAuth;
         use crate::auth::MS_CLIENT_ID;
+        use crate::auth::microsoft::MicrosoftAuth;
 
         let idx = self.config.active_account_index.unwrap_or(0);
         let account = self

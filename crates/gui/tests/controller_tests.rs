@@ -122,7 +122,9 @@ fn check_for_updates_produces_event_or_nothing() {
 fn cancel_task_when_no_active_task_is_noop() {
     let (rt, mut controller) = setup();
 
-    controller.send(AppCommand::CancelTask { task_id: "nonexistent".to_string() });
+    controller.send(AppCommand::CancelTask {
+        task_id: "nonexistent".to_string(),
+    });
 
     rt.block_on(async { tokio::time::sleep(Duration::from_millis(200)).await });
     let event = controller.try_recv();
