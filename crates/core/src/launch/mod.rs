@@ -53,6 +53,10 @@ pub fn build_launch_command(options: &LaunchOptions) -> Result<Command> {
 }
 
 fn build_classpath(options: &LaunchOptions) -> Result<String> {
+    build_classpath_for_os(options, super::version::meta::current_os_name())
+}
+
+fn build_classpath_for_os(options: &LaunchOptions, os: &str) -> Result<String> {
     let mut paths: Vec<String> = Vec::new();
 
     if let Some(loader) = &options.instance.mod_loader {
@@ -62,7 +66,7 @@ fn build_classpath(options: &LaunchOptions) -> Result<String> {
     }
 
     for lib in &options.version_meta.libraries {
-        if !VersionMeta::is_library_allowed(lib) {
+        if !VersionMeta::is_library_allowed_for_os(lib, os) {
             continue;
         }
         if lib.natives.is_some()
@@ -89,7 +93,11 @@ fn build_classpath(options: &LaunchOptions) -> Result<String> {
         .join(format!("{}.jar", options.version_meta.id));
     paths.push(client_jar.to_string_lossy().to_string());
 
-    Ok(paths.join(":"))
+    // Windows uses ';' as the classpath separator, every other platform uses
+    // ':'. Hard-coding ':' would also break on Windows because absolute paths
+    // contain a drive-letter colon (e.g. C:\...).
+    let separator = if os == "windows" { ";" } else { ":" };
+    Ok(paths.join(separator))
 }
 
 fn build_game_args(options: &LaunchOptions) -> Result<Vec<String>> {
@@ -259,7 +267,7 @@ mod tests {
     #[test]
     fn build_classpath_includes_allowed_libs() {
         let options = make_test_options(false);
-        let cp = build_classpath(&options).unwrap();
+        let cp = build_classpath_for_os(&options, "linux").unwrap();
 
         assert!(cp.contains("authlib-3.16.jar"));
         assert!(!cp.contains("windows/only.jar"));
@@ -269,8 +277,18 @@ mod tests {
     #[test]
     fn build_classpath_uses_colon_separator() {
         let options = make_test_options(false);
-        let cp = build_classpath(&options).unwrap();
+        let cp = build_classpath_for_os(&options, "linux").unwrap();
         assert!(cp.contains(':'));
+    }
+
+    #[test]
+    fn build_classpath_uses_semicolon_on_windows() {
+        let options = make_test_options(false);
+        let cp = build_classpath_for_os(&options, "windows").unwrap();
+        // Must contain ';' (the windows-correct separator) and must NOT contain
+        // any ':' inside path entries from the test fixture, which uses
+        // unix-style paths only.
+        assert!(cp.contains(';'));
     }
 
     #[test]

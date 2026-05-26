@@ -21,10 +21,22 @@ pub fn collect_library_downloads(
     config: &LauncherConfig,
     mirror: &DownloadMirror,
 ) -> Vec<DownloadTask> {
+    collect_library_downloads_for_os(meta, config, mirror, super::meta::current_os_name())
+}
+
+/// OS-parameterized variant. Production callers should use
+/// [`collect_library_downloads`]; tests use this directly so behaviour does
+/// not depend on which platform runs the test suite.
+pub fn collect_library_downloads_for_os(
+    meta: &VersionMeta,
+    config: &LauncherConfig,
+    mirror: &DownloadMirror,
+    os: &str,
+) -> Vec<DownloadTask> {
     let mut tasks = Vec::new();
 
     for lib in &meta.libraries {
-        if !VersionMeta::is_library_allowed(lib) {
+        if !VersionMeta::is_library_allowed_for_os(lib, os) {
             continue;
         }
 
@@ -327,7 +339,8 @@ mod tests {
         };
 
         let config = LauncherConfig::default();
-        let tasks = collect_library_downloads(&meta, &config, &DownloadMirror::Official);
+        let tasks =
+            collect_library_downloads_for_os(&meta, &config, &DownloadMirror::Official, "linux");
 
         assert_eq!(tasks.len(), 1);
         assert!(tasks[0].url.contains("authlib"));

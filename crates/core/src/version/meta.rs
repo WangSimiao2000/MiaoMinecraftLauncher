@@ -99,6 +99,13 @@ impl VersionMeta {
     }
 
     pub fn is_library_allowed(library: &Library) -> bool {
+        Self::is_library_allowed_for_os(library, current_os_name())
+    }
+
+    /// OS-parameterized variant used both internally by [`is_library_allowed`]
+    /// and by tests, so the test results don't depend on which platform runs
+    /// the test suite.
+    pub fn is_library_allowed_for_os(library: &Library, os: &str) -> bool {
         let Some(rules) = &library.rules else {
             return true;
         };
@@ -106,7 +113,7 @@ impl VersionMeta {
         let mut allowed = false;
         for rule in rules {
             let matches = match &rule.os {
-                Some(os) => os.name.as_deref() == Some(current_os_name()),
+                Some(rule_os) => rule_os.name.as_deref() == Some(os),
                 None => true,
             };
             if matches {
@@ -157,7 +164,7 @@ mod tests {
                 }),
             }]),
         );
-        assert!(VersionMeta::is_library_allowed(&lib));
+        assert!(VersionMeta::is_library_allowed_for_os(&lib, "linux"));
     }
 
     #[test]
@@ -171,7 +178,7 @@ mod tests {
                 }),
             }]),
         );
-        assert!(!VersionMeta::is_library_allowed(&lib));
+        assert!(!VersionMeta::is_library_allowed_for_os(&lib, "linux"));
     }
 
     #[test]
@@ -191,7 +198,7 @@ mod tests {
                 },
             ]),
         );
-        assert!(VersionMeta::is_library_allowed(&lib));
+        assert!(VersionMeta::is_library_allowed_for_os(&lib, "linux"));
     }
 
     #[test]
@@ -211,7 +218,7 @@ mod tests {
                 },
             ]),
         );
-        assert!(!VersionMeta::is_library_allowed(&lib));
+        assert!(!VersionMeta::is_library_allowed_for_os(&lib, "linux"));
     }
 
     #[test]
