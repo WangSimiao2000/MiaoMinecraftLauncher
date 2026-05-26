@@ -90,7 +90,7 @@ impl MiaoApp {
         if self.config.accounts.is_empty() {
             ui.label(theme::muted(I18n::t(lang, "no_accounts")));
         } else {
-            let account_info: Vec<(String, String, String, bool)> = self
+            let account_info: Vec<(String, String, String, Option<String>, bool)> = self
                 .config
                 .accounts
                 .iter()
@@ -98,6 +98,7 @@ impl MiaoApp {
                 .map(|(i, acc)| {
                     let active = self.config.active_account_index == Some(i);
                     let avatar_url = acc.avatar_url();
+                    let cape_url = acc.cape_url();
                     let (name, kind) = match acc {
                         AuthMethod::Offline(a) => (
                             a.username.clone(),
@@ -108,14 +109,14 @@ impl MiaoApp {
                             (a.username.clone(), a.server_name.clone())
                         }
                     };
-                    (name, kind, avatar_url, active)
+                    (name, kind, avatar_url, cape_url, active)
                 })
                 .collect();
 
             let mut to_delete: Option<usize> = None;
             let mut set_active: Option<usize> = None;
 
-            for (i, (name, kind, avatar_url, active)) in account_info.iter().enumerate() {
+            for (i, (name, kind, avatar_url, cape_url, active)) in account_info.iter().enumerate() {
                 egui::Frame::none()
                     .fill(if *active {
                         theme::Colors::bg_widget_hover()
@@ -132,6 +133,16 @@ impl MiaoApp {
                             let img = egui::Image::new(avatar_url.as_str())
                                 .rounding(egui::Rounding::same(4.0));
                             img.paint_at(ui, rect);
+                            if let Some(cape) = cape_url {
+                                ui.add_space(4.0);
+                                let (cape_rect, _) = ui.allocate_exact_size(
+                                    egui::vec2(22.0, 32.0),
+                                    egui::Sense::hover(),
+                                );
+                                let cape_img = egui::Image::new(cape.as_str())
+                                    .rounding(egui::Rounding::same(2.0));
+                                cape_img.paint_at(ui, cape_rect);
+                            }
                             ui.add_space(6.0);
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {

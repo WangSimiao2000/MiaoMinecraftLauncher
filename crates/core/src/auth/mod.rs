@@ -125,7 +125,7 @@ impl AuthMethod {
         if self.is_offline() {
             return None;
         }
-        let uuid = self.uuid().as_simple().to_string();
+        let uuid = self.uuid().as_hyphenated().to_string();
         Some(format!("https://crafatar.com/capes/{}", uuid))
     }
 }
