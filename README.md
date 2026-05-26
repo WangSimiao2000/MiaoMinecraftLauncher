@@ -7,10 +7,14 @@ A feature-rich Minecraft launcher built in Rust with cross-platform support. Shi
 - **Instance Management** — Create, configure, and launch isolated Minecraft instances
 - **Mod Loader Support** — Fabric, Quilt, NeoForge, and Forge with one-click install
 - **Modrinth Integration** — Search, install mods with automatic dependency resolution
+- **CurseForge Integration** — Search, install mods with dependency resolution (API key required)
 - **Modpack Support** — Import/export `.mrpack` modpacks
 - **Java Auto-Detection** — Finds compatible system Java or downloads from Adoptium
-- **Download Mirrors** — BMCLAPI mirror support for faster downloads in China
+- **Download Mirrors** — BMCLAPI mirror with multi-source failover and automatic retry
 - **Microsoft Login** — Full OAuth device code flow (+ offline mode)
+- **Third-Party Skin Sites** — authlib-injector support (LittleSkin, Blessing Skin, etc.)
+- **Crash Analysis** — Intelligent crash-report and log parsing with mod identification
+- **Self-Update** — Check and apply updates from GitHub Releases
 - **Resource Management** — Resource packs, shader packs, world saves
 
 ## Screenshots

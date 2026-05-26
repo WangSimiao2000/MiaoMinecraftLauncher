@@ -15,12 +15,12 @@ Comparison baseline: PCL2 (Plain Craft Launcher 2) — the most popular Chinese 
 | Forge/NeoForge/Fabric/Quilt | ✅ | ✅ | — | |
 | LiteLoader | ❌ | ✅ | Low | 已停止维护，不优先 |
 | Modrinth 搜索安装 | ✅ | ✅ | — | 含依赖解析 |
-| CurseForge 搜索安装 | ❌ | ✅ | **High** | 国内用户刚需，需申请 API key |
+| CurseForge 搜索安装 | ✅ | ✅ | — | curseforge/ 模块，需配置 API key |
 | 整合包导入导出 (mrpack) | ✅ | ✅ | — | |
 | 整合包导出 (CurseForge 格式) | ❌ | ✅ | Medium | |
 | Java 自动检测 + 下载 | ✅ | ✅ | — | Adoptium |
 | BMCLAPI 镜像 | ✅ | ✅ | — | |
-| 多下载源自动切换 | ❌ | ✅ | Medium | PCL2 有 4 源容灾 |
+| 多下载源自动切换 | ✅ | ✅ | — | 指数退避重试 + mirror 链式切换 |
 | 单文件多线程下载 | ❌ | ✅ | Low | 当前只有多文件并发 |
 | 资源包/光影包管理 | ✅ | ✅ | — | |
 | 世界存档管理 | ✅ | ✅ | — | |
@@ -32,11 +32,11 @@ Comparison baseline: PCL2 (Plain Craft Launcher 2) — the most popular Chinese 
 
 | Feature | MMCL | PCL2 | Priority | Notes |
 |---------|------|------|----------|-------|
-| 智能崩溃分析 | ❌ | ✅ | **High** | 分析 crash log、定位问题 Mod |
+| 智能崩溃分析 | ✅ | ✅ | — | crash/ 模块，解析 crash-report + latest.log |
 | OptiFine 一键安装 | ❌ | ✅ | Medium | 合并到 Forge/Fabric |
 | 自动文件补全 | ❌ | ✅ | Medium | 检测缺失文件并修复 |
-| 自动更新 | 🔧 检测 | ✅ | Medium | 已有检测，缺一键升级 |
-| 第三方皮肤站登录 | ❌ | ✅ | Medium | authlib-injector |
+| 自动更新 | ✅ | ✅ | — | update/ 模块，下载+替换+回滚 |
+| 第三方皮肤站登录 | ✅ | ✅ | — | authlib-injector Yggdrasil 协议 |
 | 自定义离线皮肤 | ❌ | ✅ | Low | |
 | 多游戏文件夹管理 | ❌ | ✅ | Medium | 切换 .minecraft 目录 |
 | 版本分类与收藏 | ❌ | ✅ | Low | |
@@ -162,15 +162,15 @@ main.rs (入口)
 
 ## Planned Features (优先级排序)
 
-### Phase 1 — 核心差距补齐
+### Phase 1 — 核心差距补齐 ✅
 
-| # | Feature | 预估工时 | 依赖 |
-|---|---------|---------|------|
-| 1 | CurseForge API 集成（搜索/下载/安装） | 3-4 天 | 需 CF API key |
-| 2 | 智能崩溃分析（解析 crash-report + latest.log） | 2-3 天 | 无 |
-| 3 | 自动更新（一键下载替换） | 1-2 天 | GitHub Release API |
-| 4 | 多下载源容灾（自动切换 + 失败重试） | 1 天 | 无 |
-| 5 | 第三方皮肤站 (authlib-injector) | 2 天 | 无 |
+| # | Feature | 状态 | 模块 |
+|---|---------|------|------|
+| 1 | CurseForge API 集成（搜索/下载/安装） | ✅ Done | `core/src/curseforge/` |
+| 2 | 智能崩溃分析（解析 crash-report + latest.log） | ✅ Done | `core/src/crash/` |
+| 3 | 自动更新（一键下载替换） | ✅ Done | `core/src/update/` |
+| 4 | 多下载源容灾（自动切换 + 失败重试） | ✅ Done | `core/src/download/manager.rs` |
+| 5 | 第三方皮肤站 (authlib-injector) | ✅ Done | `core/src/auth/authlib_injector.rs` |
 
 ### Phase 2 — 体验增强
 

@@ -18,7 +18,7 @@
 
 | Crate | Role |
 |-------|------|
-| `miao-core` | Core library: auth, version management, downloads, instance management, Java detection, mod loader support, Modrinth integration |
+| `miao-core` | Core library: auth, version management, downloads, instance management, Java detection, mod loader support, Modrinth/CurseForge integration, crash analysis, self-update |
 | `miao-cli` | CLI entry point with subcommands |
 | `miao-gui` | Graphical UI using egui/eframe |
 
@@ -28,6 +28,7 @@
 
 - **Microsoft OAuth**: Device code flow → Xbox Live → XSTS → Minecraft Services
 - **Offline mode**: UUID v3 generation from username
+- **authlib-injector**: Third-party skin site login via Yggdrasil protocol (LittleSkin, etc.)
 - Token persistence and auto-refresh
 
 ### Version Management (`version`)
@@ -40,7 +41,9 @@
 
 - Concurrent downloads with configurable parallelism (default: 64)
 - SHA1 integrity verification
-- BMCLAPI mirror support with URL transformation
+- Multi-source failover: mirror chain with automatic fallback (BMCLAPI ↔ Official ↔ Custom)
+- Exponential backoff retry (max 3 attempts per mirror)
+- HTTP timeout configuration (connect: 10s, request: 30s)
 - Progress tracking (bytes + file count)
 - Skip already-verified files
 
@@ -71,6 +74,30 @@
 - Dependency resolution with cycle detection
 - Mod installation with automatic dependency handling
 - Mrpack modpack import/export
+
+### CurseForge Integration (`curseforge`)
+
+- `CurseForgeClient` with API key authentication (`x-api-key` header)
+- Mod search with game version and mod loader type filters
+- File listing with loader compatibility filtering
+- Download with null-URL detection (some mods restrict third-party distribution)
+- Dependency resolution (BFS, required-only, with cycle detection)
+- Full install pipeline: search → resolve deps → download all
+
+### Crash Analysis (`crash`)
+
+- **Parser** (`crash/parser.rs`): Parse Minecraft crash-report files and latest.log
+- **Analyzer** (`crash/analyzer.rs`): Aggregate findings into actionable diagnosis
+- Detect crash types: OOM, ModIncompatibility, MissingDependency, OpenGL, Java incompatibility
+- Identify suspected mods with confidence levels (High/Medium/Low)
+- Generate fix suggestions based on crash category
+
+### Self-Update (`update`)
+
+- Check GitHub Releases for new versions
+- Platform-specific asset selection (OS × arch)
+- Download and apply with atomic backup → replace → chmod
+- Automatic rollback on failure
 
 ### Mod Management (`modmanager`)
 
