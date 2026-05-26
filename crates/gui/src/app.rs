@@ -600,13 +600,6 @@ impl MiaoApp {
                 if Self::window_control_button(ui, WindowButton::Minimize).clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                 }
-
-                if !is_settings {
-                    ui.add_space(12.0);
-                    if ui.button(I18n::t(lang, "settings")).clicked() {
-                        self.nav_stack.push(Page::Settings);
-                    }
-                }
             },
         );
     }

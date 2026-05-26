@@ -1,6 +1,7 @@
 use eframe::egui;
 
 use crate::app::{DetailTab, I18n, MiaoApp};
+use crate::navigation::Page;
 use crate::theme;
 use crate::widgets::InstanceCard;
 
@@ -27,33 +28,58 @@ impl MiaoApp {
                 ui.separator();
                 ui.add_space(theme::Spacing::SMALL_GAP);
 
-                if self.instances.is_empty() {
-                    ui.add_space(40.0);
-                    ui.vertical_centered(|ui| {
-                        ui.label(theme::muted(I18n::t(lang, "no_instances")));
-                        ui.add_space(8.0);
-                        ui.label(theme::small(I18n::t(lang, "no_instances_hint")));
-                    });
-                } else {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        for i in 0..self.instances.len() {
-                            let selected = self.selected_instance == Some(i);
-                            let inst = &self.instances[i];
-                            let loader_label =
-                                inst.mod_loader.as_ref().map(|l| l.loader_type.to_string());
+                let bottom_height = 40.0;
+                let available = ui.available_height() - bottom_height;
 
-                            let response = InstanceCard::new(&inst.name, selected)
-                                .loader(loader_label.as_deref())
-                                .show(ui);
+                ui.allocate_ui(egui::vec2(ui.available_width(), available), |ui| {
+                    if self.instances.is_empty() {
+                        ui.add_space(40.0);
+                        ui.vertical_centered(|ui| {
+                            ui.label(theme::muted(I18n::t(lang, "no_instances")));
+                            ui.add_space(8.0);
+                            ui.label(theme::small(I18n::t(lang, "no_instances_hint")));
+                        });
+                    } else {
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            for i in 0..self.instances.len() {
+                                let selected = self.selected_instance == Some(i);
+                                let inst = &self.instances[i];
+                                let loader_label =
+                                    inst.mod_loader.as_ref().map(|l| l.loader_type.to_string());
 
-                            if response.clicked() {
-                                self.selected_instance = Some(i);
-                                self.active_tab = DetailTab::Mods;
-                                self.confirm_delete = None;
+                                let response = InstanceCard::new(&inst.name, selected)
+                                    .loader(loader_label.as_deref())
+                                    .show(ui);
+
+                                if response.clicked() {
+                                    self.selected_instance = Some(i);
+                                    self.active_tab = DetailTab::Mods;
+                                    self.confirm_delete = None;
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
+                });
+
+                ui.separator();
+                ui.add_space(4.0);
+
+                let settings_btn = ui.horizontal(|ui| {
+                    ui.add_space(4.0);
+                    ui.add_sized(
+                        [ui.available_width() - 8.0, 28.0],
+                        egui::Button::new(
+                            egui::RichText::new(format!("\u{2699}  {}", I18n::t(lang, "settings")))
+                                .size(13.0)
+                                .color(theme::Colors::text_secondary()),
+                        )
+                        .frame(false),
+                    )
+                });
+                if settings_btn.inner.clicked() {
+                    self.nav_stack.push(Page::Settings);
                 }
+                ui.add_space(4.0);
             });
     }
 }
