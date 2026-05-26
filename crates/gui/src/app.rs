@@ -403,8 +403,6 @@ impl eframe::App for MiaoApp {
             Page::Settings => AppView::Settings,
         };
 
-        let lang = self.language;
-
         egui::TopBottomPanel::bottom("status_bar")
             .frame(theme::bottom_bar_frame())
             .show(ctx, |ui| {
@@ -464,13 +462,7 @@ impl eframe::App for MiaoApp {
                 egui::TopBottomPanel::top("top_bar")
                     .frame(theme::top_bar_frame())
                     .show(ctx, |ui| {
-                        ui.horizontal(|ui| {
-                            if ui.button(I18n::t(lang, "back")).clicked() {
-                                self.nav_stack.pop();
-                            }
-                            ui.add_space(8.0);
-                            ui.label(theme::heading(I18n::t(lang, "settings")));
-                        });
+                        self.render_title_bar(ui, ctx, true);
                     });
                 egui::CentralPanel::default().show(ctx, |ui| {
                     self.render_settings_page(ui);
@@ -480,19 +472,7 @@ impl eframe::App for MiaoApp {
                 egui::TopBottomPanel::top("top_bar")
                     .frame(theme::top_bar_frame())
                     .show(ctx, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(theme::heading("MMCL"));
-                            ui.add_space(8.0);
-                            ui.label(theme::small("MiaoMinecraftLauncher"));
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    if ui.button(I18n::t(lang, "settings")).clicked() {
-                                        self.nav_stack.push(Page::Settings);
-                                    }
-                                },
-                            );
-                        });
+                        self.render_title_bar(ui, ctx, false);
                     });
 
                 self.render_sidebar(ctx);
@@ -537,6 +517,103 @@ impl eframe::App for MiaoApp {
 
         if self.toasts.has_active() {
             ctx.request_repaint();
+        }
+    }
+}
+
+impl MiaoApp {
+    fn render_title_bar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, is_settings: bool) {
+        let lang = self.language;
+        let height = 30.0;
+        ui.set_min_height(height);
+
+        ui.horizontal(|ui| {
+            if is_settings {
+                if ui.button(I18n::t(lang, "back")).clicked() {
+                    self.nav_stack.pop();
+                }
+                ui.add_space(8.0);
+                ui.label(theme::heading(I18n::t(lang, "settings")));
+            } else {
+                ui.label(theme::heading("MMCL"));
+                ui.add_space(8.0);
+                ui.label(theme::small("MiaoMinecraftLauncher"));
+            }
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+
+                let btn_size = egui::vec2(36.0, 22.0);
+
+                if ui
+                    .add_sized(
+                        btn_size,
+                        egui::Button::new(
+                            egui::RichText::new("✕")
+                                .size(13.0)
+                                .color(theme::Colors::text_primary()),
+                        )
+                        .frame(false),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .clicked()
+                {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+
+                let is_maximized = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
+                let max_icon = if is_maximized { "❐" } else { "□" };
+                if ui
+                    .add_sized(
+                        btn_size,
+                        egui::Button::new(
+                            egui::RichText::new(max_icon)
+                                .size(13.0)
+                                .color(theme::Colors::text_primary()),
+                        )
+                        .frame(false),
+                    )
+                    .clicked()
+                {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                }
+
+                if ui
+                    .add_sized(
+                        btn_size,
+                        egui::Button::new(
+                            egui::RichText::new("─")
+                                .size(13.0)
+                                .color(theme::Colors::text_primary()),
+                        )
+                        .frame(false),
+                    )
+                    .clicked()
+                {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                }
+
+                if !is_settings {
+                    ui.add_space(12.0);
+                    if ui.button(I18n::t(lang, "settings")).clicked() {
+                        self.nav_stack.push(Page::Settings);
+                    }
+                }
+            });
+        });
+
+        let title_bar_rect = ui.min_rect();
+        let response = ui.interact(
+            title_bar_rect,
+            egui::Id::new("title_bar_drag"),
+            egui::Sense::click_and_drag(),
+        );
+        if response.drag_started() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+        }
+        if response.double_clicked() {
+            let is_max = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
         }
     }
 }

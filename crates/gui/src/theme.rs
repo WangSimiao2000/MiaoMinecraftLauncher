@@ -304,7 +304,8 @@ pub fn panel_frame() -> egui::Frame {
 pub fn top_bar_frame() -> egui::Frame {
     egui::Frame::none()
         .fill(Colors::bg_dark().gamma_multiply(0.94))
-        .inner_margin(Margin::symmetric(12.0, 8.0))
+        .inner_margin(Margin::symmetric(12.0, 6.0))
+        .stroke(Stroke::new(0.5, Color32::from_white_alpha(10)))
 }
 
 pub fn bottom_bar_frame() -> egui::Frame {
