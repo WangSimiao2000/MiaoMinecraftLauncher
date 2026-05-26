@@ -11,7 +11,10 @@ use miao_core::modloader::{ModLoaderType, ModLoaderVersion};
 use miao_core::version::VersionInfo;
 use tokio::runtime::Runtime;
 
+use std::sync::Mutex;
+
 use crate::background::BackgroundState;
+use crate::blur::BlurRenderer;
 use crate::controller::AppController;
 use crate::messages::{AppCommand, AppEvent};
 use crate::navigation::{NavigationStack, Page};
@@ -63,6 +66,7 @@ pub struct MiaoApp {
 
     pub file_scan_cache: FileScanCache,
     pub background: BackgroundState,
+    pub blur_renderer: Arc<Mutex<BlurRenderer>>,
     pub toasts: ToastQueue,
 
     pub controller: AppController,
@@ -127,6 +131,9 @@ impl MiaoApp {
         let config = LauncherConfig::load().unwrap_or_default();
         let instances = instance::list_instances(&config.instances_dir()).unwrap_or_default();
 
+        let gl = cc.gl.as_ref().expect("glow context required");
+        let blur_renderer = Arc::new(Mutex::new(BlurRenderer::new(gl)));
+
         let rt = Arc::new(Runtime::new().expect("failed to create tokio runtime"));
         let controller = AppController::new(&rt, cc.egui_ctx.clone());
 
@@ -178,6 +185,7 @@ impl MiaoApp {
             update_available: None,
             file_scan_cache: FileScanCache::new(),
             background: BackgroundState::new(),
+            blur_renderer,
             toasts: ToastQueue::new(),
             controller,
             rt,
@@ -312,8 +320,22 @@ impl MiaoApp {
                     self.game_log.lines.push_back(line);
                     self.game_log.running = true;
                 }
-                AppEvent::GameExited => {
+                AppEvent::GameExited { exit_code } => {
                     self.game_log.running = false;
+                    match exit_code {
+                        Some(0) => {
+                            self.status = "Game exited normally.".to_string();
+                        }
+                        Some(code) => {
+                            let msg = format!("Game crashed (exit code {})", code);
+                            self.status = msg.clone();
+                            self.toasts.error(msg);
+                        }
+                        None => {
+                            self.status = "Game process terminated.".to_string();
+                            self.toasts.warning("Game process was terminated");
+                        }
+                    }
                 }
                 AppEvent::ExportResult(msg) => {
                     self.status = msg;
@@ -409,7 +431,7 @@ impl eframe::App for MiaoApp {
                             ui.add(
                                 egui::ProgressBar::new(fraction)
                                     .text(text)
-                                    .fill(theme::Colors::ACCENT),
+                                    .fill(theme::Colors::accent()),
                             );
                             if ui.small_button("✕").clicked() {
                                 self.cancel_all_tasks();
@@ -478,12 +500,25 @@ impl eframe::App for MiaoApp {
                 egui::CentralPanel::default()
                     .frame(
                         egui::Frame::none()
-                            .fill(theme::Colors::BG_MAIN)
+                            .fill(theme::Colors::bg_main())
                             .inner_margin(egui::Margin::same(12.0)),
                     )
                     .show(ctx, |ui| {
                         self.render_detail(ui);
                     });
+
+                if self.active_dialog != Dialog::None {
+                    let screen = ctx.screen_rect();
+                    egui::Area::new(egui::Id::new("dialog_blur_backdrop"))
+                        .fixed_pos(screen.min)
+                        .interactable(false)
+                        .order(egui::Order::Middle)
+                        .show(ctx, |ui| {
+                            ui.set_clip_rect(screen);
+                            let tint = egui::Color32::from_black_alpha(120);
+                            crate::blur::blur_behind(ui, &self.blur_renderer, screen, 12.0, tint);
+                        });
+                }
 
                 match self.active_dialog {
                     Dialog::NewInstance => self.render_new_instance_dialog(ctx),

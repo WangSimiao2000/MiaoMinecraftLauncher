@@ -27,6 +27,9 @@ serde_json.workspace = true
 open = "5"
 rfd = "0.17.2"
 egui_extras = { version = "0.30", features = ["svg", "image"] }
+egui_glow = "0.30"
+glow = "0.16"
+bytemuck = { version = "1", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 [dev-dependencies]

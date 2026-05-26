@@ -12,19 +12,35 @@ impl MiaoApp {
     ) {
         let lang = self.language;
         let mut open = true;
+
+        let anim_id = egui::Id::new("java_confirm_dialog_anim");
+        let t = ctx.animate_bool_with_time(anim_id, true, 0.15);
+        let opacity = t;
+
+        let frame = egui::Frame::window(&ctx.style())
+            .fill(theme::Colors::bg_elevated())
+            .stroke(egui::Stroke::new(
+                1.0,
+                theme::Colors::accent().gamma_multiply(0.5),
+            ))
+            .rounding(egui::Rounding::same(10.0))
+            .inner_margin(egui::Margin::same(16.0));
+
         egui::Window::new("Java Required")
             .open(&mut open)
             .resizable(false)
             .collapsible(false)
             .default_width(380.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .frame(frame)
             .show(ctx, |ui| {
+                ui.set_opacity(opacity);
                 ui.vertical_centered(|ui| {
                     ui.add_space(8.0);
                     ui.label(
                         egui::RichText::new("☕")
                             .size(32.0)
-                            .color(theme::Colors::WARNING),
+                            .color(theme::Colors::warning()),
                     );
                     ui.add_space(8.0);
                     ui.label(theme::body(&format!(
@@ -42,7 +58,7 @@ impl MiaoApp {
                                     egui::RichText::new("Download & Launch")
                                         .color(egui::Color32::WHITE),
                                 )
-                                .fill(theme::Colors::ACCENT),
+                                .fill(theme::Colors::accent()),
                             )
                             .clicked()
                         {
