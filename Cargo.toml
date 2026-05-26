@@ -40,7 +40,7 @@ uuid = { version = "1", features = ["v3", "v4", "serde"] }
 # Date time
 chrono = { version = "0.4", features = ["serde"] }
 # Zip extraction (for game assets)
-zip = "2"
+zip = "8"
 # Tar/Gzip extraction (for Java downloads)
 flate2 = "1"
 tar = "0.4"
