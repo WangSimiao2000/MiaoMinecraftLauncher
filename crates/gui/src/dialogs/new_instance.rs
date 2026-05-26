@@ -161,7 +161,7 @@ impl MiaoApp {
 
                 ui.add_space(theme::Spacing::SECTION_GAP);
 
-                let can_create = !self.versions.versions.is_empty() && !self.installing;
+                let can_create = !self.versions.versions.is_empty();
                 ui.add_enabled_ui(can_create, |ui| {
                     if ui.button("Create").clicked() {
                         let ver = self.versions.versions[self.new_instance.version_idx].clone();

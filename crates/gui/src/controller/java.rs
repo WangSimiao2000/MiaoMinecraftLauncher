@@ -7,6 +7,7 @@ use tokio::sync::mpsc;
 use crate::messages::AppEvent;
 
 pub fn handle_download_java(
+    task_id: String,
     required_major: u32,
     java_dir: PathBuf,
     launch_idx: usize,
@@ -51,9 +52,19 @@ pub fn handle_download_java(
         match result {
             Ok(_) => {
                 let _ = tx.send(AppEvent::JavaInstalled { launch_idx });
+                let _ = tx.send(AppEvent::InstallFinished {
+                    task_id,
+                    success: true,
+                    message: "Java installed".to_string(),
+                });
             }
             Err(e) => {
                 let _ = tx.send(AppEvent::JavaFailed(format!("Java download failed: {}", e)));
+                let _ = tx.send(AppEvent::InstallFinished {
+                    task_id,
+                    success: false,
+                    message: format!("Java download failed: {}", e),
+                });
             }
         }
         ctx.request_repaint();

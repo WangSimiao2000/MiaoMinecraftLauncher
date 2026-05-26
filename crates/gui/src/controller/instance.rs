@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 
 use crate::messages::AppEvent;
 
+#[allow(clippy::too_many_arguments)]
 pub fn handle_create_instance(
     task_id: String,
     ver: VersionInfo,
@@ -356,6 +357,7 @@ fn stream_game_process(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn do_create_instance(
     task_id: &str,
     ver: &VersionInfo,

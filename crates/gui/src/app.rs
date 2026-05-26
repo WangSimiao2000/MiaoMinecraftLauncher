@@ -20,7 +20,7 @@ pub use crate::state::{
 };
 use crate::theme;
 
-pub const MS_CLIENT_ID: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
+pub use miao_core::auth::MS_CLIENT_ID;
 
 pub struct MiaoApp {
     pub config: LauncherConfig,
@@ -54,8 +54,8 @@ pub struct MiaoApp {
     pub loader: LoaderUiState,
     pub auth: AuthUiState,
     pub game_log: GameLogState,
-    pub install_progress: Option<InstallProgress>,
-    pub installing: bool,
+    pub install_progress: std::collections::HashMap<String, InstallProgress>,
+    pub active_installs: std::collections::HashSet<String>,
     pub update_available: Option<String>,
 
     pub file_scan_cache: FileScanCache,
@@ -166,8 +166,8 @@ impl MiaoApp {
             loader: LoaderUiState::default(),
             auth: AuthUiState::default(),
             game_log: GameLogState::default(),
-            install_progress: None,
-            installing: false,
+            install_progress: std::collections::HashMap::new(),
+            active_installs: std::collections::HashSet::new(),
             update_available: None,
             file_scan_cache: FileScanCache::new(),
             controller,
@@ -202,20 +202,21 @@ impl MiaoApp {
                     self.status = msg;
                 }
                 AppEvent::InstallProgress {
+                    task_id,
                     completed,
                     total,
                     label,
                 } => {
-                    self.installing = true;
-                    self.install_progress = Some(InstallProgress {
+                    self.active_installs.insert(task_id.clone());
+                    self.install_progress.insert(task_id, InstallProgress {
                         completed,
                         total,
                         label,
                     });
                 }
-                AppEvent::InstallFinished { success, message } => {
-                    self.installing = false;
-                    self.install_progress = None;
+                AppEvent::InstallFinished { task_id, success, message } => {
+                    self.active_installs.remove(&task_id);
+                    self.install_progress.remove(&task_id);
                     self.status = message;
                     if success {
                         self.instances = instance::list_instances(&self.config.instances_dir())
@@ -247,15 +248,11 @@ impl MiaoApp {
                     self.status = msg;
                 }
                 AppEvent::JavaInstalled { launch_idx } => {
-                    self.installing = false;
-                    self.install_progress = None;
                     self.cached_javas = None;
                     self.status = "✓ Java installed — launching game...".to_string();
                     self.launch_instance(launch_idx);
                 }
                 AppEvent::JavaFailed(msg) => {
-                    self.installing = false;
-                    self.install_progress = None;
                     self.status = format!("✗ {}", msg);
                 }
                 AppEvent::ModSearchResults(hits) => {
@@ -293,7 +290,6 @@ impl MiaoApp {
                     self.status = msg;
                 }
                 AppEvent::ImportResult { success, message } => {
-                    self.installing = false;
                     self.status = message;
                     if success {
                         self.instances = instance::list_instances(&self.config.instances_dir())
@@ -303,9 +299,9 @@ impl MiaoApp {
                 AppEvent::UpdateAvailable(version) => {
                     self.update_available = Some(version);
                 }
-                AppEvent::TaskCancelled => {
-                    self.installing = false;
-                    self.install_progress = None;
+                AppEvent::TaskCancelled { task_id } => {
+                    self.active_installs.remove(&task_id);
+                    self.install_progress.remove(&task_id);
                     self.status = "Cancelled.".to_string();
                 }
                 AppEvent::Error(msg) => {
@@ -333,7 +329,7 @@ impl eframe::App for MiaoApp {
             }
         }
 
-        if self.installing
+        if !self.active_installs.is_empty()
             || self.auth.logging_in
             || self.loader.loading
             || self.mod_search.searching
@@ -347,13 +343,22 @@ impl eframe::App for MiaoApp {
         egui::TopBottomPanel::bottom("status_bar")
             .frame(theme::bottom_bar_frame())
             .show(ctx, |ui| {
-                if let Some(ref progress) = self.install_progress {
+                let active_progress = self.install_progress.values().next();
+                if let Some(progress) = active_progress {
                     if progress.total > 0 {
                         let fraction = progress.completed as f32 / progress.total.max(1) as f32;
-                        let text = format!(
-                            "{} ({}/{})",
-                            progress.label, progress.completed, progress.total
-                        );
+                        let task_count = self.active_installs.len();
+                        let text = if task_count > 1 {
+                            format!(
+                                "{} ({}/{}) [+{} tasks]",
+                                progress.label, progress.completed, progress.total, task_count - 1
+                            )
+                        } else {
+                            format!(
+                                "{} ({}/{})",
+                                progress.label, progress.completed, progress.total
+                            )
+                        };
                         ui.horizontal(|ui| {
                             ui.add(
                                 egui::ProgressBar::new(fraction)
@@ -361,7 +366,7 @@ impl eframe::App for MiaoApp {
                                     .fill(theme::Colors::ACCENT),
                             );
                             if ui.small_button("✕").clicked() {
-                                self.cancel_current_task();
+                                self.cancel_all_tasks();
                             }
                         });
                     } else {
@@ -369,16 +374,16 @@ impl eframe::App for MiaoApp {
                             ui.spinner();
                             ui.label(theme::status_text(&self.status));
                             if ui.small_button("✕").clicked() {
-                                self.cancel_current_task();
+                                self.cancel_all_tasks();
                             }
                         });
                     }
-                } else if self.installing {
+                } else if !self.active_installs.is_empty() {
                     ui.horizontal(|ui| {
                         ui.spinner();
                         ui.label(theme::status_text(&self.status));
                         if ui.small_button("✕").clicked() {
-                            self.cancel_current_task();
+                            self.cancel_all_tasks();
                         }
                     });
                 } else {
@@ -542,14 +547,16 @@ impl MiaoApp {
             return;
         }
 
-        if self.installing {
-            self.status = "Already installing...".to_string();
+        let task_id = format!("java-{}", idx);
+        if self.active_installs.contains(&task_id) {
+            self.status = "Already downloading Java...".to_string();
             return;
         }
-        self.installing = true;
+        self.active_installs.insert(task_id.clone());
         self.status = format!("Downloading Java {}...", required);
 
         self.controller.send(AppCommand::DownloadJava {
+            task_id,
             required_major: required,
             java_dir: self.config.data_dir.join("java"),
             launch_idx: idx,
@@ -562,14 +569,16 @@ impl MiaoApp {
         name: String,
         loader: Option<(String, String)>,
     ) {
-        if self.installing {
-            self.status = "Already installing...".to_string();
+        let task_id = format!("install-{}", name);
+        if self.active_installs.contains(&task_id) {
+            self.status = format!("'{}' is already being created.", name);
             return;
         }
-        self.installing = true;
+        self.active_installs.insert(task_id.clone());
         self.status = format!("Creating '{}'...", name);
 
         self.controller.send(AppCommand::CreateInstance {
+            task_id,
             ver,
             name,
             loader,
@@ -600,16 +609,21 @@ impl MiaoApp {
     }
 
     pub fn import_with_dialog(&mut self) {
+        let task_id = "import-mrpack".to_string();
         self.status = "Selecting .mrpack file...".to_string();
-        self.installing = true;
+        self.active_installs.insert(task_id.clone());
 
         self.controller.send(AppCommand::ImportMrpack {
+            task_id,
             config: self.config.clone(),
         });
     }
 
-    pub fn cancel_current_task(&mut self) {
-        self.controller.send(AppCommand::CancelCurrentTask);
+    pub fn cancel_all_tasks(&mut self) {
+        let task_ids: Vec<String> = self.active_installs.iter().cloned().collect();
+        for task_id in task_ids {
+            self.controller.send(AppCommand::CancelTask { task_id });
+        }
     }
 
     pub fn fetch_loader_versions(&mut self, mc_version: &str) {

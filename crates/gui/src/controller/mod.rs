@@ -48,17 +48,20 @@ async fn controller_loop(
     ctx: Context,
     http: Arc<reqwest::Client>,
 ) {
-    let mut active_task: Option<tokio::task::JoinHandle<()>> = None;
+    let mut active_tasks: std::collections::HashMap<String, tokio::task::JoinHandle<()>> =
+        std::collections::HashMap::new();
 
     while let Some(cmd) = cmd_rx.recv().await {
         match cmd {
             AppCommand::CreateInstance {
+                task_id,
                 ver,
                 name,
                 loader,
                 config,
             } => {
-                active_task = Some(instance::handle_create_instance(
+                let handle = instance::handle_create_instance(
+                    task_id.clone(),
                     ver,
                     name,
                     loader,
@@ -66,7 +69,8 @@ async fn controller_loop(
                     http.clone(),
                     event_tx.clone(),
                     ctx.clone(),
-                ));
+                );
+                active_tasks.insert(task_id, handle);
             }
             AppCommand::LaunchInstance {
                 idx,
@@ -84,25 +88,33 @@ async fn controller_loop(
             AppCommand::ExportInstance { instance, config } => {
                 instance::handle_export_instance(instance, config, event_tx.clone(), ctx.clone());
             }
-            AppCommand::ImportMrpack { config } => {
-                instance::handle_import_mrpack(config, event_tx.clone(), ctx.clone());
+            AppCommand::ImportMrpack { task_id, config } => {
+                instance::handle_import_mrpack(
+                    task_id,
+                    config,
+                    event_tx.clone(),
+                    ctx.clone(),
+                );
             }
             AppCommand::StartMsLogin { client_id, config } => {
                 auth::handle_ms_login(client_id, config, event_tx.clone(), ctx.clone());
             }
             AppCommand::DownloadJava {
+                task_id,
                 required_major,
                 java_dir,
                 launch_idx,
             } => {
-                active_task = Some(java::handle_download_java(
+                let handle = java::handle_download_java(
+                    task_id.clone(),
                     required_major,
                     java_dir,
                     launch_idx,
                     http.clone(),
                     event_tx.clone(),
                     ctx.clone(),
-                ));
+                );
+                active_tasks.insert(task_id, handle);
             }
             AppCommand::FetchVersionManifest { mirror } => {
                 versions::handle_fetch_manifest(
@@ -179,10 +191,10 @@ async fn controller_loop(
             AppCommand::CheckForUpdates => {
                 versions::handle_check_updates(event_tx.clone(), ctx.clone());
             }
-            AppCommand::CancelCurrentTask => {
-                if let Some(handle) = active_task.take() {
+            AppCommand::CancelTask { task_id } => {
+                if let Some(handle) = active_tasks.remove(&task_id) {
                     handle.abort();
-                    let _ = event_tx.send(AppEvent::TaskCancelled);
+                    let _ = event_tx.send(AppEvent::TaskCancelled { task_id });
                     ctx.request_repaint();
                 }
             }

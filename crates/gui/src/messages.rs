@@ -23,6 +23,7 @@ use crate::state::PendingModInstall;
 pub enum AppCommand {
     // ── Instance lifecycle ──
     CreateInstance {
+        task_id: String,
         ver: VersionInfo,
         name: String,
         loader: Option<(String, String)>,
@@ -38,6 +39,7 @@ pub enum AppCommand {
         config: LauncherConfig,
     },
     ImportMrpack {
+        task_id: String,
         config: LauncherConfig,
     },
 
@@ -49,6 +51,7 @@ pub enum AppCommand {
 
     // ── Java ──
     DownloadJava {
+        task_id: String,
         required_major: u32,
         java_dir: PathBuf,
         launch_idx: usize,
@@ -86,7 +89,7 @@ pub enum AppCommand {
 
     // ── Misc ──
     CheckForUpdates,
-    CancelCurrentTask,
+    CancelTask { task_id: String },
 }
 
 // ─── Events (Controller → UI) ───────────────────────────────────────────────
@@ -107,11 +110,13 @@ pub enum AppEvent {
     // ── Install progress ──
     InstallStatus(String),
     InstallProgress {
+        task_id: String,
         completed: usize,
         total: usize,
         label: String,
     },
     InstallFinished {
+        task_id: String,
         success: bool,
         message: String,
     },
@@ -152,6 +157,6 @@ pub enum AppEvent {
 
     // ── Misc ──
     UpdateAvailable(String),
-    TaskCancelled,
+    TaskCancelled { task_id: String },
     Error(String),
 }
