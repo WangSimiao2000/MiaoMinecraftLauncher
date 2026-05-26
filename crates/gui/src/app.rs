@@ -19,9 +19,9 @@ use crate::controller::AppController;
 use crate::messages::{AppCommand, AppEvent};
 use crate::navigation::{NavigationStack, Page};
 pub use crate::state::{
-    AuthUiState, DetailTab, Dialog, GameLogState, I18n, InstallProgress, InstanceSettingsEdit,
-    Language, LoaderUiState, ModSearchState, NewInstanceInput, PendingModInstall, SettingsTab,
-    VersionsUiState,
+    AuthUiState, CfSearchState, DetailTab, Dialog, GameLogState, I18n, InstallProgress,
+    InstanceSettingsEdit, Language, LoaderUiState, ModSearchState, NewInstanceInput,
+    PendingModInstall, SettingsTab, VersionsUiState,
 };
 use crate::theme;
 use crate::toast::ToastQueue;
@@ -48,9 +48,11 @@ pub struct MiaoApp {
 
     pub offline_username_input: String,
     pub offline_skin_model: miao_core::auth::SkinModel,
+    pub cf_api_key_input: String,
     pub data_dir_input: String,
     pub new_instance: NewInstanceInput,
     pub mod_search: ModSearchState,
+    pub cf_search: CfSearchState,
     pub pending_mod_install: Option<PendingModInstall>,
 
     pub confirm_delete: Option<usize>,
@@ -157,6 +159,7 @@ impl MiaoApp {
         };
         let max_downloads_input = config.max_concurrent_downloads.to_string();
         let theme_preset = config.theme;
+        let cf_api_key_input = config.curseforge_api_key.clone().unwrap_or_default();
 
         Self {
             config,
@@ -168,9 +171,11 @@ impl MiaoApp {
             status: "Ready".to_string(),
             offline_username_input: String::new(),
             offline_skin_model: miao_core::auth::SkinModel::Classic,
+            cf_api_key_input,
             data_dir_input,
             new_instance: NewInstanceInput::default(),
             mod_search: ModSearchState::default(),
+            cf_search: CfSearchState::default(),
             pending_mod_install: None,
             confirm_delete: None,
             settings_tab: SettingsTab::default(),
@@ -320,6 +325,22 @@ impl MiaoApp {
                     self.status = msg.clone();
                     self.toasts.error(&msg);
                     self.mod_search.searching = false;
+                }
+                AppEvent::CfSearchResults(mods) => {
+                    self.cf_search.results = mods;
+                    self.cf_search.searching = false;
+                }
+                AppEvent::CfInstalled { count } => {
+                    let msg = format!("Installed {} mod(s) from CurseForge", count);
+                    self.status = msg.clone();
+                    self.toasts.success(msg);
+                    self.cf_search.searching = false;
+                    self.file_scan_cache.invalidate();
+                }
+                AppEvent::CfError(msg) => {
+                    self.status = msg.clone();
+                    self.toasts.error(&msg);
+                    self.cf_search.searching = false;
                 }
                 AppEvent::GameLogLine(line) => {
                     if self.game_log.lines.len() >= GameLogState::MAX_LINES {

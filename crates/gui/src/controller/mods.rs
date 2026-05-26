@@ -136,3 +136,63 @@ pub fn handle_install_mod(
         ctx.request_repaint();
     });
 }
+
+pub fn handle_cf_search(
+    query: String,
+    mc_version: String,
+    loader: Option<String>,
+    api_key: String,
+    tx: mpsc::UnboundedSender<AppEvent>,
+    ctx: Context,
+) {
+    tokio::spawn(async move {
+        let client = miao_core::curseforge::api::CurseForgeClient::new(&api_key);
+        let result = client
+            .search_mods(&query, Some(&mc_version), loader.as_deref(), 20)
+            .await;
+        match result {
+            Ok(r) => {
+                let _ = tx.send(AppEvent::CfSearchResults(r.mods));
+            }
+            Err(e) => {
+                let _ = tx.send(AppEvent::CfError(format!(
+                    "CurseForge search failed: {}",
+                    e
+                )));
+            }
+        }
+        ctx.request_repaint();
+    });
+}
+
+pub fn handle_cf_install(
+    mod_id: u32,
+    mc_version: String,
+    loader: String,
+    instance_dir: PathBuf,
+    api_key: String,
+    tx: mpsc::UnboundedSender<AppEvent>,
+    ctx: Context,
+) {
+    tokio::spawn(async move {
+        let client = miao_core::curseforge::api::CurseForgeClient::new(&api_key);
+        let mods_dir = miao_core::instance::Instance::mods_dir(&instance_dir);
+        let result = client
+            .install_mod(mod_id, &mc_version, &loader, &mods_dir)
+            .await;
+        match result {
+            Ok(installed) => {
+                let _ = tx.send(AppEvent::CfInstalled {
+                    count: installed.len(),
+                });
+            }
+            Err(e) => {
+                let _ = tx.send(AppEvent::CfError(format!(
+                    "CurseForge install failed: {}",
+                    e
+                )));
+            }
+        }
+        ctx.request_repaint();
+    });
+}

@@ -87,6 +87,21 @@ pub enum AppCommand {
         include_deps: bool,
     },
 
+    // ── CurseForge ──
+    CfSearchMods {
+        query: String,
+        mc_version: String,
+        loader: Option<String>,
+        api_key: String,
+    },
+    CfInstallMod {
+        mod_id: u32,
+        mc_version: String,
+        loader: String,
+        instance_dir: PathBuf,
+        api_key: String,
+    },
+
     // ── Misc ──
     CheckForUpdates,
     CancelTask {
@@ -145,6 +160,13 @@ pub enum AppEvent {
         count: usize,
     },
     ModError(String),
+
+    // ── CurseForge ──
+    CfSearchResults(Vec<miao_core::curseforge::api::CfMod>),
+    CfInstalled {
+        count: usize,
+    },
+    CfError(String),
 
     // ── Game log ──
     GameLogLine(String),

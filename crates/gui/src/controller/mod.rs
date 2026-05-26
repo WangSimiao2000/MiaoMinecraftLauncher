@@ -183,6 +183,38 @@ async fn controller_loop(
                     ctx.clone(),
                 );
             }
+            AppCommand::CfSearchMods {
+                query,
+                mc_version,
+                loader,
+                api_key,
+            } => {
+                mods::handle_cf_search(
+                    query,
+                    mc_version,
+                    loader,
+                    api_key,
+                    event_tx.clone(),
+                    ctx.clone(),
+                );
+            }
+            AppCommand::CfInstallMod {
+                mod_id,
+                mc_version,
+                loader,
+                instance_dir,
+                api_key,
+            } => {
+                mods::handle_cf_install(
+                    mod_id,
+                    mc_version,
+                    loader,
+                    instance_dir,
+                    api_key,
+                    event_tx.clone(),
+                    ctx.clone(),
+                );
+            }
             AppCommand::CheckForUpdates => {
                 versions::handle_check_updates(event_tx.clone(), ctx.clone());
             }

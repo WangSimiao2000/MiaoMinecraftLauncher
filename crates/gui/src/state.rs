@@ -81,6 +81,14 @@ pub struct ModSearchState {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct CfSearchState {
+    pub query: String,
+    pub results: Vec<miao_core::curseforge::api::CfMod>,
+    pub searching: bool,
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct PendingModInstall {
     pub project_slug: String,
     pub deps: Vec<ResolvedDep>,

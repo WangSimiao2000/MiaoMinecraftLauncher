@@ -548,6 +548,38 @@ impl MiaoApp {
         });
 
         ui.add_space(16.0);
+        ui.label(theme::subheading("CurseForge API Key"));
+        ui.add_space(8.0);
+
+        theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.label(theme::muted(
+                "Required for CurseForge mod search. Get a key from console.curseforge.com",
+            ));
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let resp = ui.add(
+                    egui::TextEdit::singleline(&mut self.cf_api_key_input)
+                        .password(true)
+                        .vertical_align(egui::Align::Center)
+                        .min_size(ui.spacing().interact_size)
+                        .hint_text("$2a$10$..."),
+                );
+                if resp.lost_focus() {
+                    let key = if self.cf_api_key_input.trim().is_empty() {
+                        None
+                    } else {
+                        Some(self.cf_api_key_input.trim().to_string())
+                    };
+                    self.config.curseforge_api_key = key;
+                    if let Err(e) = self.config.save() {
+                        self.status = format!("✗ Save failed: {}", e);
+                    }
+                }
+            });
+        });
+
+        ui.add_space(16.0);
         ui.label(theme::subheading(I18n::t(lang, "language")));
         ui.add_space(8.0);
 

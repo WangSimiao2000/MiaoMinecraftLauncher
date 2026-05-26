@@ -15,21 +15,37 @@ impl MiaoApp {
         ui.horizontal(|ui| {
             ui.label(theme::subheading(&format!("Mods ({})", mods.len())));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let search_btn = if self.mod_search.active {
-                    egui::Button::new(
-                        egui::RichText::new("Search Modrinth").color(egui::Color32::WHITE),
-                    )
-                    .fill(theme::Colors::accent())
+                let cf_btn = if self.cf_search.active {
+                    egui::Button::new(egui::RichText::new("CurseForge").color(egui::Color32::WHITE))
+                        .fill(egui::Color32::from_rgb(240, 100, 30))
                 } else {
-                    egui::Button::new("Search Modrinth")
+                    egui::Button::new("CurseForge")
                 };
-                if ui.add(search_btn).clicked() {
+                if ui.add(cf_btn).clicked() {
+                    if self.cf_search.active {
+                        self.cf_search.active = false;
+                    } else {
+                        self.cf_search.active = true;
+                        self.mod_search.active = false;
+                    }
+                }
+
+                let mr_btn = if self.mod_search.active {
+                    egui::Button::new(egui::RichText::new("Modrinth").color(egui::Color32::WHITE))
+                        .fill(theme::Colors::accent())
+                } else {
+                    egui::Button::new("Modrinth")
+                };
+                if ui.add(mr_btn).clicked() {
                     if self.mod_search.active {
                         self.mod_search.active = false;
                     } else {
+                        self.mod_search.active = true;
+                        self.cf_search.active = false;
                         self.start_mod_search();
                     }
                 }
+
                 if ui.button("Open folder").clicked() {
                     let _ = miao_core::instance::open_folder(&mods_dir);
                 }
@@ -40,6 +56,13 @@ impl MiaoApp {
 
         if self.mod_search.active {
             self.render_inline_mod_search(ui, instance_dir);
+            ui.add_space(theme::Spacing::SECTION_GAP);
+            ui.separator();
+            ui.add_space(theme::Spacing::SMALL_GAP);
+        }
+
+        if self.cf_search.active {
+            self.render_cf_search(ui, instance_dir);
             ui.add_space(theme::Spacing::SECTION_GAP);
             ui.separator();
             ui.add_space(theme::Spacing::SMALL_GAP);
@@ -59,7 +82,7 @@ impl MiaoApp {
                 ui.label(theme::muted("No mods installed"));
                 ui.add_space(8.0);
                 ui.label(theme::small(
-                    "Use 'Search Modrinth' to find and install mods",
+                    "Use Modrinth or CurseForge to find and install mods",
                 ));
             });
         } else {
@@ -83,6 +106,102 @@ impl MiaoApp {
         self.mod_search.query.clear();
         self.mod_search.results.clear();
         self.mod_search.versions.clear();
+    }
+
+    fn render_cf_search(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
+        if self.config.curseforge_api_key.is_none() {
+            ui.label(theme::muted(
+                "CurseForge requires an API key. Set it in Settings > Data.",
+            ));
+            return;
+        }
+
+        ui.horizontal(|ui| {
+            ui.label("Search:");
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut self.cf_search.query)
+                    .vertical_align(egui::Align::Center)
+                    .min_size(ui.spacing().interact_size),
+            );
+            if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                self.do_cf_search(instance_dir);
+            }
+            if ui.button("Go").clicked() {
+                self.do_cf_search(instance_dir);
+            }
+        });
+
+        if self.cf_search.searching {
+            ui.spinner();
+        }
+
+        if !self.cf_search.results.is_empty() {
+            ui.add_space(8.0);
+            let results = self.cf_search.results.clone();
+            for cf_mod in &results {
+                theme::list_item_card().show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.vertical(|ui| {
+                            ui.label(
+                                egui::RichText::new(&cf_mod.name)
+                                    .strong()
+                                    .color(theme::Colors::text_primary()),
+                            );
+                            ui.label(theme::small(&cf_mod.summary));
+                        });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Install").clicked() {
+                                self.do_cf_install(cf_mod.id, instance_dir);
+                            }
+                        });
+                    });
+                });
+                ui.add_space(2.0);
+            }
+        }
+    }
+
+    fn do_cf_search(&mut self, _instance_dir: &Path) {
+        if self.cf_search.query.is_empty() {
+            return;
+        }
+        let Some(idx) = self.selected_instance else {
+            return;
+        };
+        let inst = &self.instances[idx];
+        let api_key = self.config.curseforge_api_key.clone().unwrap_or_default();
+        self.cf_search.searching = true;
+        self.controller.send(AppCommand::CfSearchMods {
+            query: self.cf_search.query.clone(),
+            mc_version: inst.minecraft_version.clone(),
+            loader: inst
+                .mod_loader
+                .as_ref()
+                .map(|l| l.loader_type.as_str().to_string()),
+            api_key,
+        });
+    }
+
+    fn do_cf_install(&mut self, mod_id: u32, instance_dir: &Path) {
+        let Some(idx) = self.selected_instance else {
+            return;
+        };
+        let inst = &self.instances[idx];
+        let api_key = self.config.curseforge_api_key.clone().unwrap_or_default();
+        let loader = inst
+            .mod_loader
+            .as_ref()
+            .map(|l| l.loader_type.as_str().to_string())
+            .unwrap_or_else(|| "forge".to_string());
+        self.cf_search.searching = true;
+        self.controller.send(AppCommand::CfInstallMod {
+            mod_id,
+            mc_version: inst.minecraft_version.clone(),
+            loader,
+            instance_dir: instance_dir.to_path_buf(),
+            api_key,
+        });
     }
 
     fn render_inline_mod_search(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
