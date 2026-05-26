@@ -30,6 +30,9 @@ pub enum MiaoError {
     Modrinth(#[from] ModrinthError),
 
     #[error(transparent)]
+    CurseForge(#[from] CurseForgeError),
+
+    #[error(transparent)]
     Config(#[from] ConfigError),
 
     #[error(transparent)]
@@ -237,6 +240,32 @@ pub enum ModrinthError {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+}
+
+/// CurseForge API errors.
+#[derive(Debug, Error)]
+pub enum CurseForgeError {
+    #[error("mod ID {mod_id} not found on CurseForge")]
+    ModNotFound { mod_id: u32 },
+
+    #[error("no compatible file for mod {mod_id} (MC {mc_version}, {loader})")]
+    NoCompatibleFile {
+        mod_id: u32,
+        mc_version: String,
+        loader: String,
+    },
+
+    #[error("CurseForge API error: {0}")]
+    Api(#[from] reqwest::Error),
+
+    #[error("failed to download mod file: {0}")]
+    DownloadFailed(String),
+
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("CurseForge API key not configured")]
+    NoApiKey,
 }
 
 /// Configuration errors.

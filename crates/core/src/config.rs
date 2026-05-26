@@ -13,6 +13,8 @@ pub struct LauncherConfig {
     pub max_concurrent_downloads: usize,
     pub accounts: Vec<AuthMethod>,
     pub active_account_index: Option<usize>,
+    #[serde(default)]
+    pub curseforge_api_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -46,6 +48,7 @@ impl Default for LauncherConfig {
             max_concurrent_downloads: 64,
             accounts: Vec::new(),
             active_account_index: None,
+            curseforge_api_key: None,
         }
     }
 }
