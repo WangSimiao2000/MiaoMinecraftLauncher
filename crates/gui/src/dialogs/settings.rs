@@ -154,7 +154,9 @@ impl MiaoApp {
 
             if let Some(idx) = set_active {
                 self.config.active_account_index = Some(idx);
-                let _ = self.config.save();
+                if let Err(e) = self.config.save() {
+                    self.status = format!("✗ Save failed: {}", e);
+                }
             }
 
             if let Some(idx) = to_delete {
@@ -170,8 +172,11 @@ impl MiaoApp {
                         self.config.active_account_index = Some(active - 1);
                     }
                 }
-                let _ = self.config.save();
-                self.status = "Account removed.".to_string();
+                if let Err(e) = self.config.save() {
+                    self.status = format!("✗ Save failed: {}", e);
+                } else {
+                    self.status = "Account removed.".to_string();
+                }
             }
         }
 
@@ -196,9 +201,12 @@ impl MiaoApp {
                     if self.config.active_account_index.is_none() {
                         self.config.active_account_index = Some(0);
                     }
-                    let _ = self.config.save();
-                    self.offline_username_input.clear();
-                    self.status = "Account added.".to_string();
+                    if let Err(e) = self.config.save() {
+                        self.status = format!("✗ Save failed: {}", e);
+                    } else {
+                        self.offline_username_input.clear();
+                        self.status = "Account added.".to_string();
+                    }
                 }
             });
         });
@@ -272,30 +280,53 @@ impl MiaoApp {
             ui.horizontal(|ui| {
                 if ui.button(I18n::t(lang, "apply")).clicked() {
                     let new_path = std::path::PathBuf::from(&self.data_dir_input);
-                    let _ = std::fs::create_dir_all(&new_path);
-                    self.config.data_dir = new_path;
-                    let _ = self.config.save();
-                    self.instances =
-                        miao_core::instance::list_instances(&self.config.instances_dir())
-                            .unwrap_or_default();
-                    self.selected_instance = None;
-                    self.status = "Data directory updated.".to_string();
+                    if let Err(e) = std::fs::create_dir_all(&new_path) {
+                        self.status = format!("✗ Failed to create directory: {}", e);
+                    } else {
+                        self.config.data_dir = new_path;
+                        if let Err(e) = self.config.save() {
+                            self.status = format!("✗ Failed to save config: {}", e);
+                        } else {
+                            self.instances =
+                                miao_core::instance::list_instances(&self.config.instances_dir())
+                                    .unwrap_or_default();
+                            self.selected_instance = None;
+                            self.status = "Data directory updated.".to_string();
+                        }
+                    }
                 }
                 if ui.button("Apply & Migrate").clicked() {
                     let new_path = std::path::PathBuf::from(&self.data_dir_input);
                     let old_path = self.config.data_dir.clone();
                     if new_path != old_path {
-                        let _ = std::fs::create_dir_all(&new_path);
-                        if old_path.exists() {
-                            migrate_data_dir(&old_path, &new_path);
-                        }
-                        self.config.data_dir = new_path;
-                        let _ = self.config.save();
-                        self.instances =
-                            miao_core::instance::list_instances(&self.config.instances_dir())
+                        if let Err(e) = std::fs::create_dir_all(&new_path) {
+                            self.status = format!("✗ Failed to create directory: {}", e);
+                        } else {
+                            let migration_ok = if old_path.exists() {
+                                migrate_data_dir(&old_path, &new_path).is_ok()
+                            } else {
+                                true
+                            };
+                            self.config.data_dir = new_path;
+                            if let Err(e) = self.config.save() {
+                                self.status = format!("✗ Failed to save config: {}", e);
+                            } else if migration_ok {
+                                self.instances = miao_core::instance::list_instances(
+                                    &self.config.instances_dir(),
+                                )
                                 .unwrap_or_default();
-                        self.selected_instance = None;
-                        self.status = "Data directory migrated.".to_string();
+                                self.selected_instance = None;
+                                self.status = "Data directory migrated.".to_string();
+                            } else {
+                                self.instances = miao_core::instance::list_instances(
+                                    &self.config.instances_dir(),
+                                )
+                                .unwrap_or_default();
+                                self.selected_instance = None;
+                                self.status = "Data directory set (some files could not be moved)."
+                                    .to_string();
+                            }
+                        }
                     }
                 }
             });
@@ -341,8 +372,11 @@ impl MiaoApp {
                     _ => DownloadMirror::Custom(self.mirror_custom_url.clone()),
                 };
                 self.config.download_mirror = new_mirror;
-                let _ = self.config.save();
-                self.status = "Mirror updated.".to_string();
+                if let Err(e) = self.config.save() {
+                    self.status = format!("✗ Save failed: {}", e);
+                } else {
+                    self.status = "Mirror updated.".to_string();
+                }
             }
 
             ui.add_space(12.0);
@@ -362,7 +396,9 @@ impl MiaoApp {
                         let v = v.clamp(1, 256);
                         self.config.max_concurrent_downloads = v;
                         self.max_downloads_input = v.to_string();
-                        let _ = self.config.save();
+                        if let Err(e) = self.config.save() {
+                            self.status = format!("✗ Save failed: {}", e);
+                        }
                     } else {
                         self.max_downloads_input = self.config.max_concurrent_downloads.to_string();
                     }
@@ -526,18 +562,19 @@ impl MiaoApp {
     }
 }
 
-fn migrate_data_dir(old: &std::path::Path, new: &std::path::Path) {
+fn migrate_data_dir(old: &std::path::Path, new: &std::path::Path) -> std::io::Result<()> {
     let subdirs = ["instances", "versions", "libraries", "assets", "java"];
     for dir in &subdirs {
         let src = old.join(dir);
         let dst = new.join(dir);
         if src.exists() && !dst.exists() {
-            let _ = std::fs::rename(&src, &dst);
+            std::fs::rename(&src, &dst)?;
         }
     }
     let config_src = old.join("config.toml");
     let config_dst = new.join("config.toml");
     if config_src.exists() && !config_dst.exists() {
-        let _ = std::fs::rename(&config_src, &config_dst);
+        std::fs::rename(&config_src, &config_dst)?;
     }
+    Ok(())
 }

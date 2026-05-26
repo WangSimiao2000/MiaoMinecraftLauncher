@@ -242,7 +242,9 @@ impl MiaoApp {
                     if self.config.active_account_index.is_none() {
                         self.config.active_account_index = Some(0);
                     }
-                    let _ = self.config.save();
+                    if let Err(e) = self.config.save() {
+                        self.status = format!("✗ Failed to save account: {}", e);
+                    }
                     self.auth.device_code = None;
                     self.auth.logging_in = false;
                 }
