@@ -148,7 +148,7 @@ impl MiaoApp {
                                 ui.horizontal(|ui| {
                                     if *active {
                                         ui.label(
-                                            egui::RichText::new("●")
+                                            egui::RichText::new(crate::icons::ICON_CIRCLE_FILL)
                                                 .size(8.0)
                                                 .color(theme::Colors::success()),
                                         );
@@ -163,7 +163,7 @@ impl MiaoApp {
                                 |ui| {
                                     if ui
                                         .add(egui::Button::new(
-                                            egui::RichText::new("✕")
+                                            egui::RichText::new(crate::icons::ICON_X)
                                                 .size(12.0)
                                                 .color(theme::Colors::danger()),
                                         ))

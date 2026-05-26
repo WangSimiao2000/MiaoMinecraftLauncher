@@ -43,7 +43,11 @@ impl<'a> CollapsibleCard<'a> {
             let header_response = ui
                 .horizontal(|ui| {
                     ui.add_space(14.0);
-                    let arrow = if open { "▼" } else { "▶" };
+                    let arrow = if open {
+                        crate::icons::ICON_CHEVRON_DOWN
+                    } else {
+                        crate::icons::ICON_CHEVRON_RIGHT
+                    };
                     ui.label(
                         egui::RichText::new(arrow)
                             .size(10.0)

@@ -1,0 +1,15 @@
+pub const ICON_CLOSE: &str = "\u{F659}";
+pub const ICON_CHECK: &str = "\u{F26E}";
+pub const ICON_ERROR: &str = "\u{F33B}";
+pub const ICON_SEARCH: &str = "\u{F52A}";
+pub const ICON_GEAR: &str = "\u{F3E5}";
+pub const ICON_GLOBE: &str = "\u{F3EE}";
+pub const ICON_CIRCLE_FILL: &str = "\u{F287}";
+pub const ICON_X_CIRCLE: &str = "\u{F623}";
+pub const ICON_CHEVRON_DOWN: &str = "\u{F282}";
+pub const ICON_CHEVRON_RIGHT: &str = "\u{F285}";
+pub const ICON_TRASH: &str = "\u{F5DE}";
+pub const ICON_FOLDER_OPEN: &str = "\u{F3D8}";
+pub const ICON_ARROW_LEFT: &str = "\u{F12F}";
+pub const ICON_DOWNLOAD: &str = "\u{F30A}";
+pub const ICON_X: &str = "\u{F62A}";

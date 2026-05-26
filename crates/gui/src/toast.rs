@@ -24,10 +24,10 @@ impl ToastLevel {
 
     fn icon(&self) -> &'static str {
         match self {
-            ToastLevel::Success => "✓",
-            ToastLevel::Warning => "⚠",
-            ToastLevel::Error => "✗",
-            ToastLevel::Info => "ℹ",
+            ToastLevel::Success => crate::icons::ICON_CHECK,
+            ToastLevel::Warning => crate::icons::ICON_ERROR,
+            ToastLevel::Error => crate::icons::ICON_X_CIRCLE,
+            ToastLevel::Info => crate::icons::ICON_GLOBE,
         }
     }
 }

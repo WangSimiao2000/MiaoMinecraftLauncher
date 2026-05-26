@@ -22,11 +22,19 @@ impl MiaoApp {
                 }
 
                 let search_label = if self.mod_search_active {
-                    egui::RichText::new(I18n::t(lang, "close_search"))
-                        .color(theme::Colors::text_secondary())
+                    egui::RichText::new(format!(
+                        "{} {}",
+                        crate::icons::ICON_X_CIRCLE,
+                        I18n::t(lang, "close_search")
+                    ))
+                    .color(theme::Colors::text_secondary())
                 } else {
-                    egui::RichText::new(I18n::t(lang, "search_mods"))
-                        .color(theme::Colors::text_primary())
+                    egui::RichText::new(format!(
+                        "{} {}",
+                        crate::icons::ICON_SEARCH,
+                        I18n::t(lang, "search_mods")
+                    ))
+                    .color(theme::Colors::text_primary())
                 };
                 if ui.button(search_label).clicked() {
                     self.mod_search_active = !self.mod_search_active;

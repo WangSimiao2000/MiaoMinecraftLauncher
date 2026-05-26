@@ -38,7 +38,7 @@ impl MiaoApp {
                     ui.set_min_width(ui.available_width());
                     ui.horizontal(|ui| {
                         ui.label(
-                            egui::RichText::new("🌍")
+                            egui::RichText::new(crate::icons::ICON_GLOBE)
                                 .size(14.0)
                                 .color(theme::Colors::accent_light()),
                         );

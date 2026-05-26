@@ -496,7 +496,7 @@ impl eframe::App for MiaoApp {
                                     .text(text)
                                     .fill(theme::Colors::accent()),
                             );
-                            if ui.small_button("✕").clicked() {
+                            if ui.small_button(crate::icons::ICON_X).clicked() {
                                 self.cancel_all_tasks();
                             }
                         });
@@ -504,7 +504,7 @@ impl eframe::App for MiaoApp {
                         ui.horizontal(|ui| {
                             ui.spinner();
                             ui.label(theme::status_text(&self.status));
-                            if ui.small_button("✕").clicked() {
+                            if ui.small_button(crate::icons::ICON_X).clicked() {
                                 self.cancel_all_tasks();
                             }
                         });
@@ -513,7 +513,7 @@ impl eframe::App for MiaoApp {
                     ui.horizontal(|ui| {
                         ui.spinner();
                         ui.label(theme::status_text(&self.status));
-                        if ui.small_button("✕").clicked() {
+                        if ui.small_button(crate::icons::ICON_X).clicked() {
                             self.cancel_all_tasks();
                         }
                     });

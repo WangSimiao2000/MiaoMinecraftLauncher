@@ -91,7 +91,7 @@ impl MiaoApp {
                     ui.painter().text(
                         rect.left_center() + egui::vec2(12.0, 0.0),
                         egui::Align2::LEFT_CENTER,
-                        format!("\u{2699}  {}", I18n::t(lang, "settings")),
+                        format!("{}  {}", crate::icons::ICON_GEAR, I18n::t(lang, "settings")),
                         egui::FontId::proportional(13.0),
                         text_color,
                     );

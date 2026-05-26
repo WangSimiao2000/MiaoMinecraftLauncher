@@ -2,6 +2,7 @@ mod app;
 pub mod blur;
 mod controller;
 mod dialogs;
+pub mod icons;
 mod messages;
 pub mod navigation;
 pub mod state;
@@ -34,11 +35,22 @@ fn main() -> Result<()> {
                     "../assets/MiSans-Medium.ttf"
                 ))),
             );
+            fonts.font_data.insert(
+                "icons".to_owned(),
+                std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
+                    "../assets/bootstrap-icons.ttf"
+                ))),
+            );
             fonts
                 .families
                 .entry(egui::FontFamily::Proportional)
                 .or_default()
                 .insert(0, "misans".to_owned());
+            fonts
+                .families
+                .entry(egui::FontFamily::Proportional)
+                .or_default()
+                .push("icons".to_owned());
             fonts
                 .families
                 .entry(egui::FontFamily::Monospace)
