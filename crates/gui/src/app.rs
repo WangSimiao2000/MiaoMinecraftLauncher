@@ -40,6 +40,7 @@ pub struct MiaoApp {
     pub status: String,
 
     pub offline_username_input: String,
+    pub offline_skin_model: miao_core::auth::SkinModel,
     pub data_dir_input: String,
     pub new_instance: NewInstanceInput,
     pub mod_search: ModSearchState,
@@ -160,6 +161,7 @@ impl MiaoApp {
             selected_instance: None,
             status: "Ready".to_string(),
             offline_username_input: String::new(),
+            offline_skin_model: miao_core::auth::SkinModel::Classic,
             data_dir_input,
             new_instance: NewInstanceInput::default(),
             mod_search: ModSearchState::default(),

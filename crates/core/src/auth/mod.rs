@@ -9,6 +9,29 @@ pub use authlib_injector::AuthlibInjectorAccount;
 
 pub const MS_CLIENT_ID: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum SkinModel {
+    #[default]
+    Classic,
+    Slim,
+}
+
+impl SkinModel {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Classic => "classic",
+            Self::Slim => "slim",
+        }
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Classic => "Classic (Steve)",
+            Self::Slim => "Slim (Alex)",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AuthMethod {
     Microsoft(MicrosoftAccount),
@@ -23,10 +46,11 @@ pub struct MicrosoftAccount {
     pub access_token: String,
     pub refresh_token: String,
     pub expires_at: chrono::DateTime<chrono::Utc>,
+    #[serde(default)]
+    pub skin_model: SkinModel,
 }
 
 impl MicrosoftAccount {
-    /// Returns true if the Minecraft access token has expired or will expire within 5 minutes.
     pub fn is_expired(&self) -> bool {
         chrono::Utc::now() + chrono::Duration::minutes(5) >= self.expires_at
     }
@@ -36,6 +60,8 @@ impl MicrosoftAccount {
 pub struct OfflineAccount {
     pub username: String,
     pub uuid: Uuid,
+    #[serde(default)]
+    pub skin_model: SkinModel,
 }
 
 impl AuthMethod {
@@ -81,6 +107,27 @@ impl AuthMethod {
             _ => None,
         }
     }
+
+    pub fn skin_model(&self) -> SkinModel {
+        match self {
+            Self::Microsoft(acc) => acc.skin_model,
+            Self::Offline(acc) => acc.skin_model,
+            Self::AuthlibInjector(_) => SkinModel::Classic,
+        }
+    }
+
+    pub fn avatar_url(&self) -> String {
+        let uuid = self.uuid().as_simple().to_string();
+        format!("https://mc-heads.net/avatar/{}/64", uuid)
+    }
+
+    pub fn cape_url(&self) -> Option<String> {
+        if self.is_offline() {
+            return None;
+        }
+        let uuid = self.uuid().as_simple().to_string();
+        Some(format!("https://crafatar.com/capes/{}", uuid))
+    }
 }
 
 #[cfg(test)]
@@ -107,6 +154,7 @@ mod tests {
             access_token: "token123".to_string(),
             refresh_token: "refresh456".to_string(),
             expires_at: chrono::Utc::now(),
+            skin_model: SkinModel::Classic,
         };
         let auth = AuthMethod::Microsoft(account);
 

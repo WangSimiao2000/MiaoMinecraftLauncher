@@ -1,6 +1,5 @@
 use eframe::egui;
 use miao_core::auth::AuthMethod;
-use miao_core::auth::offline::create_offline_account;
 use miao_core::config::DownloadMirror;
 
 use crate::app::{I18n, Language, MiaoApp, SettingsTab};
@@ -91,28 +90,32 @@ impl MiaoApp {
         if self.config.accounts.is_empty() {
             ui.label(theme::muted(I18n::t(lang, "no_accounts")));
         } else {
-            let account_info: Vec<(String, String, bool)> = self
+            let account_info: Vec<(String, String, String, bool)> = self
                 .config
                 .accounts
                 .iter()
                 .enumerate()
                 .map(|(i, acc)| {
                     let active = self.config.active_account_index == Some(i);
+                    let avatar_url = acc.avatar_url();
                     let (name, kind) = match acc {
-                        AuthMethod::Offline(a) => (a.username.clone(), "Offline".to_string()),
+                        AuthMethod::Offline(a) => (
+                            a.username.clone(),
+                            format!("Offline · {}", a.skin_model.display_name()),
+                        ),
                         AuthMethod::Microsoft(a) => (a.username.clone(), "Microsoft".to_string()),
                         AuthMethod::AuthlibInjector(a) => {
                             (a.username.clone(), a.server_name.clone())
                         }
                     };
-                    (name, kind, active)
+                    (name, kind, avatar_url, active)
                 })
                 .collect();
 
             let mut to_delete: Option<usize> = None;
             let mut set_active: Option<usize> = None;
 
-            for (i, (name, kind, active)) in account_info.iter().enumerate() {
+            for (i, (name, kind, avatar_url, active)) in account_info.iter().enumerate() {
                 egui::Frame::none()
                     .fill(if *active {
                         theme::Colors::bg_widget_hover()
@@ -124,14 +127,25 @@ impl MiaoApp {
                     .show(ui, |ui| {
                         ui.set_min_width(ui.available_width());
                         ui.horizontal(|ui| {
-                            let dot = if *active { "●" } else { "○" };
-                            ui.label(egui::RichText::new(dot).color(if *active {
-                                theme::Colors::success()
-                            } else {
-                                theme::Colors::text_muted()
-                            }));
-                            ui.label(theme::body(name));
-                            ui.label(theme::small(kind));
+                            ui.add(
+                                egui::Image::new(avatar_url.as_str())
+                                    .fit_to_exact_size(egui::vec2(32.0, 32.0))
+                                    .rounding(egui::Rounding::same(4.0)),
+                            );
+                            ui.add_space(6.0);
+                            ui.vertical(|ui| {
+                                ui.horizontal(|ui| {
+                                    if *active {
+                                        ui.label(
+                                            egui::RichText::new("●")
+                                                .size(8.0)
+                                                .color(theme::Colors::success()),
+                                        );
+                                    }
+                                    ui.label(theme::body(name));
+                                });
+                                ui.label(theme::small(kind));
+                            });
 
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
@@ -199,20 +213,42 @@ impl MiaoApp {
                         .min_size(ui.spacing().interact_size)
                         .hint_text("Username"),
                 );
-                if ui.button("Add").clicked() && !self.offline_username_input.is_empty() {
-                    let account = create_offline_account(&self.offline_username_input);
-                    self.config.accounts.push(AuthMethod::Offline(account));
-                    if self.config.active_account_index.is_none() {
-                        self.config.active_account_index = Some(0);
-                    }
-                    if let Err(e) = self.config.save() {
-                        self.status = format!("✗ Save failed: {}", e);
-                    } else {
-                        self.offline_username_input.clear();
-                        self.status = "Account added.".to_string();
-                    }
+            });
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label(theme::small("Model:"));
+                ui.add_space(4.0);
+                let is_classic = self.offline_skin_model == miao_core::auth::SkinModel::Classic;
+                if ui
+                    .add(egui::SelectableLabel::new(is_classic, "Classic (Steve)"))
+                    .clicked()
+                {
+                    self.offline_skin_model = miao_core::auth::SkinModel::Classic;
+                }
+                if ui
+                    .add(egui::SelectableLabel::new(!is_classic, "Slim (Alex)"))
+                    .clicked()
+                {
+                    self.offline_skin_model = miao_core::auth::SkinModel::Slim;
                 }
             });
+            ui.add_space(6.0);
+            if ui.button("Add").clicked() && !self.offline_username_input.is_empty() {
+                let account = miao_core::auth::offline::create_offline_account_with_model(
+                    &self.offline_username_input,
+                    self.offline_skin_model,
+                );
+                self.config.accounts.push(AuthMethod::Offline(account));
+                if self.config.active_account_index.is_none() {
+                    self.config.active_account_index = Some(0);
+                }
+                if let Err(e) = self.config.save() {
+                    self.status = format!("✗ Save failed: {}", e);
+                } else {
+                    self.offline_username_input.clear();
+                    self.status = "Account added.".to_string();
+                }
+            }
         });
 
         ui.add_space(12.0);

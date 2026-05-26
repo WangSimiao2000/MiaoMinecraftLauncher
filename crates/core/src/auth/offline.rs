@@ -1,8 +1,12 @@
 use uuid::Uuid;
 
-use super::OfflineAccount;
+use super::{OfflineAccount, SkinModel};
 
 pub fn create_offline_account(username: &str) -> OfflineAccount {
+    create_offline_account_with_model(username, SkinModel::Classic)
+}
+
+pub fn create_offline_account_with_model(username: &str, skin_model: SkinModel) -> OfflineAccount {
     let uuid = Uuid::new_v3(
         &Uuid::NAMESPACE_DNS,
         format!("OfflinePlayer:{}", username).as_bytes(),
@@ -10,6 +14,7 @@ pub fn create_offline_account(username: &str) -> OfflineAccount {
     OfflineAccount {
         username: username.to_string(),
         uuid,
+        skin_model,
     }
 }
 

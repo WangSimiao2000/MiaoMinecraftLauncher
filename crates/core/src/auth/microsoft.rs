@@ -200,6 +200,7 @@ impl MicrosoftAuth {
             access_token: mc_token,
             refresh_token: ms_refresh_token.unwrap_or_default().to_string(),
             expires_at: chrono::Utc::now() + chrono::Duration::hours(24),
+            skin_model: super::SkinModel::Classic,
         })
     }
 
