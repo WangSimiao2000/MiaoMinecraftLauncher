@@ -1,0 +1,25 @@
+#!/bin/sh
+# Pre-push hook: clippy + tests
+# Skip with: git push --no-verify
+
+if [ -n "$GIT_MASTER" ]; then
+    exit 0
+fi
+
+echo "[pre-push] Running clippy..."
+cargo clippy --workspace -- -D warnings
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "ERROR: clippy found issues. Fix them before pushing."
+    exit 1
+fi
+
+echo "[pre-push] Running tests..."
+cargo test --workspace
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "ERROR: tests failed. Fix them before pushing."
+    exit 1
+fi
+
+echo "[pre-push] All checks passed."

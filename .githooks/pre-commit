@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-commit hook: fast formatting check
+# Skip with: git commit --no-verify
+
+if [ -n "$GIT_MASTER" ]; then
+    exit 0
+fi
+
+echo "[pre-commit] Checking formatting..."
+cargo fmt --all -- --check
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "ERROR: cargo fmt check failed. Run 'cargo fmt --all' to fix."
+    exit 1
+fi
