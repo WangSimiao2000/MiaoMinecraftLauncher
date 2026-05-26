@@ -1,20 +1,26 @@
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::error::Result;
 use futures::stream::{self, StreamExt};
 use tokio::sync::Mutex;
+use tracing::{debug, warn};
 
 use super::{DownloadProgress, DownloadTask};
 use crate::config::DownloadMirror;
 
-use super::mirror::transform_url;
+use super::mirror::{build_fallback_chain, transform_url};
 
 pub type ProgressCallback = Arc<dyn Fn(&DownloadProgress) + Send + Sync>;
 
+const MAX_RETRIES: u32 = 3;
+const BASE_RETRY_DELAY_MS: u64 = 500;
+const REQUEST_TIMEOUT_SECS: u64 = 30;
+
 pub struct DownloadManager {
     http: reqwest::Client,
-    mirror: DownloadMirror,
+    fallback_chain: Vec<DownloadMirror>,
     max_concurrent: usize,
     progress: Arc<Mutex<DownloadProgress>>,
     on_progress: Option<ProgressCallback>,
@@ -22,12 +28,15 @@ pub struct DownloadManager {
 
 impl DownloadManager {
     pub fn new(mirror: DownloadMirror, max_concurrent: usize) -> Self {
+        let fallback_chain = build_fallback_chain(&mirror);
         Self {
             http: reqwest::Client::builder()
                 .user_agent("MiaoMinecraftLauncher/0.1.0")
+                .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+                .connect_timeout(Duration::from_secs(10))
                 .build()
                 .expect("failed to build HTTP client"),
-            mirror,
+            fallback_chain,
             max_concurrent,
             progress: Arc::new(Mutex::new(DownloadProgress {
                 total_bytes: 0,
@@ -64,8 +73,6 @@ impl DownloadManager {
     }
 
     async fn download_single(&self, task: DownloadTask) -> Result<()> {
-        let url = transform_url(&task.url, &self.mirror);
-
         if let Some(parent) = task.dest.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
@@ -89,8 +96,7 @@ impl DownloadManager {
                 .to_string();
         }
 
-        let response = self.http.get(&url).send().await?.error_for_status()?;
-        let bytes = response.bytes().await?;
+        let bytes = self.download_with_fallback(&task.url).await?;
 
         tokio::fs::write(&task.dest, &bytes).await?;
 
@@ -115,8 +121,81 @@ impl DownloadManager {
         Ok(())
     }
 
+    async fn download_with_fallback(&self, original_url: &str) -> Result<bytes::Bytes> {
+        let mut last_error = None;
+
+        for mirror in &self.fallback_chain {
+            let url = transform_url(original_url, mirror);
+
+            match self.download_with_retry(&url).await {
+                Ok(bytes) => return Ok(bytes),
+                Err(e) => {
+                    warn!(
+                        url = %url,
+                        mirror = ?mirror,
+                        error = %e,
+                        "Download failed, trying next mirror"
+                    );
+                    last_error = Some(e);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            crate::error::MiaoError::Other(format!("All mirrors exhausted for {}", original_url))
+        }))
+    }
+
+    async fn download_with_retry(&self, url: &str) -> Result<bytes::Bytes> {
+        let mut last_error = None;
+
+        for attempt in 0..MAX_RETRIES {
+            if attempt > 0 {
+                let delay = Duration::from_millis(BASE_RETRY_DELAY_MS * 2u64.pow(attempt - 1));
+                debug!(
+                    attempt,
+                    delay_ms = delay.as_millis(),
+                    url,
+                    "Retrying download"
+                );
+                tokio::time::sleep(delay).await;
+            }
+
+            match self.http.get(url).send().await {
+                Ok(resp) => match resp.error_for_status() {
+                    Ok(resp) => match resp.bytes().await {
+                        Ok(bytes) => return Ok(bytes),
+                        Err(e) => last_error = Some(crate::error::MiaoError::Http(e)),
+                    },
+                    Err(e) => {
+                        if is_non_retryable(&e) {
+                            return Err(crate::error::MiaoError::Http(e));
+                        }
+                        last_error = Some(crate::error::MiaoError::Http(e));
+                    }
+                },
+                Err(e) => last_error = Some(crate::error::MiaoError::Http(e)),
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            crate::error::MiaoError::Other(format!(
+                "Download failed after {} retries: {}",
+                MAX_RETRIES, url
+            ))
+        }))
+    }
+
     pub async fn progress(&self) -> DownloadProgress {
         self.progress.lock().await.clone()
+    }
+}
+
+fn is_non_retryable(err: &reqwest::Error) -> bool {
+    if let Some(status) = err.status() {
+        matches!(status.as_u16(), 400 | 401 | 403 | 404 | 410)
+    } else {
+        false
     }
 }
 
