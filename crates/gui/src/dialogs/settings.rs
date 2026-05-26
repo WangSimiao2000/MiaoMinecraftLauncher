@@ -642,7 +642,10 @@ impl MiaoApp {
                     .strong()
                     .color(theme::Colors::accent_light()),
             );
-            ui.label(theme::muted("MiaoMinecraftLauncher v0.1.0"));
+            ui.label(theme::muted(&format!(
+                "MiaoMinecraftLauncher v{}",
+                env!("CARGO_PKG_VERSION")
+            )));
             ui.add_space(4.0);
             ui.label(theme::body("A feature-rich Minecraft launcher for Linux."));
         });

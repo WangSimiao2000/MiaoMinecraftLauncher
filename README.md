@@ -59,13 +59,13 @@ cargo run -p miao-gui --release
 miao versions
 
 # Create an instance
-miao create 1.21.4 --name "My Server" --loader fabric
+miao new 1.20.4 --name "My Server" --loader fabric
 
 # Launch
 miao launch "My Server"
 
 # Search and install mods
-miao mod-search sodium --mc 1.21.4 --loader fabric
+miao mod-search sodium --mc-version 1.20.4 --loader fabric
 miao mod-install "My Server" sodium
 ```
 

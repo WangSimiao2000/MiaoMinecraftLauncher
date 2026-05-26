@@ -57,7 +57,10 @@ pub fn handle_fetch_loader_versions(
 
 pub fn handle_check_updates(tx: mpsc::UnboundedSender<AppEvent>, ctx: Context) {
     tokio::spawn(async move {
-        let Ok(http) = reqwest::Client::builder().user_agent("MMCL/0.1.0").build() else {
+        let Ok(http) = reqwest::Client::builder()
+            .user_agent(concat!("MMCL/", env!("CARGO_PKG_VERSION")))
+            .build()
+        else {
             return;
         };
         let url =

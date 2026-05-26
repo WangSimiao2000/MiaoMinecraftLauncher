@@ -37,7 +37,10 @@ pub struct UpdateInfo {
 pub async fn check_for_update(http: &reqwest::Client) -> Result<Option<UpdateInfo>> {
     let resp: ReleaseInfo = http
         .get(GITHUB_API_URL)
-        .header("User-Agent", "MiaoMinecraftLauncher/0.1.0")
+        .header(
+            "User-Agent",
+            concat!("MiaoMinecraftLauncher/", env!("CARGO_PKG_VERSION")),
+        )
         .header("Accept", "application/vnd.github+json")
         .send()
         .await?
@@ -81,7 +84,10 @@ pub async fn download_update(
 
     let bytes = http
         .get(&update_info.download_url)
-        .header("User-Agent", "MiaoMinecraftLauncher/0.1.0")
+        .header(
+            "User-Agent",
+            concat!("MiaoMinecraftLauncher/", env!("CARGO_PKG_VERSION")),
+        )
         .send()
         .await?
         .error_for_status()?

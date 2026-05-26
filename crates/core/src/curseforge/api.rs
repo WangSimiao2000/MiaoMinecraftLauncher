@@ -16,7 +16,7 @@ impl CurseForgeClient {
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
             http: reqwest::Client::builder()
-                .user_agent("MiaoMinecraftLauncher/0.1.0")
+                .user_agent(concat!("MiaoMinecraftLauncher/", env!("CARGO_PKG_VERSION")))
                 .build()
                 .expect("failed to build HTTP client"),
             api_key: api_key.into(),

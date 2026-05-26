@@ -31,7 +31,7 @@ impl DownloadManager {
         let fallback_chain = build_fallback_chain(&mirror);
         Self {
             http: reqwest::Client::builder()
-                .user_agent("MiaoMinecraftLauncher/0.1.0")
+                .user_agent(concat!("MiaoMinecraftLauncher/", env!("CARGO_PKG_VERSION")))
                 .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
                 .connect_timeout(Duration::from_secs(10))
                 .build()
