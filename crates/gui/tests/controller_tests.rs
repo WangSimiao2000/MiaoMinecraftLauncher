@@ -122,7 +122,7 @@ fn check_for_updates_produces_event_or_nothing() {
 fn cancel_task_when_no_active_task_is_noop() {
     let (rt, mut controller) = setup();
 
-    controller.send(AppCommand::CancelCurrentTask);
+    controller.send(AppCommand::CancelTask { task_id: "nonexistent".to_string() });
 
     rt.block_on(async { tokio::time::sleep(Duration::from_millis(200)).await });
     let event = controller.try_recv();
@@ -164,6 +164,7 @@ fn create_instance_with_invalid_version_fails() {
     };
 
     controller.send(AppCommand::CreateInstance {
+        task_id: "install-test-fail".to_string(),
         ver: miao_core::version::VersionInfo {
             id: "99.99.99".to_string(),
             url: "https://invalid.example.com/not-real.json".to_string(),
