@@ -193,17 +193,16 @@ fn stream_game_process(
     use miao_core::auth::AuthMethod;
     use miao_core::auth::MS_CLIENT_ID;
     use miao_core::auth::microsoft::MicrosoftAuth;
-    use miao_core::auth::offline::create_offline_account;
     use miao_core::java;
     use miao_core::launch::{LaunchOptions, build_launch_command};
     use std::io::BufRead;
 
     let idx = config.active_account_index.unwrap_or(0);
-    let account = config
-        .accounts
-        .get(idx)
-        .cloned()
-        .unwrap_or_else(|| AuthMethod::Offline(create_offline_account("Player")));
+    let Some(account) = config.accounts.get(idx).cloned() else {
+        let _ = tx.send(AppEvent::Error("No account configured.".to_string()));
+        ctx.request_repaint();
+        return;
+    };
 
     let account = match &account {
         AuthMethod::Microsoft(ms_acc) if ms_acc.is_expired() => {

@@ -728,6 +728,12 @@ impl MiaoApp {
 
 impl MiaoApp {
     pub fn launch_instance(&mut self, idx: usize) {
+        if self.config.accounts.is_empty() || self.config.active_account_index.is_none() {
+            let lang = self.language;
+            self.toasts.warning(I18n::t(lang, "no_account_to_launch"));
+            return;
+        }
+
         let inst = &self.instances[idx];
 
         let java_installations = java::detect_java_with_data_dir(&self.config.data_dir);

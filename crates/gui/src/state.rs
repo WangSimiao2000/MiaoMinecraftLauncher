@@ -430,6 +430,10 @@ impl I18n {
             (Language::Chinese, "account_added") => "账号已添加。",
             (Language::English, "skin_model") => "Model:",
             (Language::Chinese, "skin_model") => "模型：",
+            (Language::English, "no_account_to_launch") => {
+                "Please add an account before launching."
+            }
+            (Language::Chinese, "no_account_to_launch") => "请先添加账号再启动游戏。",
             _ => key,
         }
     }
