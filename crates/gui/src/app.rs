@@ -13,7 +13,6 @@ use tokio::runtime::Runtime;
 
 use std::sync::Mutex;
 
-use crate::background::BackgroundState;
 use crate::blur::BlurRenderer;
 use crate::controller::AppController;
 use crate::messages::{AppCommand, AppEvent};
@@ -81,7 +80,7 @@ pub struct MiaoApp {
     pub update_available: Option<String>,
 
     pub file_scan_cache: FileScanCache,
-    pub background: BackgroundState,
+
     pub blur_renderer: Arc<Mutex<BlurRenderer>>,
     pub toasts: ToastQueue,
 
@@ -207,7 +206,7 @@ impl MiaoApp {
             active_installs: std::collections::HashSet::new(),
             update_available: None,
             file_scan_cache: FileScanCache::new(),
-            background: BackgroundState::new(),
+
             blur_renderer,
             toasts: ToastQueue::new(),
             controller,
@@ -443,10 +442,6 @@ impl eframe::App for MiaoApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.drain_events();
         theme::apply_theme(ctx, self.theme_preset);
-
-        self.background
-            .ensure_loaded(ctx, self.config.background_image.as_deref());
-        self.background.render(ctx);
 
         self.refresh_counter += 1;
         if self.refresh_counter.is_multiple_of(60) {

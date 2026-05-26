@@ -127,11 +127,11 @@ impl MiaoApp {
                     .show(ui, |ui| {
                         ui.set_min_width(ui.available_width());
                         ui.horizontal(|ui| {
-                            ui.add(
-                                egui::Image::new(avatar_url.as_str())
-                                    .fit_to_exact_size(egui::vec2(32.0, 32.0))
-                                    .rounding(egui::Rounding::same(4.0)),
-                            );
+                            let (rect, _) = ui
+                                .allocate_exact_size(egui::vec2(32.0, 32.0), egui::Sense::hover());
+                            let img = egui::Image::new(avatar_url.as_str())
+                                .rounding(egui::Rounding::same(4.0));
+                            img.paint_at(ui, rect);
                             ui.add_space(6.0);
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
@@ -160,7 +160,9 @@ impl MiaoApp {
                                     {
                                         to_delete = Some(i);
                                     }
-                                    if !*active && ui.small_button("Set Active").clicked() {
+                                    if !*active
+                                        && ui.small_button(I18n::t(lang, "set_active")).clicked()
+                                    {
                                         set_active = Some(i);
                                     }
                                 },
@@ -193,7 +195,7 @@ impl MiaoApp {
                 if let Err(e) = self.config.save() {
                     self.status = format!("✗ Save failed: {}", e);
                 } else {
-                    self.status = "Account removed.".to_string();
+                    self.status = I18n::t(lang, "account_removed").to_string();
                 }
             }
         }
@@ -216,7 +218,7 @@ impl MiaoApp {
             });
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(theme::small("Model:"));
+                ui.label(theme::small(I18n::t(lang, "skin_model")));
                 ui.add_space(4.0);
                 let is_classic = self.offline_skin_model == miao_core::auth::SkinModel::Classic;
                 if ui
@@ -247,7 +249,7 @@ impl MiaoApp {
                     self.status = format!("✗ Save failed: {}", e);
                 } else {
                     self.offline_username_input.clear();
-                    self.status = "Account added.".to_string();
+                    self.status = I18n::t(lang, "account_added").to_string();
                 }
             }
         });
@@ -260,14 +262,14 @@ impl MiaoApp {
             ui.add_space(6.0);
             if self.auth.logging_in {
                 if let Some(ref dc) = self.auth.device_code {
-                    ui.label(theme::muted("Open the link below and enter the code:"));
+                    ui.label(theme::muted(I18n::t(lang, "ms_login_hint")));
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
                         ui.hyperlink_to(&dc.verification_uri, &dc.verification_uri);
                     });
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
-                        ui.label(theme::body("Code:"));
+                        ui.label(theme::body(I18n::t(lang, "ms_code")));
                         ui.label(
                             egui::RichText::new(&dc.user_code)
                                 .strong()
@@ -278,11 +280,11 @@ impl MiaoApp {
                     ui.add_space(4.0);
                     ui.spinner();
                 } else {
-                    ui.label(theme::muted("Initializing..."));
+                    ui.label(theme::muted(I18n::t(lang, "ms_initializing")));
                     ui.spinner();
                 }
             } else {
-                ui.label(theme::muted("Sign in with your Microsoft account."));
+                ui.label(theme::muted(I18n::t(lang, "ms_signin_desc")));
                 ui.add_space(4.0);
                 if ui.button(I18n::t(lang, "sign_in")).clicked() {
                     self.start_ms_login();
@@ -299,7 +301,7 @@ impl MiaoApp {
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::muted("Choose a color theme for the launcher."));
+            ui.label(theme::muted(I18n::t(lang, "theme_desc")));
             ui.add_space(12.0);
 
             let current = self.theme_preset;
@@ -334,47 +336,6 @@ impl MiaoApp {
         });
 
         ui.add_space(16.0);
-        ui.label(theme::subheading(I18n::t(lang, "background")));
-        ui.add_space(8.0);
-
-        theme::section_frame().show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.label(theme::muted(
-                "Set a custom background image. Leave empty for the default solid background.",
-            ));
-            ui.add_space(8.0);
-
-            let has_bg = self.config.background_image.is_some();
-            let display_path = self
-                .config
-                .background_image
-                .as_deref()
-                .unwrap_or("(none)")
-                .to_string();
-
-            ui.horizontal(|ui| {
-                ui.label(theme::body(&display_path));
-                if ui.button(I18n::t(lang, "browse")).clicked()
-                    && let Some(path) = rfd::FileDialog::new()
-                        .set_title("Select background image")
-                        .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "webp"])
-                        .pick_file()
-                {
-                    self.config.background_image = Some(path.to_string_lossy().to_string());
-                    if let Err(e) = self.config.save() {
-                        self.status = format!("✗ Save failed: {}", e);
-                    }
-                }
-                if has_bg && ui.button(I18n::t(lang, "clear")).clicked() {
-                    self.config.background_image = None;
-                    if let Err(e) = self.config.save() {
-                        self.status = format!("✗ Save failed: {}", e);
-                    }
-                }
-            });
-        });
-
-        ui.add_space(16.0);
         ui.label(theme::subheading(I18n::t(lang, "language")));
         ui.add_space(8.0);
 
@@ -395,14 +356,12 @@ impl MiaoApp {
     fn render_tab_data(&mut self, ui: &mut egui::Ui) {
         let lang = self.language;
 
-        ui.label(theme::subheading("Data Directory"));
+        ui.label(theme::subheading(I18n::t(lang, "data_dir")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::muted(
-                "Where game files are stored (instances, libraries, assets).",
-            ));
+            ui.label(theme::muted(I18n::t(lang, "data_dir_desc")));
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.add(
@@ -433,11 +392,11 @@ impl MiaoApp {
                                 miao_core::instance::list_instances(&self.config.instances_dir())
                                     .unwrap_or_default();
                             self.selected_instance = None;
-                            self.status = "Data directory updated.".to_string();
+                            self.status = I18n::t(lang, "data_dir_updated").to_string();
                         }
                     }
                 }
-                if ui.button("Apply & Migrate").clicked() {
+                if ui.button(I18n::t(lang, "apply_migrate")).clicked() {
                     let new_path = std::path::PathBuf::from(&self.data_dir_input);
                     let old_path = self.config.data_dir.clone();
                     if new_path != old_path {
@@ -458,15 +417,14 @@ impl MiaoApp {
                                 )
                                 .unwrap_or_default();
                                 self.selected_instance = None;
-                                self.status = "Data directory migrated.".to_string();
+                                self.status = I18n::t(lang, "data_dir_migrated").to_string();
                             } else {
                                 self.instances = miao_core::instance::list_instances(
                                     &self.config.instances_dir(),
                                 )
                                 .unwrap_or_default();
                                 self.selected_instance = None;
-                                self.status = "Data directory set (some files could not be moved)."
-                                    .to_string();
+                                self.status = I18n::t(lang, "data_dir_partial").to_string();
                             }
                         }
                     }
@@ -517,7 +475,7 @@ impl MiaoApp {
                 if let Err(e) = self.config.save() {
                     self.status = format!("✗ Save failed: {}", e);
                 } else {
-                    self.status = "Mirror updated.".to_string();
+                    self.status = I18n::t(lang, "mirror_updated").to_string();
                 }
             }
 
@@ -549,14 +507,12 @@ impl MiaoApp {
         });
 
         ui.add_space(16.0);
-        ui.label(theme::subheading("CurseForge API Key"));
+        ui.label(theme::subheading(I18n::t(lang, "cf_api_key")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::muted(
-                "Optional override. A built-in key is used by default. Only set this if you have your own key from console.curseforge.com",
-            ));
+            ui.label(theme::muted(I18n::t(lang, "cf_api_key_desc")));
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 let resp = ui.add(
@@ -607,7 +563,7 @@ impl MiaoApp {
     fn render_tab_java(&mut self, ui: &mut egui::Ui) {
         let lang = self.language;
         ui.horizontal(|ui| {
-            ui.label(theme::subheading("Java Installations"));
+            ui.label(theme::subheading(I18n::t(lang, "java_installs")));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button(I18n::t(lang, "refresh")).clicked() {
                     self.cached_javas = None;

@@ -1,5 +1,4 @@
 mod app;
-mod background;
 pub mod blur;
 mod controller;
 mod dialogs;

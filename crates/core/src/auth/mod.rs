@@ -117,8 +117,8 @@ impl AuthMethod {
     }
 
     pub fn avatar_url(&self) -> String {
-        let uuid = self.uuid().as_simple().to_string();
-        format!("https://mc-heads.net/avatar/{}/64", uuid)
+        let uuid = self.uuid().as_hyphenated().to_string();
+        format!("https://crafatar.com/avatars/{}?size=64&overlay", uuid)
     }
 
     pub fn cape_url(&self) -> Option<String> {

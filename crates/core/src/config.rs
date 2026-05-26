@@ -17,8 +17,6 @@ pub struct LauncherConfig {
     pub curseforge_api_key: Option<String>,
     #[serde(default)]
     pub theme: ThemePreset,
-    #[serde(default)]
-    pub background_image: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -81,7 +79,6 @@ impl Default for LauncherConfig {
             active_account_index: None,
             curseforge_api_key: None,
             theme: ThemePreset::default(),
-            background_image: None,
         }
     }
 }

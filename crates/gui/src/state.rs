@@ -386,6 +386,50 @@ impl I18n {
             (Language::Chinese, "cf_no_key") => {
                 "CurseForge API 密钥未配置，请在设置 > 数据中填写。"
             }
+            (Language::English, "theme_desc") => "Choose a color theme for the launcher.",
+            (Language::Chinese, "theme_desc") => "选择启动器的配色主题。",
+            (Language::English, "data_dir") => "Data Directory",
+            (Language::Chinese, "data_dir") => "数据目录",
+            (Language::English, "data_dir_desc") => {
+                "Where game files are stored (instances, libraries, assets)."
+            }
+            (Language::Chinese, "data_dir_desc") => "游戏文件存储位置（实例、库文件、资源）。",
+            (Language::English, "data_dir_updated") => "Data directory updated.",
+            (Language::Chinese, "data_dir_updated") => "数据目录已更新。",
+            (Language::English, "apply_migrate") => "Apply & Migrate",
+            (Language::Chinese, "apply_migrate") => "应用并迁移",
+            (Language::English, "data_dir_migrated") => "Data directory migrated.",
+            (Language::Chinese, "data_dir_migrated") => "数据目录已迁移。",
+            (Language::English, "data_dir_partial") => {
+                "Data directory set (some files could not be moved)."
+            }
+            (Language::Chinese, "data_dir_partial") => "数据目录已设置（部分文件无法移动）。",
+            (Language::English, "cf_api_key") => "CurseForge API Key",
+            (Language::Chinese, "cf_api_key") => "CurseForge API 密钥",
+            (Language::English, "cf_api_key_desc") => {
+                "Optional override. A built-in key is used by default."
+            }
+            (Language::Chinese, "cf_api_key_desc") => "可选覆盖，默认使用内置密钥。",
+            (Language::English, "mirror_updated") => "Mirror updated.",
+            (Language::Chinese, "mirror_updated") => "下载源已更新。",
+            (Language::English, "java_installs") => "Java Installations",
+            (Language::Chinese, "java_installs") => "Java 安装",
+            (Language::English, "ms_login_hint") => "Open the link below and enter the code:",
+            (Language::Chinese, "ms_login_hint") => "打开下方链接并输入验证码：",
+            (Language::English, "ms_code") => "Code:",
+            (Language::Chinese, "ms_code") => "验证码：",
+            (Language::English, "ms_initializing") => "Initializing...",
+            (Language::Chinese, "ms_initializing") => "正在初始化...",
+            (Language::English, "ms_signin_desc") => "Sign in with your Microsoft account.",
+            (Language::Chinese, "ms_signin_desc") => "使用微软账号登录。",
+            (Language::English, "set_active") => "Set Active",
+            (Language::Chinese, "set_active") => "设为活跃",
+            (Language::English, "account_removed") => "Account removed.",
+            (Language::Chinese, "account_removed") => "账号已移除。",
+            (Language::English, "account_added") => "Account added.",
+            (Language::Chinese, "account_added") => "账号已添加。",
+            (Language::English, "skin_model") => "Model:",
+            (Language::Chinese, "skin_model") => "模型：",
             _ => key,
         }
     }
