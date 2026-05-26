@@ -34,7 +34,7 @@
 
 - Fetch version manifest from Mojang/BMCLAPI
 - Parse version metadata (libraries, assets, JVM args)
-- Platform-specific library filtering (Linux only)
+- Platform-specific library filtering (Linux/macOS/Windows via `current_os_name()`)
 
 ### Download Manager (`download`)
 
@@ -53,10 +53,10 @@
 
 ### Java Management (`java`)
 
-- Auto-detect system Java installations from standard paths
+- Auto-detect system Java from platform-specific paths + `JAVA_HOME`
 - Parse version strings (Java 8 `1.8.x` and modern `17.x` formats)
 - Select minimum compatible version for game requirements
-- Auto-download from Adoptium if needed
+- Auto-download from Adoptium (tar.gz on Unix, zip on Windows)
 
 ### Mod Loader Support (`modloader`)
 
@@ -89,21 +89,34 @@
 ### Launch (`launch`)
 
 - Build JVM command line from version metadata
-- Classpath assembly with Linux platform filtering
+- Classpath assembly with cross-platform library filtering
 - Game argument injection (auth, dirs, resolution)
 
-### Service Layer (`service`)
+### Service Layer (`service/`)
 
-- `LauncherService` provides high-level operations shared by CLI and GUI
-- Orchestrates multi-step workflows (create instance, install loader, etc.)
+`LauncherService` provides high-level operations shared by CLI and GUI, split into domain modules:
+
+| Module | Responsibility |
+|--------|---------------|
+| `auth.rs` | Token refresh, account management |
+| `instance.rs` | Create, launch, list, delete, export, import |
+| `java.rs` | Detection and Adoptium download |
+| `loaders.rs` | Fabric/Quilt/NeoForge/Forge operations |
+| `mods.rs` | Modrinth search and install |
 
 ## Data Layout
 
-```
-~/.config/miao-minecraft-launcher/
-└── config.toml
+Config and data directories are determined by `dirs::config_dir()` / `dirs::data_dir()`:
 
-~/.local/share/miao-minecraft-launcher/
+| Platform | Config | Data |
+|----------|--------|------|
+| Linux | `~/.config/miao-minecraft-launcher/` | `~/.local/share/miao-minecraft-launcher/` |
+| macOS | `~/Library/Application Support/miao-minecraft-launcher/` | same |
+| Windows | `%APPDATA%\miao-minecraft-launcher\` | same |
+| Portable | `<exe_dir>/mmcl-data/` (auto-detected) | same |
+
+```
+<data_dir>/
 ├── versions/
 │   └── 1.20.4/
 │       ├── 1.20.4.json

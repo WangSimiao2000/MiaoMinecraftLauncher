@@ -1,17 +1,18 @@
-# Cross-Platform Support Roadmap
+# Cross-Platform Support
 
-The launcher currently targets **Linux only**. This document catalogs all platform-specific code that must be changed to support Windows and macOS.
+The launcher supports **Linux, macOS, and Windows**. This document tracks the platform-specific code and its implementation status.
 
 ## Summary
 
-| Area | Files | Effort |
+| Area | Files | Status |
 |------|-------|--------|
-| Java detection | `core/src/java/mod.rs` | Medium |
-| Java download | `core/src/java/download.rs` | Medium |
-| Version meta library filtering | `core/src/version/meta.rs` | Low |
-| Config default paths | `core/src/config.rs` | Low |
-| GUI font loading | `gui/src/main.rs` | Low |
-| Native library extraction | `core/src/version/install.rs` | Low |
+| Java detection | `core/src/java/mod.rs` | ✅ Done |
+| Java download | `core/src/java/download.rs` | ✅ Done |
+| Version meta library filtering | `core/src/version/meta.rs` | ✅ Done |
+| Config default paths | `core/src/config.rs` | ✅ Done |
+| GUI font loading | `gui/src/main.rs` | ✅ Done |
+| Native library extraction | `core/src/version/install.rs` | ⬜ Pending (handled by library rules) |
+| CI cross-platform matrix | `.github/workflows/ci.yml` | ⬜ Pending |
 
 ## Detailed Changes Required
 

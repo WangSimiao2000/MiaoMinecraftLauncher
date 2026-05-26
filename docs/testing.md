@@ -2,7 +2,7 @@
 
 ## Overview
 
-- **221 tests** across the workspace
+- **230 tests** across the workspace
 - **Core coverage**: 67% (testable code ~82%)
 - Framework: Rust built-in `#[test]` + `#[tokio::test]`
 - Dev dependencies: `tempfile`, `tokio`
@@ -19,7 +19,7 @@ Located alongside source code in each module:
 | `modrinth/api.rs` | 16 | Search, versions, deps resolution, install |
 | `instance/mod.rs` | 12 | CRUD, builder pattern, save/load |
 | `server_list.rs` | 11 | Add/remove/save/load |
-| `service.rs` | 11 | Config accessors, instance ops, accounts |
+| `service/mod.rs` | 11 | Config accessors, instance ops, accounts |
 | `auth/microsoft.rs` | 10 | Request serialization, UUID parsing |
 | `resource/mod.rs` | 10 | Pack scanning, filtering |
 | `modmanager/mod.rs` | 9 | Mod scanning, toggle |
