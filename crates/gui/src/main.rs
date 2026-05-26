@@ -1,3 +1,12 @@
+// On Windows, hide the console window for release builds so the GUI doesn't
+// flash a black cmd window on startup. Debug builds keep the console so
+// `tracing` output and panics stay visible while developing. No effect on
+// other platforms.
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+
 mod app;
 pub mod blur;
 mod controller;
