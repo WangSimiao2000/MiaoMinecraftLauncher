@@ -24,11 +24,23 @@ pub struct Library {
     pub name: String,
     pub downloads: Option<LibraryDownloads>,
     pub rules: Option<Vec<Rule>>,
+    #[serde(default)]
+    pub natives: Option<std::collections::HashMap<String, String>>,
+    #[serde(default)]
+    pub extract: Option<ExtractRules>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LibraryDownloads {
     pub artifact: Option<Artifact>,
+    #[serde(default)]
+    pub classifiers: Option<std::collections::HashMap<String, Artifact>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExtractRules {
+    #[serde(default)]
+    pub exclude: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -123,6 +135,8 @@ mod tests {
             name: name.to_string(),
             downloads: None,
             rules,
+            natives: None,
+            extract: None,
         }
     }
 

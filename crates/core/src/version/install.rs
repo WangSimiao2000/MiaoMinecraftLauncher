@@ -100,6 +100,126 @@ pub fn all_download_tasks(
     tasks
 }
 
+pub fn natives_dir(config: &LauncherConfig, version_id: &str) -> std::path::PathBuf {
+    config.versions_dir().join(version_id).join("natives")
+}
+
+fn current_os_natives_key() -> &'static str {
+    match std::env::consts::OS {
+        "linux" => "linux",
+        "windows" => "windows",
+        "macos" => "osx",
+        _ => "linux",
+    }
+}
+
+pub fn collect_native_downloads(
+    meta: &VersionMeta,
+    config: &LauncherConfig,
+    mirror: &DownloadMirror,
+) -> Vec<DownloadTask> {
+    let mut tasks = Vec::new();
+    let os_key = current_os_natives_key();
+
+    for lib in &meta.libraries {
+        if !VersionMeta::is_library_allowed(lib) {
+            continue;
+        }
+
+        let Some(ref natives_map) = lib.natives else {
+            continue;
+        };
+        let Some(classifier_key) = natives_map.get(os_key) else {
+            continue;
+        };
+
+        let classifier_key = classifier_key
+            .replace("${arch}", std::env::consts::ARCH)
+            .replace("${os.arch}", std::env::consts::ARCH);
+
+        if let Some(ref downloads) = lib.downloads
+            && let Some(ref classifiers) = downloads.classifiers
+            && let Some(artifact) = classifiers.get(&classifier_key)
+        {
+            let dest = config.libraries_dir().join(&artifact.path);
+            tasks.push(DownloadTask {
+                url: transform_url(&artifact.url, mirror),
+                dest,
+                sha1: Some(artifact.sha1.clone()),
+                size: Some(artifact.size),
+            });
+        }
+    }
+
+    tasks
+}
+
+pub fn extract_natives(meta: &VersionMeta, config: &LauncherConfig) -> Result<()> {
+    let dest_dir = natives_dir(config, &meta.id);
+    std::fs::create_dir_all(&dest_dir)?;
+
+    let os_key = current_os_natives_key();
+
+    for lib in &meta.libraries {
+        if !VersionMeta::is_library_allowed(lib) {
+            continue;
+        }
+
+        let Some(ref natives_map) = lib.natives else {
+            continue;
+        };
+        let Some(classifier_key) = natives_map.get(os_key) else {
+            continue;
+        };
+
+        let classifier_key = classifier_key
+            .replace("${arch}", std::env::consts::ARCH)
+            .replace("${os.arch}", std::env::consts::ARCH);
+
+        if let Some(ref downloads) = lib.downloads
+            && let Some(ref classifiers) = downloads.classifiers
+            && let Some(artifact) = classifiers.get(&classifier_key)
+        {
+            let jar_path = config.libraries_dir().join(&artifact.path);
+            if !jar_path.exists() {
+                continue;
+            }
+
+            let exclude = lib
+                .extract
+                .as_ref()
+                .map(|e| e.exclude.as_slice())
+                .unwrap_or(&[]);
+
+            let file = std::fs::File::open(&jar_path)?;
+            let mut archive = zip::ZipArchive::new(file)?;
+
+            for i in 0..archive.len() {
+                let mut entry = archive.by_index(i)?;
+                let name = entry.name().to_string();
+
+                if entry.is_dir() {
+                    continue;
+                }
+
+                let should_exclude = exclude.iter().any(|ex| name.starts_with(ex));
+                if should_exclude {
+                    continue;
+                }
+
+                let out_path = dest_dir.join(&name);
+                if let Some(parent) = out_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                let mut out_file = std::fs::File::create(&out_path)?;
+                std::io::copy(&mut entry, &mut out_file)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub fn library_maven_path(name: &str) -> Option<String> {
     let parts: Vec<&str> = name.splitn(3, ':').collect();
     if parts.len() != 3 {
@@ -161,8 +281,11 @@ mod tests {
                             size: 1024,
                             url: "https://libraries.minecraft.net/com/mojang/authlib/3.16.29/authlib-3.16.29.jar".to_string(),
                         }),
+                        classifiers: None,
                     }),
                     rules: None,
+                    natives: None,
+                    extract: None,
                 },
                 Library {
                     name: "org.lwjgl:lwjgl:3.3.2".to_string(),
@@ -173,6 +296,7 @@ mod tests {
                             size: 2048,
                             url: "https://libraries.minecraft.net/org/lwjgl/lwjgl/3.3.2/lwjgl-3.3.2.jar".to_string(),
                         }),
+                        classifiers: None,
                     }),
                     rules: Some(vec![Rule {
                         action: "allow".to_string(),
@@ -180,6 +304,8 @@ mod tests {
                             name: Some("windows".to_string()),
                         }),
                     }]),
+                    natives: None,
+                    extract: None,
                 },
             ],
             asset_index: AssetIndex {

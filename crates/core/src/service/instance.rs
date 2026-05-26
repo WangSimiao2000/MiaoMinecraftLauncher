@@ -46,7 +46,13 @@ impl LauncherService {
         install::save_version_meta(&meta, &self.config)?;
 
         let tasks = install::all_download_tasks(&meta, &self.config, &self.config.download_mirror);
-        self.download_files(tasks, progress.clone()).await?;
+        let native_tasks =
+            install::collect_native_downloads(&meta, &self.config, &self.config.download_mirror);
+        let mut all_tasks = tasks;
+        all_tasks.extend(native_tasks);
+        self.download_files(all_tasks, progress.clone()).await?;
+
+        install::extract_natives(&meta, &self.config)?;
 
         let asset_index_task = install::collect_asset_index_download(
             &meta,

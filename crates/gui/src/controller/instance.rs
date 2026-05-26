@@ -282,6 +282,15 @@ fn stream_game_process(
     };
 
     let instance_dir = Instance::instance_dir(&config.instances_dir(), &instance.name);
+
+    if let Err(e) = miao_core::version::install::extract_natives(&meta, &config) {
+        let _ = tx.send(AppEvent::GameLogLine(format!(
+            "[WARN] Failed to extract natives: {}",
+            e
+        )));
+        ctx.request_repaint();
+    }
+
     let options = LaunchOptions {
         game_dir: instance_dir,
         java_path,
@@ -340,8 +349,8 @@ fn stream_game_process(
                     if let Some(h) = stderr_handle {
                         let _ = h.join();
                     }
-                    let _ = child.wait();
-                    let _ = tx.send(AppEvent::GameExited);
+                    let exit_code = child.wait().ok().and_then(|s| s.code());
+                    let _ = tx.send(AppEvent::GameExited { exit_code });
                     ctx.request_repaint();
                 }
                 Err(e) => {
@@ -375,8 +384,13 @@ async fn do_create_instance(
             .await?;
     miao_core::version::install::save_version_meta(&meta, config)?;
 
-    let tasks =
+    let mut tasks =
         miao_core::version::install::all_download_tasks(&meta, config, &config.download_mirror);
+    tasks.extend(miao_core::version::install::collect_native_downloads(
+        &meta,
+        config,
+        &config.download_mirror,
+    ));
 
     let _ = tx.send(AppEvent::InstallProgress {
         task_id: task_id.to_string(),
@@ -443,6 +457,8 @@ async fn do_create_instance(
         }));
         dm2.download_all(asset_tasks).await?;
     }
+
+    miao_core::version::install::extract_natives(&meta, config)?;
 
     let mut inst = Instance::new(instance_name, &ver.id);
 

@@ -23,6 +23,10 @@ pub fn build_launch_command(options: &LaunchOptions) -> Result<Command> {
     cmd.arg(format!("-Xmx{}m", options.instance.memory_max_mb));
     cmd.arg(format!("-Xms{}m", options.instance.memory_min_mb));
 
+    let natives_path =
+        crate::version::install::natives_dir(&options.config, &options.version_meta.id);
+    cmd.arg(format!("-Djava.library.path={}", natives_path.display()));
+
     for arg in &options.instance.jvm_args {
         cmd.arg(arg);
     }
@@ -61,6 +65,15 @@ fn build_classpath(options: &LaunchOptions) -> Result<String> {
         if !VersionMeta::is_library_allowed(lib) {
             continue;
         }
+        if lib.natives.is_some()
+            && lib
+                .downloads
+                .as_ref()
+                .and_then(|d| d.artifact.as_ref())
+                .is_none()
+        {
+            continue;
+        }
         if let Some(downloads) = &lib.downloads
             && let Some(artifact) = &downloads.artifact
         {
@@ -80,6 +93,10 @@ fn build_classpath(options: &LaunchOptions) -> Result<String> {
 }
 
 fn build_game_args(options: &LaunchOptions) -> Result<Vec<String>> {
+    if let Some(ref mc_args) = options.version_meta.minecraft_arguments {
+        return build_game_args_legacy(options, mc_args);
+    }
+
     let mut args = vec![
         "--username".to_string(),
         options.auth.username().to_string(),
@@ -98,6 +115,42 @@ fn build_game_args(options: &LaunchOptions) -> Result<Vec<String>> {
         "--userType".to_string(),
         "msa".to_string(),
     ];
+
+    if let Some(res) = &options.instance.resolution {
+        args.push("--width".to_string());
+        args.push(res.width.to_string());
+        args.push("--height".to_string());
+        args.push(res.height.to_string());
+    }
+
+    for arg in &options.instance.game_args {
+        args.push(arg.clone());
+    }
+
+    Ok(args)
+}
+
+fn build_game_args_legacy(options: &LaunchOptions, template: &str) -> Result<Vec<String>> {
+    let assets_dir = options.config.assets_dir();
+    let game_dir = &options.game_dir;
+
+    let resolved = template
+        .replace("${auth_player_name}", options.auth.username())
+        .replace("${version_name}", &options.version_meta.id)
+        .replace("${game_directory}", &game_dir.to_string_lossy())
+        .replace("${assets_root}", &assets_dir.to_string_lossy())
+        .replace(
+            "${game_assets}",
+            &assets_dir.join("virtual").join("legacy").to_string_lossy(),
+        )
+        .replace("${assets_index_name}", &options.version_meta.asset_index.id)
+        .replace("${auth_uuid}", &options.auth.uuid().to_string())
+        .replace("${auth_access_token}", options.auth.access_token())
+        .replace("${auth_session}", options.auth.access_token())
+        .replace("${user_properties}", "{}")
+        .replace("${user_type}", "msa");
+
+    let mut args: Vec<String> = resolved.split_whitespace().map(|s| s.to_string()).collect();
 
     if let Some(res) = &options.instance.resolution {
         args.push("--width".to_string());
@@ -148,8 +201,11 @@ mod tests {
                             size: 100,
                             url: "https://example.com/authlib.jar".to_string(),
                         }),
+                        classifiers: None,
                     }),
                     rules: None,
+                    natives: None,
+                    extract: None,
                 },
                 Library {
                     name: "windows-only:lib:1.0".to_string(),
@@ -160,6 +216,7 @@ mod tests {
                             size: 200,
                             url: "https://example.com/win.jar".to_string(),
                         }),
+                        classifiers: None,
                     }),
                     rules: Some(vec![Rule {
                         action: "allow".to_string(),
@@ -167,6 +224,8 @@ mod tests {
                             name: Some("windows".to_string()),
                         }),
                     }]),
+                    natives: None,
+                    extract: None,
                 },
             ],
             asset_index: AssetIndex {
