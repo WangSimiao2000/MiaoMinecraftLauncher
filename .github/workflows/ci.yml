@@ -57,6 +57,17 @@ jobs:
         run: cargo test -p miao-gui --test controller_tests -- --test-threads=1
         continue-on-error: true
 
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+      - name: Security audit
+        run: cargo audit
+
   coverage:
     runs-on: ubuntu-latest
     needs: check
