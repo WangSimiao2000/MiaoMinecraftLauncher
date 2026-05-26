@@ -62,8 +62,10 @@ jobs:
           targets: x86_64-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build release binaries
-        run: cargo build --release --workspace
+      # Windows ships GUI only. The CLI is a Linux-oriented tool
+      # (scripting, SSH, headless servers) and rarely useful on Windows.
+      - name: Build GUI release binary
+        run: cargo build --release -p miao-gui
         shell: pwsh
 
       - name: Package binaries
@@ -71,10 +73,9 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item target\release\miao-gui.exe dist\
-          Copy-Item target\release\miao.exe dist\
           Copy-Item README.md dist\ -ErrorAction SilentlyContinue
           Copy-Item LICENSE dist\ -ErrorAction SilentlyContinue
-          $items = @('dist\miao-gui.exe','dist\miao.exe')
+          $items = @('dist\miao-gui.exe')
           if (Test-Path 'dist\README.md') { $items += 'dist\README.md' }
           if (Test-Path 'dist\LICENSE')   { $items += 'dist\LICENSE' }
           Compress-Archive -Path $items -DestinationPath dist\mmcl-windows-x86_64.zip -Force
