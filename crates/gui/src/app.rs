@@ -36,6 +36,11 @@ enum WindowButton {
 
 pub use miao_core::auth::MS_CLIENT_ID;
 
+pub const CF_API_KEY_BUILTIN: &str = match option_env!("CURSEFORGE_API_KEY") {
+    Some(key) => key,
+    None => "",
+};
+
 pub struct MiaoApp {
     pub config: LauncherConfig,
     pub instances: Vec<Instance>,

@@ -185,3 +185,21 @@ Config and data directories are determined by `dirs::config_dir()` / `dirs::data
 | Serialization | serde + toml/json | Standard Rust serialization |
 | Hashing | sha1/sha2 | Download integrity verification |
 | Zip | zip | Mrpack modpack handling |
+
+## Build-time API Keys
+
+The launcher uses third-party APIs that require keys. These are injected at compile time via environment variables and fall back to empty string (feature disabled) if not set.
+
+| Variable | Service | How to obtain |
+|----------|---------|---------------|
+| `CURSEFORGE_API_KEY` | CurseForge mod search/install | Register at [console.curseforge.com](https://console.curseforge.com), create a project, copy the API key |
+
+Build with keys:
+
+```bash
+CURSEFORGE_API_KEY="$2a$10$..." cargo build --release
+```
+
+Users can also override the built-in key in Settings > Data > CurseForge API Key.
+
+If no key is provided at build time and the user doesn't set one, CurseForge features are disabled (Modrinth still works without any key).

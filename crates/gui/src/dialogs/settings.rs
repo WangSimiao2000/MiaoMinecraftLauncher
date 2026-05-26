@@ -554,7 +554,7 @@ impl MiaoApp {
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.label(theme::muted(
-                "Required for CurseForge mod search. Get a key from console.curseforge.com",
+                "Optional override. A built-in key is used by default. Only set this if you have your own key from console.curseforge.com",
             ));
             ui.add_space(8.0);
             ui.horizontal(|ui| {

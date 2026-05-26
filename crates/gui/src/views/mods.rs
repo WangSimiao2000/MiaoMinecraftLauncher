@@ -108,10 +108,18 @@ impl MiaoApp {
         self.mod_search.versions.clear();
     }
 
+    fn effective_cf_api_key(&self) -> String {
+        self.config
+            .curseforge_api_key
+            .clone()
+            .filter(|k| !k.is_empty())
+            .unwrap_or_else(|| crate::app::CF_API_KEY_BUILTIN.to_string())
+    }
+
     fn render_cf_search(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
-        if self.config.curseforge_api_key.is_none() {
+        if self.effective_cf_api_key().is_empty() {
             ui.label(theme::muted(
-                "CurseForge requires an API key. Set it in Settings > Data.",
+                "CurseForge API key not configured. Set it in Settings > Data.",
             ));
             return;
         }
@@ -170,7 +178,7 @@ impl MiaoApp {
             return;
         };
         let inst = &self.instances[idx];
-        let api_key = self.config.curseforge_api_key.clone().unwrap_or_default();
+        let api_key = self.effective_cf_api_key();
         self.cf_search.searching = true;
         self.controller.send(AppCommand::CfSearchMods {
             query: self.cf_search.query.clone(),
@@ -188,7 +196,7 @@ impl MiaoApp {
             return;
         };
         let inst = &self.instances[idx];
-        let api_key = self.config.curseforge_api_key.clone().unwrap_or_default();
+        let api_key = self.effective_cf_api_key();
         let loader = inst
             .mod_loader
             .as_ref()
