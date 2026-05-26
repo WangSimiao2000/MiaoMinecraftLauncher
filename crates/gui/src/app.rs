@@ -11,14 +11,17 @@ use miao_core::modloader::{ModLoaderType, ModLoaderVersion};
 use miao_core::version::VersionInfo;
 use tokio::runtime::Runtime;
 
+use crate::background::BackgroundState;
 use crate::controller::AppController;
 use crate::messages::{AppCommand, AppEvent};
+use crate::navigation::{NavigationStack, Page};
 pub use crate::state::{
     AppView, AuthUiState, DetailTab, Dialog, GameLogState, I18n, InstallProgress,
     InstanceSettingsEdit, Language, LoaderUiState, ModSearchState, NewInstanceInput,
     PendingModInstall, SettingsTab, VersionsUiState,
 };
 use crate::theme;
+use crate::toast::ToastQueue;
 
 pub use miao_core::auth::MS_CLIENT_ID;
 
@@ -27,6 +30,7 @@ pub struct MiaoApp {
     pub instances: Vec<Instance>,
 
     pub app_view: AppView,
+    pub nav_stack: NavigationStack,
     pub active_dialog: Dialog,
     pub active_tab: DetailTab,
     pub selected_instance: Option<usize>,
@@ -42,7 +46,6 @@ pub struct MiaoApp {
     pub settings_tab: SettingsTab,
     pub cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
     pub refresh_counter: u32,
-    #[allow(dead_code)]
     pub theme_preset: crate::theme::ThemePreset,
 
     pub instance_settings_edit: InstanceSettingsEdit,
@@ -59,6 +62,8 @@ pub struct MiaoApp {
     pub update_available: Option<String>,
 
     pub file_scan_cache: FileScanCache,
+    pub background: BackgroundState,
+    pub toasts: ToastQueue,
 
     pub controller: AppController,
     #[allow(dead_code)]
@@ -136,11 +141,13 @@ impl MiaoApp {
             _ => String::new(),
         };
         let max_downloads_input = config.max_concurrent_downloads.to_string();
+        let theme_preset = config.theme;
 
         Self {
             config,
             instances,
             app_view: AppView::Main,
+            nav_stack: NavigationStack::new(Page::Main),
             active_dialog: Dialog::None,
             active_tab: DetailTab::Mods,
             selected_instance: None,
@@ -154,7 +161,7 @@ impl MiaoApp {
             settings_tab: SettingsTab::default(),
             cached_javas: None,
             refresh_counter: 0,
-            theme_preset: crate::theme::ThemePreset::Dark,
+            theme_preset,
             instance_settings_edit: InstanceSettingsEdit::default(),
             language: Language::default(),
             mirror_custom_url,
@@ -170,6 +177,8 @@ impl MiaoApp {
             active_installs: std::collections::HashSet::new(),
             update_available: None,
             file_scan_cache: FileScanCache::new(),
+            background: BackgroundState::new(),
+            toasts: ToastQueue::new(),
             controller,
             rt,
         }
@@ -224,11 +233,14 @@ impl MiaoApp {
                 } => {
                     self.active_installs.remove(&task_id);
                     self.install_progress.remove(&task_id);
-                    self.status = message;
+                    self.status = message.clone();
                     if success {
+                        self.toasts.success(&message);
                         self.instances = instance::list_instances(&self.config.instances_dir())
                             .unwrap_or_default();
                         self.cached_javas = None;
+                    } else {
+                        self.toasts.error(&message);
                     }
                 }
                 AppEvent::DeviceCode(dc) => {
@@ -236,7 +248,9 @@ impl MiaoApp {
                 }
                 AppEvent::LoginComplete { account } => {
                     if let AuthMethod::Microsoft(ref ms) = account {
-                        self.status = format!("✓ Logged in as {}", ms.username);
+                        let msg = format!("Logged in as {}", ms.username);
+                        self.status = format!("✓ {}", msg);
+                        self.toasts.success(msg);
                     }
                     self.config.accounts.push(account);
                     if self.config.active_account_index.is_none() {
@@ -244,12 +258,14 @@ impl MiaoApp {
                     }
                     if let Err(e) = self.config.save() {
                         self.status = format!("✗ Failed to save account: {}", e);
+                        self.toasts.error(format!("Failed to save account: {}", e));
                     }
                     self.auth.device_code = None;
                     self.auth.logging_in = false;
                 }
                 AppEvent::LoginFailed(msg) => {
-                    self.status = msg;
+                    self.status = msg.clone();
+                    self.toasts.error(&msg);
                     self.auth.device_code = None;
                     self.auth.logging_in = false;
                 }
@@ -263,6 +279,7 @@ impl MiaoApp {
                 }
                 AppEvent::JavaFailed(msg) => {
                     self.status = format!("✗ {}", msg);
+                    self.toasts.error(&msg);
                 }
                 AppEvent::ModSearchResults(hits) => {
                     self.mod_search.results = hits;
@@ -277,12 +294,15 @@ impl MiaoApp {
                     self.mod_search.searching = false;
                 }
                 AppEvent::ModInstalled { count } => {
-                    self.status = format!("Installed {} mod(s)", count);
+                    let msg = format!("Installed {} mod(s)", count);
+                    self.status = msg.clone();
+                    self.toasts.success(msg);
                     self.mod_search.searching = false;
                     self.file_scan_cache.invalidate();
                 }
                 AppEvent::ModError(msg) => {
-                    self.status = msg;
+                    self.status = msg.clone();
+                    self.toasts.error(&msg);
                     self.mod_search.searching = false;
                 }
                 AppEvent::GameLogLine(line) => {
@@ -314,7 +334,8 @@ impl MiaoApp {
                     self.status = "Cancelled.".to_string();
                 }
                 AppEvent::Error(msg) => {
-                    self.status = msg;
+                    self.status = msg.clone();
+                    self.toasts.error(&msg);
                 }
             }
         }
@@ -324,6 +345,11 @@ impl MiaoApp {
 impl eframe::App for MiaoApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.drain_events();
+        theme::apply_theme(ctx, self.theme_preset);
+
+        self.background
+            .ensure_loaded(ctx, self.config.background_image.as_deref());
+        self.background.render(ctx);
 
         self.refresh_counter += 1;
         if self.refresh_counter.is_multiple_of(60) {
@@ -343,9 +369,17 @@ impl eframe::App for MiaoApp {
             || self.loader.loading
             || self.mod_search.searching
             || self.game_log.running
+            || self.nav_stack.is_transitioning()
         {
             ctx.request_repaint();
         }
+
+        let _transition_alpha = self.nav_stack.animate(ctx);
+
+        self.app_view = match self.nav_stack.current() {
+            Page::Main | Page::ModDetail { .. } => AppView::Main,
+            Page::Settings => AppView::Settings,
+        };
 
         let lang = self.language;
 
@@ -410,7 +444,7 @@ impl eframe::App for MiaoApp {
                     .show(ctx, |ui| {
                         ui.horizontal(|ui| {
                             if ui.button(I18n::t(lang, "back")).clicked() {
-                                self.app_view = AppView::Main;
+                                self.nav_stack.pop();
                             }
                             ui.add_space(8.0);
                             ui.label(theme::heading(I18n::t(lang, "settings")));
@@ -432,7 +466,7 @@ impl eframe::App for MiaoApp {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     if ui.button(I18n::t(lang, "settings")).clicked() {
-                                        self.app_view = AppView::Settings;
+                                        self.nav_stack.push(Page::Settings);
                                     }
                                 },
                             );
@@ -462,6 +496,12 @@ impl eframe::App for MiaoApp {
                     Dialog::None => {}
                 }
             }
+        }
+
+        self.toasts.render(ctx);
+
+        if self.toasts.has_active() {
+            ctx.request_repaint();
         }
     }
 }

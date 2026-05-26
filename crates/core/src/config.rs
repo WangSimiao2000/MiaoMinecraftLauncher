@@ -15,6 +15,37 @@ pub struct LauncherConfig {
     pub active_account_index: Option<usize>,
     #[serde(default)]
     pub curseforge_api_key: Option<String>,
+    #[serde(default)]
+    pub theme: ThemePreset,
+    #[serde(default)]
+    pub background_image: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ThemePreset {
+    #[default]
+    Dark,
+    Ocean,
+    Forest,
+    Warm,
+}
+
+impl ThemePreset {
+    pub const ALL: [ThemePreset; 4] = [
+        ThemePreset::Dark,
+        ThemePreset::Ocean,
+        ThemePreset::Forest,
+        ThemePreset::Warm,
+    ];
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            ThemePreset::Dark => "Dark (Default)",
+            ThemePreset::Ocean => "Ocean Blue",
+            ThemePreset::Forest => "Forest Green",
+            ThemePreset::Warm => "Warm Amber",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -49,6 +80,8 @@ impl Default for LauncherConfig {
             accounts: Vec::new(),
             active_account_index: None,
             curseforge_api_key: None,
+            theme: ThemePreset::default(),
+            background_image: None,
         }
     }
 }

@@ -16,6 +16,7 @@ pub enum AppView {
 pub enum SettingsTab {
     #[default]
     Account,
+    Appearance,
     Data,
     Java,
     About,
@@ -192,6 +193,10 @@ impl I18n {
             (Language::Chinese, "tab_settings") => "设置",
             (Language::English, "account") => "Account",
             (Language::Chinese, "account") => "账号",
+            (Language::English, "appearance") => "Appearance",
+            (Language::Chinese, "appearance") => "外观",
+            (Language::English, "theme") => "Theme",
+            (Language::Chinese, "theme") => "主题",
             (Language::English, "data") => "Data",
             (Language::Chinese, "data") => "数据",
             (Language::English, "java") => "Java",

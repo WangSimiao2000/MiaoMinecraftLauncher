@@ -1,10 +1,14 @@
 mod app;
+mod background;
 mod controller;
 mod dialogs;
 mod messages;
+pub mod navigation;
 pub mod state;
 mod theme;
+pub mod toast;
 mod views;
+pub mod widgets;
 
 use anyhow::Result;
 
@@ -71,7 +75,8 @@ fn main() -> Result<()> {
             cc.egui_ctx.set_fonts(fonts);
 
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            theme::apply_global_style(&cc.egui_ctx);
+            let config = miao_core::config::LauncherConfig::load().unwrap_or_default();
+            theme::apply_theme(&cc.egui_ctx, config.theme);
             Ok(Box::new(app::MiaoApp::new(cc)))
         }),
     )

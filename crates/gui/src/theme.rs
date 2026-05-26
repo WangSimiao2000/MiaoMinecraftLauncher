@@ -1,4 +1,5 @@
 use egui::{Color32, Margin, RichText, Rounding, Stroke, Vec2};
+pub use miao_core::config::ThemePreset;
 
 pub struct Colors;
 
@@ -126,7 +127,6 @@ pub fn launch_button() -> egui::Button<'static> {
         .rounding(Rounding::same(6.0))
 }
 
-#[allow(dead_code)]
 pub fn danger_button(text: &str) -> egui::Button<'_> {
     egui::Button::new(RichText::new(text).size(Fonts::BODY))
         .fill(Colors::DANGER)
@@ -187,33 +187,13 @@ pub fn list_item_card() -> egui::Frame {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ThemePreset {
-    Dark,
-    Ocean,
-    Forest,
-    Warm,
+pub trait ThemeColors {
+    fn accent(&self) -> Color32;
+    fn accent_light(&self) -> Color32;
 }
 
-#[allow(dead_code)]
-impl ThemePreset {
-    pub const ALL: [ThemePreset; 4] = [
-        ThemePreset::Dark,
-        ThemePreset::Ocean,
-        ThemePreset::Forest,
-        ThemePreset::Warm,
-    ];
-
-    pub fn name(&self) -> &'static str {
-        match self {
-            ThemePreset::Dark => "Dark (Default)",
-            ThemePreset::Ocean => "Ocean Blue",
-            ThemePreset::Forest => "Forest Green",
-            ThemePreset::Warm => "Warm Amber",
-        }
-    }
-
-    pub fn accent(&self) -> Color32 {
+impl ThemeColors for ThemePreset {
+    fn accent(&self) -> Color32 {
         match self {
             ThemePreset::Dark => Color32::from_rgb(75, 130, 195),
             ThemePreset::Ocean => Color32::from_rgb(60, 150, 220),
@@ -222,7 +202,7 @@ impl ThemePreset {
         }
     }
 
-    pub fn accent_light(&self) -> Color32 {
+    fn accent_light(&self) -> Color32 {
         match self {
             ThemePreset::Dark => Color32::from_rgb(120, 180, 255),
             ThemePreset::Ocean => Color32::from_rgb(100, 200, 255),
@@ -232,7 +212,6 @@ impl ThemePreset {
     }
 }
 
-#[allow(dead_code)]
 pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
     let accent = preset.accent();
     let mut style = (*ctx.style()).clone();
@@ -263,53 +242,6 @@ pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
         blur: 12.0,
         spread: 0.0,
         color: Color32::from_black_alpha(60),
-    };
-
-    style.visuals.panel_fill = Colors::BG_MAIN;
-    style.visuals.extreme_bg_color = Colors::BG_DARK;
-    style.visuals.faint_bg_color = Colors::BG_ELEVATED;
-
-    style.visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);
-    style.visuals.slider_trailing_fill = true;
-
-    ctx.set_style(style);
-}
-
-pub fn apply_global_style(ctx: &egui::Context) {
-    let mut style = (*ctx.style()).clone();
-
-    style.spacing.item_spacing = Spacing::ITEM;
-    style.spacing.button_padding = Spacing::BUTTON_PADDING;
-    style.spacing.interact_size = Spacing::INTERACT_SIZE;
-    style.spacing.window_margin = Spacing::WINDOW_MARGIN;
-
-    style.visuals.widgets.inactive.rounding = Radii::WIDGET;
-    style.visuals.widgets.hovered.rounding = Radii::WIDGET;
-    style.visuals.widgets.active.rounding = Radii::WIDGET;
-
-    style.visuals.widgets.inactive.bg_fill = Colors::BG_WIDGET;
-    style.visuals.widgets.hovered.bg_fill = Colors::BG_WIDGET_HOVER;
-    style.visuals.widgets.active.bg_fill = Colors::BG_WIDGET_ACTIVE;
-
-    style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, Colors::TEXT_PRIMARY);
-    style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
-    style.visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
-
-    style.visuals.selection.bg_fill = Colors::ACCENT;
-    style.visuals.selection.stroke = Stroke::new(1.0_f32, Color32::WHITE);
-
-    style.visuals.window_rounding = Radii::WINDOW;
-    style.visuals.window_shadow = egui::epaint::Shadow {
-        offset: Vec2::new(0.0, 6.0),
-        blur: 20.0,
-        spread: 0.0,
-        color: Color32::from_black_alpha(80),
-    };
-    style.visuals.popup_shadow = egui::epaint::Shadow {
-        offset: Vec2::new(0.0, 8.0),
-        blur: 24.0,
-        spread: 0.0,
-        color: Color32::from_black_alpha(100),
     };
 
     style.visuals.panel_fill = Colors::BG_MAIN;

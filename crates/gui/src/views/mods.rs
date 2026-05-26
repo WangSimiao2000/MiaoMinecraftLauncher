@@ -4,6 +4,7 @@ use std::path::Path;
 use crate::app::MiaoApp;
 use crate::messages::AppCommand;
 use crate::theme;
+use crate::widgets::{ModCard, mod_card::ModCardAction};
 
 impl MiaoApp {
     pub fn render_mods_tab(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
@@ -63,39 +64,15 @@ impl MiaoApp {
             });
         } else {
             for mut m in mods {
-                theme::list_item_card().show(ui, |ui| {
-                    ui.set_min_width(ui.available_width());
-                    ui.horizontal(|ui| {
-                        if m.enabled {
-                            let btn = egui::Button::new(
-                                egui::RichText::new("ON")
-                                    .color(theme::Colors::SUCCESS)
-                                    .size(12.0),
-                            );
-                            if ui.add(btn).clicked() {
-                                let _ = m.toggle();
-                            }
-                            ui.label(theme::body(&m.name));
-                        } else {
-                            let btn = egui::Button::new(
-                                egui::RichText::new("OFF")
-                                    .color(theme::Colors::TEXT_MUTED)
-                                    .size(12.0),
-                            );
-                            if ui.add(btn).clicked() {
-                                let _ = m.toggle();
-                            }
-                            ui.label(
-                                egui::RichText::new(&m.name).color(theme::Colors::TEXT_DISABLED),
-                            );
-                        }
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.small_button("Del").clicked() {
-                                let _ = m.delete();
-                            }
-                        });
-                    });
-                });
+                match ModCard::new(&m.name, m.enabled).show(ui) {
+                    ModCardAction::Toggle => {
+                        let _ = m.toggle();
+                    }
+                    ModCardAction::Delete => {
+                        let _ = m.delete();
+                    }
+                    ModCardAction::None => {}
+                }
                 ui.add_space(2.0);
             }
         }

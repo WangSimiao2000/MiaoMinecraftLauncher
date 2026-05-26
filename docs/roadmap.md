@@ -33,8 +33,8 @@ Comparison baseline: PCL2 (Plain Craft Launcher 2) — the most popular Chinese 
 | Feature | MMCL | PCL2 | Priority | Notes |
 |---------|------|------|----------|-------|
 | 智能崩溃分析 | ✅ | ✅ | — | crash/ 模块，解析 crash-report + latest.log |
-| OptiFine 一键安装 | ❌ | ✅ | Medium | 合并到 Forge/Fabric |
-| 自动文件补全 | ❌ | ✅ | Medium | 检测缺失文件并修复 |
+| OptiFine 一键安装 | ✅ | ✅ | — | `core/src/modloader/optifine.rs` |
+| 自动文件补全 | ✅ | ✅ | — | `core/src/integrity.rs` |
 | 自动更新 | ✅ | ✅ | — | update/ 模块，下载+替换+回滚 |
 | 第三方皮肤站登录 | ✅ | ✅ | — | authlib-injector Yggdrasil 协议 |
 | 自定义离线皮肤 | ❌ | ✅ | Low | |
@@ -48,11 +48,11 @@ Comparison baseline: PCL2 (Plain Craft Launcher 2) — the most popular Chinese 
 
 | Feature | MMCL | PCL2 | Priority | Notes |
 |---------|------|------|----------|-------|
-| 自定义背景图 + 模糊 | ❌ | ✅ | Medium | |
-| 主题色切换 | 🔧 代码存在但未启用 | ✅ | Medium | ThemePreset 未接线 |
+| 自定义背景图 + 模糊 | ✅ | ✅ | — | `gui/src/background.rs` |
+| 主题色切换 | ✅ | ✅ | — | ThemePreset 已启用 + 持久化 |
 | 自定义背景音乐 | ❌ | ✅ | Low | |
 | 自定义主页 (XAML) | ❌ | ✅ | Low | 不适用于 egui |
-| 页面切换动画 | ❌ | ✅ | Medium | egui 支持 lerp 过渡 |
+| 页面切换动画 | ✅ | ✅ | — | `gui/src/navigation.rs` |
 | 功能模块显隐控制 | ❌ | ✅ | Low | |
 
 ---
@@ -172,17 +172,17 @@ main.rs (入口)
 | 4 | 多下载源容灾（自动切换 + 失败重试） | ✅ Done | `core/src/download/manager.rs` |
 | 5 | 第三方皮肤站 (authlib-injector) | ✅ Done | `core/src/auth/authlib_injector.rs` |
 
-### Phase 2 — 体验增强
+### Phase 2 — 体验增强 ✅
 
-| # | Feature | 预估工时 | 依赖 |
-|---|---------|---------|------|
-| 6 | UI 主题切换（启用 ThemePreset + 用户自定义色） | 1 天 | 无 |
-| 7 | 自定义背景图 + 亚克力模糊 | 1-2 天 | egui texture |
-| 8 | Toast 通知系统 | 0.5 天 | 无 |
-| 9 | Widget 抽取（ModCard, InstanceCard, CollapsibleCard） | 1-2 天 | 无 |
-| 10 | 导航栈 + 页面过渡动画 | 2 天 | 无 |
-| 11 | OptiFine 一键安装 | 1 天 | 无 |
-| 12 | 文件完整性检查与自动补全 | 1-2 天 | 无 |
+| # | Feature | 状态 | 模块 |
+|---|---------|------|------|
+| 6 | UI 主题切换（启用 ThemePreset + 用户自定义色） | ✅ Done | `core/src/config.rs`, `gui/src/theme.rs`, `gui/src/dialogs/settings.rs` |
+| 7 | 自定义背景图 + 亚克力模糊 | ✅ Done | `gui/src/background.rs` |
+| 8 | Toast 通知系统 | ✅ Done | `gui/src/toast.rs` |
+| 9 | Widget 抽取（ModCard, InstanceCard, CollapsibleCard） | ✅ Done | `gui/src/widgets/` |
+| 10 | 导航栈 + 页面过渡动画 | ✅ Done | `gui/src/navigation.rs` |
+| 11 | OptiFine 一键安装 | ✅ Done | `core/src/modloader/optifine.rs` |
+| 12 | 文件完整性检查与自动补全 | ✅ Done | `core/src/integrity.rs` |
 
 ### Phase 3 — 进阶功能
 

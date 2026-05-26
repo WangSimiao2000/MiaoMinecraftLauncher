@@ -4,7 +4,7 @@ use miao_core::auth::offline::create_offline_account;
 use miao_core::config::DownloadMirror;
 
 use crate::app::{I18n, Language, MiaoApp, SettingsTab};
-use crate::theme;
+use crate::theme::{self, ThemeColors};
 
 impl MiaoApp {
     pub fn render_settings_page(&mut self, ui: &mut egui::Ui) {
@@ -25,6 +25,7 @@ impl MiaoApp {
                         ui.add_space(12.0);
                         match self.settings_tab {
                             SettingsTab::Account => self.render_tab_account(ui),
+                            SettingsTab::Appearance => self.render_tab_appearance(ui),
                             SettingsTab::Data => self.render_tab_data(ui),
                             SettingsTab::Java => self.render_tab_java(ui),
                             SettingsTab::About => self.render_tab_about(ui),
@@ -43,6 +44,7 @@ impl MiaoApp {
 
             let tabs = [
                 (SettingsTab::Account, I18n::t(lang, "account")),
+                (SettingsTab::Appearance, I18n::t(lang, "appearance")),
                 (SettingsTab::Data, I18n::t(lang, "data")),
                 (SettingsTab::Java, I18n::t(lang, "java")),
                 (SettingsTab::About, I18n::t(lang, "about")),
@@ -248,6 +250,107 @@ impl MiaoApp {
                 ui.add_space(4.0);
                 if ui.button(I18n::t(lang, "sign_in")).clicked() {
                     self.start_ms_login();
+                }
+            }
+        });
+    }
+
+    fn render_tab_appearance(&mut self, ui: &mut egui::Ui) {
+        let lang = self.language;
+
+        ui.label(theme::subheading(I18n::t(lang, "theme")));
+        ui.add_space(8.0);
+
+        theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.label(theme::muted("Choose a color theme for the launcher."));
+            ui.add_space(12.0);
+
+            let current = self.theme_preset;
+            for preset in theme::ThemePreset::ALL {
+                let selected = current == preset;
+                let accent = preset.accent();
+
+                ui.horizontal(|ui| {
+                    let (rect, _) =
+                        ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+                    ui.painter()
+                        .rect_filled(rect, egui::Rounding::same(3.0), accent);
+
+                    let text = if selected {
+                        egui::RichText::new(preset.name())
+                            .strong()
+                            .color(theme::Colors::ACCENT_LIGHT)
+                    } else {
+                        egui::RichText::new(preset.name()).color(theme::Colors::TEXT_PRIMARY)
+                    };
+
+                    if ui.add(egui::SelectableLabel::new(selected, text)).clicked() && !selected {
+                        self.theme_preset = preset;
+                        self.config.theme = preset;
+                        if let Err(e) = self.config.save() {
+                            self.status = format!("✗ Save failed: {}", e);
+                        }
+                    }
+                });
+                ui.add_space(4.0);
+            }
+        });
+
+        ui.add_space(16.0);
+        ui.label(theme::subheading("Background"));
+        ui.add_space(8.0);
+
+        theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.label(theme::muted(
+                "Set a custom background image. Leave empty for the default solid background.",
+            ));
+            ui.add_space(8.0);
+
+            let has_bg = self.config.background_image.is_some();
+            let display_path = self
+                .config
+                .background_image
+                .as_deref()
+                .unwrap_or("(none)")
+                .to_string();
+
+            ui.horizontal(|ui| {
+                ui.label(theme::body(&display_path));
+                if ui.button("Browse").clicked()
+                    && let Some(path) = rfd::FileDialog::new()
+                        .set_title("Select background image")
+                        .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "webp"])
+                        .pick_file()
+                {
+                    self.config.background_image = Some(path.to_string_lossy().to_string());
+                    if let Err(e) = self.config.save() {
+                        self.status = format!("✗ Save failed: {}", e);
+                    }
+                }
+                if has_bg && ui.button("Clear").clicked() {
+                    self.config.background_image = None;
+                    if let Err(e) = self.config.save() {
+                        self.status = format!("✗ Save failed: {}", e);
+                    }
+                }
+            });
+        });
+
+        ui.add_space(16.0);
+        ui.label(theme::subheading(I18n::t(lang, "language")));
+        ui.add_space(8.0);
+
+        theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            for lang_option in Language::ALL {
+                let selected = self.language == lang_option;
+                if ui
+                    .add(egui::SelectableLabel::new(selected, lang_option.name()))
+                    .clicked()
+                {
+                    self.language = lang_option;
                 }
             }
         });
