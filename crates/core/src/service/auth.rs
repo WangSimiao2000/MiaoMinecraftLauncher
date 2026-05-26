@@ -10,12 +10,11 @@ impl LauncherService {
         use crate::auth::microsoft::MicrosoftAuth;
 
         let idx = self.config.active_account_index.unwrap_or(0);
-        let account = self
-            .config
-            .accounts
-            .get(idx)
-            .cloned()
-            .unwrap_or_else(|| AuthMethod::Offline(create_offline_account("Player")));
+        let account = self.config.accounts.get(idx).cloned().ok_or_else(|| {
+            crate::error::MiaoError::Auth(crate::error::AuthError::RefreshFailed(
+                "No account configured".to_string(),
+            ))
+        })?;
 
         match account {
             AuthMethod::Microsoft(ref ms_acc) if ms_acc.is_expired() => {
