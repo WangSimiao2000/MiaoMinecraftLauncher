@@ -29,49 +29,21 @@ fn main() -> Result<()> {
             let mut fonts = egui::FontDefinitions::default();
 
             fonts.font_data.insert(
-                "inter".to_owned(),
+                "misans".to_owned(),
                 std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
-                    "../assets/Inter-Medium.ttf"
+                    "../assets/MiSans-Medium.ttf"
                 ))),
             );
             fonts
                 .families
                 .entry(egui::FontFamily::Proportional)
                 .or_default()
-                .insert(0, "inter".to_owned());
-
-            let cjk_paths: Vec<&str> = match std::env::consts::OS {
-                "linux" => vec![
-                    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-                    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-                    "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
-                    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-                ],
-                "windows" => vec![
-                    "C:\\Windows\\Fonts\\msyh.ttc",
-                    "C:\\Windows\\Fonts\\simsun.ttc",
-                ],
-                "macos" => vec![
-                    "/System/Library/Fonts/PingFang.ttc",
-                    "/Library/Fonts/Arial Unicode.ttf",
-                ],
-                _ => vec![],
-            };
-            for path in &cjk_paths {
-                if let Ok(data) = std::fs::read(path) {
-                    let mut font_data = egui::FontData::from_owned(data);
-                    font_data.index = 2;
-                    fonts
-                        .font_data
-                        .insert("cjk".to_owned(), std::sync::Arc::new(font_data));
-                    fonts
-                        .families
-                        .entry(egui::FontFamily::Proportional)
-                        .or_default()
-                        .push("cjk".to_owned());
-                    break;
-                }
-            }
+                .insert(0, "misans".to_owned());
+            fonts
+                .families
+                .entry(egui::FontFamily::Monospace)
+                .or_default()
+                .push("misans".to_owned());
 
             cc.egui_ctx.set_fonts(fonts);
 
