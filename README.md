@@ -1,6 +1,6 @@
 # MMCL (MiaoMinecraftLauncher)
 
-A feature-rich Minecraft launcher for Linux, built entirely in Rust. Ships as a single binary with both CLI and native GUI interfaces.
+A feature-rich Minecraft launcher built in Rust with cross-platform support. Ships with both CLI and native GUI interfaces.
 
 ## Features
 
@@ -21,7 +21,7 @@ A feature-rich Minecraft launcher for Linux, built entirely in Rust. Ships as a 
 
 ### Build from Source
 
-Requires Rust 1.85+ (nightly for `let_chains`).
+Requires Rust nightly (pinned in `rust-toolchain.toml`).
 
 ```bash
 git clone https://github.com/WangSimiao2000/MiaoMinecraftLauncher.git
@@ -30,7 +30,7 @@ cargo build --release
 ```
 
 Binaries output to `target/release/`:
-- `miao-cli` — Command-line interface
+- `miao` — Command-line interface
 - `miao-gui` — Native GUI (egui)
 
 ### System Dependencies (GUI)
@@ -52,17 +52,17 @@ cargo run -p miao-gui --release
 
 ```bash
 # List available versions
-miao-cli versions
+miao versions
 
 # Create an instance
-miao-cli create 1.21.4 --name "My Server" --loader fabric
+miao create 1.21.4 --name "My Server" --loader fabric
 
 # Launch
-miao-cli launch "My Server"
+miao launch "My Server"
 
 # Search and install mods
-miao-cli mod-search sodium --mc 1.21.4 --loader fabric
-miao-cli mod-install "My Server" sodium
+miao mod-search sodium --mc 1.21.4 --loader fabric
+miao mod-install "My Server" sodium
 ```
 
 ## Project Structure
@@ -73,9 +73,10 @@ crates/
 ├── cli/        # CLI interface (clap)
 └── gui/        # Native GUI (egui/eframe)
 docs/
-├── architecture.md   # System architecture & modules
-├── ui-design.md      # UI design system & rules
-└── testing.md        # Testing strategy & coverage
+├── architecture.md    # System architecture & modules
+├── cross-platform.md  # Cross-platform support roadmap
+├── ui-design.md       # UI design system & rules
+└── testing.md         # Testing strategy & coverage
 ```
 
 See [docs/architecture.md](docs/architecture.md) for detailed module documentation.
@@ -86,7 +87,7 @@ See [docs/architecture.md](docs/architecture.md) for detailed module documentati
 # Check everything compiles
 cargo check --workspace
 
-# Run all tests (221 tests)
+# Run all tests
 cargo test --workspace
 
 # Lint
@@ -113,9 +114,10 @@ cargo tarpaulin -p miao-core --skip-clean
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Ensure `cargo clippy -- -D warnings` and `cargo test` pass
-4. Submit a pull request
+2. Run `sh .githooks/install.sh` to enable pre-commit/pre-push hooks
+3. Create a feature branch
+4. Ensure `cargo clippy -- -D warnings` and `cargo test` pass
+5. Submit a pull request
 
 ## Author
 
