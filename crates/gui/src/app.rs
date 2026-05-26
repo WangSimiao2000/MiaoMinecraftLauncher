@@ -534,22 +534,49 @@ impl eframe::App for MiaoApp {
 impl MiaoApp {
     fn render_title_bar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, is_settings: bool) {
         let lang = self.language;
-        ui.set_min_height(30.0);
+        let height = 30.0;
+        ui.set_min_height(height);
+        let title_bar_rect = ui.max_rect();
 
-        ui.horizontal_centered(|ui| {
-            if is_settings {
-                if ui.button(I18n::t(lang, "back")).clicked() {
-                    self.nav_stack.pop();
+        let title_bar_response = ui.interact(
+            title_bar_rect,
+            egui::Id::new("title_bar"),
+            egui::Sense::click_and_drag(),
+        );
+
+        if title_bar_response.drag_started_by(egui::PointerButton::Primary) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+        }
+        if title_bar_response.double_clicked() {
+            let is_max = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
+        }
+
+        ui.allocate_new_ui(
+            egui::UiBuilder::new()
+                .max_rect(title_bar_rect)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            |ui| {
+                if is_settings {
+                    if ui.button(I18n::t(lang, "back")).clicked() {
+                        self.nav_stack.pop();
+                    }
+                    ui.add_space(8.0);
+                    ui.label(theme::heading(I18n::t(lang, "settings")));
+                } else {
+                    ui.add_space(4.0);
+                    ui.label(theme::heading("MMCL"));
+                    ui.add_space(8.0);
+                    ui.label(theme::small("MiaoMinecraftLauncher"));
                 }
-                ui.add_space(8.0);
-                ui.label(theme::heading(I18n::t(lang, "settings")));
-            } else {
-                ui.label(theme::heading("MMCL"));
-                ui.add_space(8.0);
-                ui.label(theme::small("MiaoMinecraftLauncher"));
-            }
+            },
+        );
 
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        ui.allocate_new_ui(
+            egui::UiBuilder::new()
+                .max_rect(title_bar_rect)
+                .layout(egui::Layout::right_to_left(egui::Align::Center)),
+            |ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
 
                 if Self::window_control_button(ui, WindowButton::Close).clicked() {
@@ -580,19 +607,8 @@ impl MiaoApp {
                         self.nav_stack.push(Page::Settings);
                     }
                 }
-            });
-        });
-
-        let title_rect = ui.min_rect();
-        let drag_response =
-            ui.interact(title_rect, egui::Id::new("title_drag"), egui::Sense::drag());
-        if drag_response.drag_started_by(egui::PointerButton::Primary) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
-        }
-        if drag_response.double_clicked() {
-            let is_max = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
-            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
-        }
+            },
+        );
     }
 
     fn window_control_button(ui: &mut egui::Ui, button: WindowButton) -> egui::Response {
