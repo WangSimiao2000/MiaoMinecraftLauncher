@@ -524,94 +524,87 @@ impl eframe::App for MiaoApp {
 impl MiaoApp {
     fn render_title_bar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, is_settings: bool) {
         let lang = self.language;
-        let height = 30.0;
-        ui.set_min_height(height);
+        ui.set_min_height(30.0);
 
-        ui.horizontal(|ui| {
-            if is_settings {
-                if ui.button(I18n::t(lang, "back")).clicked() {
-                    self.nav_stack.pop();
-                }
-                ui.add_space(8.0);
-                ui.label(theme::heading(I18n::t(lang, "settings")));
-            } else {
-                ui.label(theme::heading("MMCL"));
-                ui.add_space(8.0);
-                ui.label(theme::small("MiaoMinecraftLauncher"));
-            }
+        let title_bar_rect = ui.max_rect();
+        let drag_response = ui.allocate_rect(title_bar_rect, egui::Sense::click_and_drag());
 
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-
-                let btn_size = egui::vec2(36.0, 22.0);
-
-                if ui
-                    .add_sized(
-                        btn_size,
-                        egui::Button::new(
-                            egui::RichText::new("✕")
-                                .size(13.0)
-                                .color(theme::Colors::text_primary()),
-                        )
-                        .frame(false),
-                    )
-                    .on_hover_cursor(egui::CursorIcon::PointingHand)
-                    .clicked()
-                {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
-
-                let is_maximized = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
-                let max_icon = if is_maximized { "❐" } else { "□" };
-                if ui
-                    .add_sized(
-                        btn_size,
-                        egui::Button::new(
-                            egui::RichText::new(max_icon)
-                                .size(13.0)
-                                .color(theme::Colors::text_primary()),
-                        )
-                        .frame(false),
-                    )
-                    .clicked()
-                {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
-                }
-
-                if ui
-                    .add_sized(
-                        btn_size,
-                        egui::Button::new(
-                            egui::RichText::new("─")
-                                .size(13.0)
-                                .color(theme::Colors::text_primary()),
-                        )
-                        .frame(false),
-                    )
-                    .clicked()
-                {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                }
-
-                if !is_settings {
-                    ui.add_space(12.0);
-                    if ui.button(I18n::t(lang, "settings")).clicked() {
-                        self.nav_stack.push(Page::Settings);
+        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(title_bar_rect), |ui| {
+            ui.horizontal_centered(|ui| {
+                if is_settings {
+                    if ui.button(I18n::t(lang, "back")).clicked() {
+                        self.nav_stack.pop();
                     }
+                    ui.add_space(8.0);
+                    ui.label(theme::heading(I18n::t(lang, "settings")));
+                } else {
+                    ui.label(theme::heading("MMCL"));
+                    ui.add_space(8.0);
+                    ui.label(theme::small("MiaoMinecraftLauncher"));
                 }
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    let btn_size = egui::vec2(36.0, 22.0);
+
+                    if ui
+                        .add_sized(
+                            btn_size,
+                            egui::Button::new(
+                                egui::RichText::new("✕")
+                                    .size(13.0)
+                                    .color(theme::Colors::text_primary()),
+                            ),
+                        )
+                        .clicked()
+                    {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+
+                    let is_maximized = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
+                    let max_icon = if is_maximized { "❐" } else { "□" };
+                    if ui
+                        .add_sized(
+                            btn_size,
+                            egui::Button::new(
+                                egui::RichText::new(max_icon)
+                                    .size(13.0)
+                                    .color(theme::Colors::text_primary()),
+                            ),
+                        )
+                        .clicked()
+                    {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                    }
+
+                    if ui
+                        .add_sized(
+                            btn_size,
+                            egui::Button::new(
+                                egui::RichText::new("─")
+                                    .size(13.0)
+                                    .color(theme::Colors::text_primary()),
+                            ),
+                        )
+                        .clicked()
+                    {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                    }
+
+                    if !is_settings {
+                        ui.add_space(12.0);
+                        if ui.button(I18n::t(lang, "settings")).clicked() {
+                            self.nav_stack.push(Page::Settings);
+                        }
+                    }
+                });
             });
         });
 
-        let title_bar_rect = ui.min_rect();
-        let response = ui.interact(
-            title_bar_rect,
-            egui::Id::new("title_bar_drag"),
-            egui::Sense::click_and_drag(),
-        );
-        if response.drag_started() {
+        if drag_response.drag_started_by(egui::PointerButton::Primary) {
             ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
         }
-        if response.double_clicked() {
+        if drag_response.double_clicked() {
             let is_max = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
         }
