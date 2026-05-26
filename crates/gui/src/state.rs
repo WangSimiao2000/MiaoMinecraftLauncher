@@ -172,6 +172,24 @@ impl Language {
     }
 }
 
+impl From<miao_core::config::LanguagePref> for Language {
+    fn from(pref: miao_core::config::LanguagePref) -> Self {
+        match pref {
+            miao_core::config::LanguagePref::English => Language::English,
+            miao_core::config::LanguagePref::Chinese => Language::Chinese,
+        }
+    }
+}
+
+impl From<Language> for miao_core::config::LanguagePref {
+    fn from(lang: Language) -> Self {
+        match lang {
+            Language::English => miao_core::config::LanguagePref::English,
+            Language::Chinese => miao_core::config::LanguagePref::Chinese,
+        }
+    }
+}
+
 pub struct I18n;
 
 impl I18n {

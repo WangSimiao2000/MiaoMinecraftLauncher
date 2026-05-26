@@ -164,6 +164,7 @@ impl MiaoApp {
         };
         let max_downloads_input = config.max_concurrent_downloads.to_string();
         let theme_preset = config.theme;
+        let language = Language::from(config.language);
         let cf_api_key_input = config.curseforge_api_key.clone().unwrap_or_default();
 
         Self {
@@ -192,7 +193,7 @@ impl MiaoApp {
             refresh_counter: 0,
             theme_preset,
             instance_settings_edit: InstanceSettingsEdit::default(),
-            language: Language::default(),
+            language,
             mirror_custom_url,
             max_downloads_input,
             versions: VersionsUiState {

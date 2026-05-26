@@ -17,6 +17,8 @@ pub struct LauncherConfig {
     pub curseforge_api_key: Option<String>,
     #[serde(default)]
     pub theme: ThemePreset,
+    #[serde(default)]
+    pub language: LanguagePref,
     #[serde(skip)]
     pub config_file_override: Option<PathBuf>,
 }
@@ -46,6 +48,16 @@ impl ThemePreset {
             ThemePreset::Warm => "Warm Amber",
         }
     }
+}
+
+/// User language preference. Lives in core only as a serializable enum so the
+/// config file format is stable; the actual translation table is in the GUI
+/// crate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum LanguagePref {
+    #[default]
+    English,
+    Chinese,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -81,6 +93,7 @@ impl Default for LauncherConfig {
             active_account_index: None,
             curseforge_api_key: None,
             theme: ThemePreset::default(),
+            language: LanguagePref::default(),
             config_file_override: None,
         }
     }

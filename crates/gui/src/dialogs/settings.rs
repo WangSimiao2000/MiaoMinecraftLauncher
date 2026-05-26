@@ -367,8 +367,13 @@ impl MiaoApp {
                 if ui
                     .add(egui::SelectableLabel::new(selected, lang_option.name()))
                     .clicked()
+                    && !selected
                 {
                     self.language = lang_option;
+                    self.config.language = lang_option.into();
+                    if let Err(e) = self.config.save() {
+                        self.status = format!("✗ Save failed: {}", e);
+                    }
                 }
             }
         });
@@ -573,8 +578,12 @@ impl MiaoApp {
                     } else {
                         egui::RichText::new(l.name()).color(theme::Colors::text_secondary())
                     };
-                    if ui.selectable_label(selected, text).clicked() {
+                    if ui.selectable_label(selected, text).clicked() && !selected {
                         self.language = l;
+                        self.config.language = l.into();
+                        if let Err(e) = self.config.save() {
+                            self.status = format!("✗ Save failed: {}", e);
+                        }
                     }
                 }
             });
