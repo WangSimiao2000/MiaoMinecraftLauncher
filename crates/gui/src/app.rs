@@ -559,7 +559,11 @@ impl eframe::App for MiaoApp {
             .frame(
                 egui::Frame::NONE
                     .fill(theme::Colors::bg_main())
-                    .inner_margin(egui::Margin::same(12)),
+                    .inner_margin(if in_settings {
+                        egui::Margin::same(0)
+                    } else {
+                        egui::Margin::same(12)
+                    }),
             )
             .show(ctx, |ui| {
                 ui.set_opacity(content_opacity);

@@ -10,7 +10,7 @@ impl MiaoApp {
         egui::Panel::left("settings_nav")
             .resizable(false)
             .exact_size(140.0)
-            .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(4, 0)))
+            .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(6, 0)))
             .show_inside(ui, |ui| {
                 self.render_settings_nav(ui);
             });
@@ -37,52 +37,70 @@ impl MiaoApp {
 
     fn render_settings_nav(&mut self, ui: &mut egui::Ui) {
         let lang = self.language;
-        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.add_space(8.0);
+        ui.add_space(8.0);
 
-            let tabs = [
-                (SettingsTab::Account, I18n::t(lang, "account")),
-                (SettingsTab::Appearance, I18n::t(lang, "appearance")),
-                (SettingsTab::Data, I18n::t(lang, "data")),
-                (SettingsTab::Java, I18n::t(lang, "java")),
-                (SettingsTab::Help, I18n::t(lang, "help")),
-                (SettingsTab::About, I18n::t(lang, "about")),
-            ];
+        let tabs = [
+            (SettingsTab::Account, I18n::t(lang, "account")),
+            (SettingsTab::Appearance, I18n::t(lang, "appearance")),
+            (SettingsTab::Data, I18n::t(lang, "data")),
+            (SettingsTab::Java, I18n::t(lang, "java")),
+            (SettingsTab::Help, I18n::t(lang, "help")),
+            (SettingsTab::About, I18n::t(lang, "about")),
+        ];
 
-            let full_width = ui.available_width();
-            for (tab, label) in tabs {
-                let selected = self.settings_tab == tab;
-                let text = if selected {
-                    egui::RichText::new(label)
-                        .strong()
-                        .color(theme::Colors::accent_light())
-                } else {
-                    egui::RichText::new(label).color(theme::Colors::text_secondary())
-                };
+        let panel_width = ui.available_width();
+        for (tab, label) in tabs {
+            let selected = self.settings_tab == tab;
 
-                let response = ui.add_sized(
-                    [full_width, 32.0],
-                    egui::Button::new(text).selected(selected),
+            let (rect, response) =
+                ui.allocate_exact_size(egui::vec2(panel_width, 32.0), egui::Sense::click());
+
+            if selected {
+                ui.painter().rect_filled(
+                    rect,
+                    egui::CornerRadius::same(4),
+                    theme::Colors::bg_widget_active().gamma_multiply(0.3),
                 );
-
-                if selected {
-                    let rect = response.rect;
-                    ui.painter().rect_filled(
-                        egui::Rect::from_min_max(
-                            egui::pos2(rect.right() - 3.0, rect.top() + 4.0),
-                            egui::pos2(rect.right(), rect.bottom() - 4.0),
-                        ),
-                        egui::CornerRadius::same(2),
-                        theme::Colors::accent(),
-                    );
-                }
-
-                if response.clicked() {
-                    self.settings_tab = tab;
-                }
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_max(
+                        egui::pos2(rect.right() - 3.0, rect.top() + 4.0),
+                        egui::pos2(rect.right(), rect.bottom() - 4.0),
+                    ),
+                    egui::CornerRadius::same(2),
+                    theme::Colors::accent(),
+                );
+            } else if response.hovered() {
+                ui.painter().rect_filled(
+                    rect,
+                    egui::CornerRadius::same(4),
+                    theme::Colors::bg_widget_hover(),
+                );
             }
-        });
+
+            let color = if selected {
+                theme::Colors::accent_light()
+            } else {
+                theme::Colors::text_secondary()
+            };
+
+            let font = if selected {
+                egui::FontId::proportional(theme::Fonts::SUBHEADING)
+            } else {
+                egui::FontId::proportional(theme::Fonts::BODY)
+            };
+
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                label,
+                font,
+                color,
+            );
+
+            if response.clicked() {
+                self.settings_tab = tab;
+            }
+        }
     }
 
     fn render_tab_account(&mut self, ui: &mut egui::Ui) {
