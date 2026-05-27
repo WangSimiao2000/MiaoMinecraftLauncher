@@ -862,7 +862,9 @@ impl MiaoApp {
                 env!("CARGO_PKG_VERSION")
             )));
             ui.add_space(4.0);
-            ui.label(theme::body("A feature-rich Minecraft launcher for Linux."));
+            ui.label(theme::body(
+                "A feature-rich cross-platform Minecraft launcher.",
+            ));
         });
 
         if let Some(ref version) = self.update_available.clone() {
