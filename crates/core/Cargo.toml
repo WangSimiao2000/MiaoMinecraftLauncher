@@ -31,6 +31,14 @@ oauth2.workspace = true
 tokio-util.workspace = true
 image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = "0.22"
+winreg = { version = "0.52", optional = true }
+
+[features]
+default = []
+windows-registry = ["winreg"]
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
 
 [dev-dependencies]
 tempfile = "3"

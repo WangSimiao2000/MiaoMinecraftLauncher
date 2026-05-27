@@ -29,6 +29,10 @@ pub fn detect_java_with_data_dir(data_dir: &Path) -> Vec<JavaInstallation> {
     let mut installations =
         detect_java_in_paths(&search_paths.iter().map(|s| s.as_str()).collect::<Vec<_>>());
 
+    // 检测PATH环境变量中的Java
+    installations.extend(detect_java_in_path());
+
+    // 检测JAVA_HOME环境变量
     if let Ok(java_home) = std::env::var("JAVA_HOME") {
         let java_home_path = PathBuf::from(&java_home);
         let java_bin = java_home_path.join("bin").join(java_binary_name());
@@ -37,6 +41,12 @@ pub fn detect_java_with_data_dir(data_dir: &Path) -> Vec<JavaInstallation> {
         {
             installations.push(info);
         }
+    }
+
+    // Windows注册表检测
+    #[cfg(windows)]
+    {
+        installations.extend(detect_java_from_registry());
     }
 
     let launcher_java_dir = data_dir.join("java");
@@ -60,10 +70,30 @@ fn system_java_search_paths() -> Vec<String> {
             "/Library/Java/JavaVirtualMachines".to_string(),
             "/usr/local/opt/openjdk".to_string(),
         ],
-        "windows" => vec![
-            "C:\\Program Files\\Java".to_string(),
-            "C:\\Program Files (x86)\\Java".to_string(),
-        ],
+        "windows" => {
+            let mut paths = vec![
+                "C:\\Program Files\\Java".to_string(),
+                "C:\\Program Files (x86)\\Java".to_string(),
+                "C:\\Program Files\\AdoptOpenJDK".to_string(),
+                "C:\\Program Files\\Eclipse Foundation".to_string(),
+                "C:\\Program Files\\Microsoft".to_string(),
+                "C:\\Program Files\\Amazon Corretto".to_string(),
+                "C:\\Program Files\\BellSoft".to_string(),
+                "C:\\Program Files\\GraalVM".to_string(),
+                "C:\\Program Files\\Zulu".to_string(),
+                "C:\\Program Files\\Liberica".to_string(),
+                "C:\\Program Files\\SapMachine".to_string(),
+            ];
+            
+            // 添加用户目录下的Java安装
+            if let Ok(user_profile) = std::env::var("USERPROFILE") {
+                paths.push(format!("{}\\AppData\\Local\\Programs\\Java", user_profile));
+                paths.push(format!("{}\\AppData\\Local\\Programs\\AdoptOpenJDK", user_profile));
+                paths.push(format!("{}\\AppData\\Local\\Programs\\Amazon Corretto", user_profile));
+            }
+            
+            paths
+        },
         _ => vec![],
     }
 }
@@ -118,6 +148,70 @@ pub fn detect_java_in_paths(search_paths: &[&str]) -> Vec<JavaInstallation> {
 
     installations.sort_by_key(|j| j.major_version);
     installations
+}
+
+/// 检测PATH环境变量中的Java
+fn detect_java_in_path() -> Vec<JavaInstallation> {
+    let mut installations = Vec::new();
+    
+    if let Ok(path_var) = std::env::var("PATH") {
+        for path in path_var.split(std::path::MAIN_SEPARATOR) {
+            let java_bin = PathBuf::from(path).join(java_binary_name());
+            if java_bin.exists() && java_bin.is_file() {
+                if let Ok(info) = probe_java(&java_bin) {
+                    installations.push(info);
+                }
+            }
+        }
+    }
+    
+    installations
+}
+
+/// Windows注册表检测Java安装
+#[cfg(windows)]
+fn detect_java_from_registry() -> Vec<JavaInstallation> {
+    use winreg::{enums::*, RegKey};
+    
+    let mut installations = Vec::new();
+    
+    // 检测的注册表路径
+    let registry_paths = vec![
+        (HKEY_LOCAL_MACHINE, "SOFTWARE\\JavaSoft\\Java Runtime Environment"),
+        (HKEY_LOCAL_MACHINE, "SOFTWARE\\JavaSoft\\Java Development Kit"),
+        (HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\JavaSoft\\Java Runtime Environment"),
+        (HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\JavaSoft\\Java Development Kit"),
+        (HKEY_CURRENT_USER, "SOFTWARE\\JavaSoft\\Java Runtime Environment"),
+        (HKEY_CURRENT_USER, "SOFTWARE\\JavaSoft\\Java Development Kit"),
+    ];
+    
+    for (hkey, path) in registry_paths {
+        if let Ok(key) = RegKey::predef(hkey).open_subkey(path) {
+            // 获取所有子键（版本）
+            let versions = key.enum_keys();
+            for version in versions.flatten() {
+                if let Ok(subkey) = key.open_subkey(&version) {
+                    if let Ok(java_home) = subkey.get_value::<String, _>("JavaHome") {
+                        let java_home_path = PathBuf::from(&java_home);
+                        let java_bin = java_home_path.join("bin").join(java_binary_name());
+                        
+                        if java_bin.exists() {
+                            if let Ok(info) = probe_java(&java_bin) {
+                                installations.push(info);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    installations
+}
+
+#[cfg(not(windows))]
+fn detect_java_from_registry() -> Vec<JavaInstallation> {
+    Vec::new()
 }
 
 pub fn probe_java(java_bin: &PathBuf) -> Result<JavaInstallation> {
