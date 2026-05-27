@@ -24,13 +24,11 @@ chrono.workspace = true
 zip.workspace = true
 flate2.workspace = true
 tar.workspace = true
-async-trait.workspace = true
 open = "5"
 futures.workspace = true
 url.workspace = true
 oauth2.workspace = true
 tokio-util.workspace = true
-async-recursion = "1.1.1"
 image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = "0.22"
 

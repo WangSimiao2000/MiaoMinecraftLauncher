@@ -42,7 +42,6 @@ impl MockHttpClient {
     }
 }
 
-#[async_trait::async_trait]
 impl HttpClient for MockHttpClient {
     async fn get_json<T: DeserializeOwned + Send>(&self, url: &str) -> Result<T> {
         let responses = self.responses.lock().unwrap();

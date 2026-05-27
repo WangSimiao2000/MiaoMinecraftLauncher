@@ -317,7 +317,6 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
     impl HttpClient for MockHttp {
         async fn get_json<T: serde::de::DeserializeOwned + Send>(&self, url: &str) -> Result<T> {
             let responses = self.json_responses.lock().unwrap();

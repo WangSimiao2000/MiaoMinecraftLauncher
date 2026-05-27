@@ -1,10 +1,14 @@
+use std::future::Future;
+
 use crate::error::Result;
 use serde::de::DeserializeOwned;
 
-#[async_trait::async_trait]
 pub trait HttpClient: Send + Sync {
-    async fn get_json<T: DeserializeOwned + Send>(&self, url: &str) -> Result<T>;
-    async fn get_bytes(&self, url: &str) -> Result<Vec<u8>>;
+    fn get_json<T: DeserializeOwned + Send>(
+        &self,
+        url: &str,
+    ) -> impl Future<Output = Result<T>> + Send;
+    fn get_bytes(&self, url: &str) -> impl Future<Output = Result<Vec<u8>>> + Send;
 }
 
 pub struct ReqwestClient {
@@ -25,7 +29,6 @@ impl Default for ReqwestClient {
     }
 }
 
-#[async_trait::async_trait]
 impl HttpClient for ReqwestClient {
     async fn get_json<T: DeserializeOwned + Send>(&self, url: &str) -> Result<T> {
         let resp = self.inner.get(url).send().await?.error_for_status()?;
@@ -39,7 +42,6 @@ impl HttpClient for ReqwestClient {
     }
 }
 
-#[async_trait::async_trait]
 impl HttpClient for reqwest::Client {
     async fn get_json<T: DeserializeOwned + Send>(&self, url: &str) -> Result<T> {
         let resp = self.get(url).send().await?.error_for_status()?;

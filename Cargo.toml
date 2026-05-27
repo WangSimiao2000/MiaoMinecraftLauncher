@@ -44,8 +44,6 @@ zip = "8"
 # Tar/Gzip extraction (for Java downloads)
 flate2 = "1"
 tar = "0.4"
-# Async trait
-async-trait = "0.1"
 # Futures utilities
 futures = "0.3"
 # URL handling
