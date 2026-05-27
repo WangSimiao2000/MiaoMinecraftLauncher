@@ -29,10 +29,10 @@ pub fn detect_system_java() -> Vec<JavaInstallation> {
     let now = Instant::now();
 
     // 检查缓存
-    if let Some((installations, cached_at)) = JAVA_CACHE.get() {
-        if now.duration_since(*cached_at) < CACHE_DURATION {
-            return installations.clone();
-        }
+    if let Some((installations, cached_at)) = JAVA_CACHE.get()
+        && now.duration_since(*cached_at) < CACHE_DURATION
+    {
+        return installations.clone();
     }
 
     // 重新检测

@@ -215,8 +215,7 @@ pub async fn download_and_extract_java_with_progress(
             } else {
                 return Err(crate::error::MiaoError::Other(
                     "Failed to download Java after multiple attempts".to_string(),
-                )
-                .into());
+                ));
             }
         }
     };
