@@ -111,7 +111,7 @@ cargo tarpaulin -p miao-core --skip-clean
 | Language | Rust (nightly) |
 | Async | tokio |
 | HTTP | reqwest |
-| GUI | egui 0.30 / eframe |
+| GUI | egui 0.34 / eframe |
 | CLI | clap (derive) |
 | Serialization | serde + toml/json |
 | Font | MiSans Medium (bundled, 7.8MB) |
@@ -126,11 +126,16 @@ cargo tarpaulin -p miao-core --skip-clean
 4. Ensure `cargo clippy -- -D warnings` and `cargo test` pass
 5. Submit a pull request
 
+## Open Source Credits
+
+| Asset | License | Source |
+|-------|---------|--------|
+| [MiSans](https://hyperos.mi.com/font/en) | SIL OFL 1.1 | Xiaomi |
+| [Bootstrap Icons](https://icons.getbootstrap.com/) | MIT | The Bootstrap Authors |
+
 ## Author
 
-**MickeyMiao**
-- Blog: [blog.mickeymiao.cn](https://blog.mickeymiao.cn)
-- Bilibili: [鄙人米奇喵](https://space.bilibili.com/)
+**MickeyMiao** — [GitHub](https://github.com/WangSimiao2000) · [Bilibili](https://space.bilibili.com/36913332)
 
 ## License
 

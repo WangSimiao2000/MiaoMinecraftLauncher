@@ -709,20 +709,34 @@ impl MiaoApp {
                 );
             });
             ui.horizontal(|ui| {
-                ui.label(theme::muted("Blog:"));
-                ui.hyperlink_to("blog.mickeymiao.cn", "https://blog.mickeymiao.cn");
-            });
-            ui.horizontal(|ui| {
                 ui.label(theme::muted("Bilibili:"));
                 ui.hyperlink_to("鄙人米奇喵", "https://space.bilibili.com/36913332");
             });
         });
 
         ui.add_space(16.0);
+        ui.label(theme::subheading(I18n::t(lang, "open_source_credits")));
+        ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.label(theme::muted("License: GPL-3.0-or-later"));
+            ui.add_space(8.0);
+            ui.label(theme::muted("Fonts:"));
+            ui.horizontal(|ui| {
+                ui.label(theme::muted("  ·"));
+                ui.hyperlink_to(
+                    "MiSans — Xiaomi (SIL OFL 1.1)",
+                    "https://hyperos.mi.com/font/en",
+                );
+            });
+            ui.horizontal(|ui| {
+                ui.label(theme::muted("  ·"));
+                ui.hyperlink_to(
+                    "Bootstrap Icons — The Bootstrap Authors (MIT)",
+                    "https://icons.getbootstrap.com/",
+                );
+            });
         });
     }
 }

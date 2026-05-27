@@ -396,6 +396,8 @@ impl I18n {
             (Language::Chinese, "background") => "背景图",
             (Language::English, "author") => "Author",
             (Language::Chinese, "author") => "作者",
+            (Language::English, "open_source_credits") => "Open Source Credits",
+            (Language::Chinese, "open_source_credits") => "开源致谢",
             (Language::English, "username") => "Username",
             (Language::Chinese, "username") => "用户名",
             (Language::English, "cf_no_key") => {
