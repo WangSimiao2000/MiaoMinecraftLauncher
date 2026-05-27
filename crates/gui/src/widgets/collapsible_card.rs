@@ -40,30 +40,53 @@ impl<'a> CollapsibleCard<'a> {
         frame.show(ui, |ui| {
             ui.set_min_width(ui.available_width());
 
-            let header_response = ui
-                .horizontal(|ui| {
-                    ui.add_space(14.0);
-                    let arrow = if open {
-                        crate::icons::ICON_CHEVRON_DOWN
-                    } else {
-                        crate::icons::ICON_CHEVRON_RIGHT
-                    };
-                    ui.label(
-                        egui::RichText::new(arrow)
-                            .size(10.0)
-                            .color(theme::Colors::text_muted()),
-                    );
-                    ui.label(theme::subheading(self.title));
-                })
-                .response;
+            let header_rect =
+                egui::Rect::from_min_size(ui.cursor().min, egui::vec2(ui.available_width(), 36.0));
+            let header_response = ui.allocate_rect(header_rect, egui::Sense::click());
 
-            if header_response.interact(egui::Sense::click()).clicked() {
+            if header_response.hovered() {
+                ui.painter().rect_filled(
+                    header_rect,
+                    egui::CornerRadius {
+                        nw: 8,
+                        ne: 8,
+                        sw: if open { 0 } else { 8 },
+                        se: if open { 0 } else { 8 },
+                    },
+                    theme::Colors::bg_widget_hover(),
+                );
+            }
+
+            let arrow = if open {
+                crate::icons::ICON_CHEVRON_DOWN
+            } else {
+                crate::icons::ICON_CHEVRON_RIGHT
+            };
+
+            let text_pos = header_rect.left_center() + egui::vec2(14.0, 0.0);
+            ui.painter().text(
+                text_pos,
+                egui::Align2::LEFT_CENTER,
+                arrow,
+                egui::FontId::proportional(10.0),
+                theme::Colors::text_muted(),
+            );
+
+            let title_pos = text_pos + egui::vec2(18.0, 0.0);
+            ui.painter().text(
+                title_pos,
+                egui::Align2::LEFT_CENTER,
+                self.title,
+                egui::FontId::proportional(theme::Fonts::SUBHEADING),
+                theme::Colors::text_primary(),
+            );
+
+            if header_response.clicked() {
                 open = !open;
                 ui.ctx().data_mut(|d| d.insert_persisted(self.id, open));
             }
 
             if open {
-                ui.add_space(4.0);
                 let inner_margin = egui::Margin::symmetric(14, 0);
                 egui::Frame::NONE.inner_margin(inner_margin).show(ui, |ui| {
                     add_body(ui);
