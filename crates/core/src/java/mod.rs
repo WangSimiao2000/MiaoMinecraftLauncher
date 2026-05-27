@@ -84,16 +84,22 @@ fn system_java_search_paths() -> Vec<String> {
                 "C:\\Program Files\\Liberica".to_string(),
                 "C:\\Program Files\\SapMachine".to_string(),
             ];
-            
+
             // 添加用户目录下的Java安装
             if let Ok(user_profile) = std::env::var("USERPROFILE") {
                 paths.push(format!("{}\\AppData\\Local\\Programs\\Java", user_profile));
-                paths.push(format!("{}\\AppData\\Local\\Programs\\AdoptOpenJDK", user_profile));
-                paths.push(format!("{}\\AppData\\Local\\Programs\\Amazon Corretto", user_profile));
+                paths.push(format!(
+                    "{}\\AppData\\Local\\Programs\\AdoptOpenJDK",
+                    user_profile
+                ));
+                paths.push(format!(
+                    "{}\\AppData\\Local\\Programs\\Amazon Corretto",
+                    user_profile
+                ));
             }
-            
+
             paths
-        },
+        }
         _ => vec![],
     }
 }
@@ -153,18 +159,19 @@ pub fn detect_java_in_paths(search_paths: &[&str]) -> Vec<JavaInstallation> {
 /// 检测PATH环境变量中的Java
 fn detect_java_in_path() -> Vec<JavaInstallation> {
     let mut installations = Vec::new();
-    
+
     if let Ok(path_var) = std::env::var("PATH") {
         for path in path_var.split(std::path::MAIN_SEPARATOR) {
             let java_bin = PathBuf::from(path).join(java_binary_name());
-            if java_bin.exists() && java_bin.is_file()
+            if java_bin.exists()
+                && java_bin.is_file()
                 && let Ok(info) = probe_java(&java_bin)
             {
                 installations.push(info);
             }
         }
     }
-    
+
     installations
 }
 
@@ -172,20 +179,38 @@ fn detect_java_in_path() -> Vec<JavaInstallation> {
 #[cfg(windows)]
 #[allow(dead_code)]
 fn detect_java_from_registry() -> Vec<JavaInstallation> {
-    use winreg::{enums::*, RegKey};
-    
+    use winreg::{RegKey, enums::*};
+
     let mut installations = Vec::new();
-    
+
     // 检测的注册表路径
     let registry_paths = vec![
-        (HKEY_LOCAL_MACHINE, "SOFTWARE\\JavaSoft\\Java Runtime Environment"),
-        (HKEY_LOCAL_MACHINE, "SOFTWARE\\JavaSoft\\Java Development Kit"),
-        (HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\JavaSoft\\Java Runtime Environment"),
-        (HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\JavaSoft\\Java Development Kit"),
-        (HKEY_CURRENT_USER, "SOFTWARE\\JavaSoft\\Java Runtime Environment"),
-        (HKEY_CURRENT_USER, "SOFTWARE\\JavaSoft\\Java Development Kit"),
+        (
+            HKEY_LOCAL_MACHINE,
+            "SOFTWARE\\JavaSoft\\Java Runtime Environment",
+        ),
+        (
+            HKEY_LOCAL_MACHINE,
+            "SOFTWARE\\JavaSoft\\Java Development Kit",
+        ),
+        (
+            HKEY_LOCAL_MACHINE,
+            "SOFTWARE\\WOW6432Node\\JavaSoft\\Java Runtime Environment",
+        ),
+        (
+            HKEY_LOCAL_MACHINE,
+            "SOFTWARE\\WOW6432Node\\JavaSoft\\Java Development Kit",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            "SOFTWARE\\JavaSoft\\Java Runtime Environment",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            "SOFTWARE\\JavaSoft\\Java Development Kit",
+        ),
     ];
-    
+
     for (hkey, path) in registry_paths {
         if let Ok(key) = RegKey::predef(hkey).open_subkey(path) {
             // 获取所有子键（版本）
@@ -196,7 +221,7 @@ fn detect_java_from_registry() -> Vec<JavaInstallation> {
                 {
                     let java_home_path = PathBuf::from(&java_home);
                     let java_bin = java_home_path.join("bin").join(java_binary_name());
-                    
+
                     if java_bin.exists()
                         && let Ok(info) = probe_java(&java_bin)
                     {
@@ -206,7 +231,7 @@ fn detect_java_from_registry() -> Vec<JavaInstallation> {
             }
         }
     }
-    
+
     installations
 }
 
