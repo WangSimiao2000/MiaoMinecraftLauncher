@@ -10,7 +10,7 @@ impl MiaoApp {
         egui::Panel::left("settings_nav")
             .resizable(false)
             .exact_size(140.0)
-            .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(10, 0)))
+            .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(4, 0)))
             .show_inside(ui, |ui| {
                 self.render_settings_nav(ui);
             });
