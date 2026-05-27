@@ -27,7 +27,7 @@ impl MiaoApp {
             .inner_margin(egui::Margin::same(16));
 
         egui::Window::new("Java Required")
-            .open(&mut open)
+            .title_bar(false)
             .resizable(false)
             .collapsible(false)
             .default_width(380.0)
@@ -35,6 +35,38 @@ impl MiaoApp {
             .frame(frame)
             .show(ctx, |ui| {
                 ui.set_opacity(opacity);
+                ui.horizontal(|ui| {
+                    ui.label(theme::subheading("Java Required"));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let btn_size = egui::vec2(28.0, 28.0);
+                        let (rect, response) =
+                            ui.allocate_exact_size(btn_size, egui::Sense::click());
+                        let color = if response.hovered() {
+                            ui.painter().rect_filled(
+                                rect,
+                                egui::CornerRadius::same(4),
+                                egui::Color32::from_rgb(196, 43, 28),
+                            );
+                            egui::Color32::WHITE
+                        } else {
+                            theme::Colors::text_secondary()
+                        };
+                        let center = rect.center();
+                        let d = 5.0;
+                        let stroke = egui::Stroke::new(1.5, color);
+                        ui.painter().line_segment(
+                            [center - egui::vec2(d, d), center + egui::vec2(d, d)],
+                            stroke,
+                        );
+                        ui.painter().line_segment(
+                            [center + egui::vec2(-d, d), center + egui::vec2(d, -d)],
+                            stroke,
+                        );
+                        if response.clicked() {
+                            open = false;
+                        }
+                    });
+                });
                 ui.vertical_centered(|ui| {
                     ui.add_space(8.0);
                     ui.label(
