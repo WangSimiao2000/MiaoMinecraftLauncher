@@ -190,11 +190,24 @@ impl CurseForgeClient {
         loader: Option<&str>,
         limit: u32,
     ) -> Result<CfSearchResult> {
+        self.search_mods_offset(query, mc_version, loader, limit, 0)
+            .await
+    }
+
+    pub async fn search_mods_offset(
+        &self,
+        query: &str,
+        mc_version: Option<&str>,
+        loader: Option<&str>,
+        limit: u32,
+        index: u32,
+    ) -> Result<CfSearchResult> {
         let mut params = vec![
             format!("gameId={}", MINECRAFT_GAME_ID),
             format!("classId={}", MODS_CLASS_ID),
             format!("searchFilter={}", urlencoding(query)),
             format!("pageSize={}", limit.min(50)),
+            format!("index={}", index),
             "sortField=2".to_string(),
             "sortOrder=desc".to_string(),
         ];

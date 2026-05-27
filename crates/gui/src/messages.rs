@@ -75,6 +75,7 @@ pub enum AppCommand {
         query: String,
         mc_version: String,
         loader: Option<String>,
+        offset: u32,
     },
     LoadModVersions {
         slug: String,
@@ -98,6 +99,7 @@ pub enum AppCommand {
         mc_version: String,
         loader: Option<String>,
         api_key: String,
+        index: u32,
     },
     CfLoadFiles {
         mod_id: u32,
@@ -118,6 +120,13 @@ pub enum AppCommand {
         loader: String,
         instance_dir: PathBuf,
         api_key: String,
+    },
+
+    // ── Mod updates ──
+    CheckModUpdates {
+        mods_dir: PathBuf,
+        mc_version: String,
+        loader: String,
     },
 
     // ── Misc ──
@@ -171,7 +180,10 @@ pub enum AppEvent {
     JavaFailed(String),
 
     // ── Mods ──
-    ModSearchResults(Vec<SearchHit>),
+    ModSearchResults {
+        hits: Vec<SearchHit>,
+        total_hits: u32,
+    },
     ModVersions(Vec<ProjectVersion>),
     ModPendingInstall(PendingModInstall),
     ModInstalled {
@@ -180,7 +192,10 @@ pub enum AppEvent {
     ModError(String),
 
     // ── CurseForge ──
-    CfSearchResults(Vec<miao_core::curseforge::api::CfMod>),
+    CfSearchResults {
+        mods: Vec<miao_core::curseforge::api::CfMod>,
+        total_count: u32,
+    },
     CfFileVersions(Vec<miao_core::curseforge::api::CfFile>),
     CfPendingInstall {
         mod_name: String,
@@ -194,6 +209,10 @@ pub enum AppEvent {
         count: usize,
     },
     CfError(String),
+
+    ModUpdatesResult {
+        updates: Vec<miao_core::modrinth::api::ModUpdateInfo>,
+    },
 
     // ── Game log ──
     GameLogLine(String),

@@ -6,20 +6,20 @@ use crate::theme;
 
 impl MiaoApp {
     pub fn render_log_tab(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
-        let lang = self.language;
+        let lang = self.language.clone();
         let log_path = instance_dir.join("logs").join("latest.log");
         let has_live_log = !self.game_log.lines.is_empty() || self.game_log.running;
         let live_lines: Vec<String> = self.game_log.lines.iter().cloned().collect();
         let is_running = self.game_log.running;
 
         ui.horizontal(|ui| {
-            ui.label(theme::subheading(I18n::t(lang, "game_log")));
+            ui.label(theme::subheading(I18n::t(&lang, "game_log")));
             if is_running {
                 ui.spinner();
                 ui.label(theme::small("Running"));
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(I18n::t(lang, "clear_log")).clicked() {
+                if ui.button(I18n::t(&lang, "clear_log")).clicked() {
                     self.game_log.lines.clear();
                 }
                 if log_path.exists() && ui.button("Open file").clicked() {
@@ -86,7 +86,7 @@ impl MiaoApp {
                         });
                 });
         } else {
-            ui.label(theme::muted(I18n::t(lang, "no_log")));
+            ui.label(theme::muted(I18n::t(&lang, "no_log")));
         }
     }
 }

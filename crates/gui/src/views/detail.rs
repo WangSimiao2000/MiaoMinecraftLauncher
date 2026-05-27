@@ -33,9 +33,9 @@ impl MiaoApp {
     fn render_welcome(&self, ui: &mut egui::Ui) {
         ui.add_space(100.0);
         ui.vertical_centered(|ui| {
-            ui.label(theme::heading(I18n::t(self.language, "welcome")));
+            ui.label(theme::heading(I18n::t(&self.language, "welcome")));
             ui.add_space(theme::Spacing::SECTION_GAP);
-            ui.label(theme::muted(I18n::t(self.language, "welcome_hint")));
+            ui.label(theme::muted(I18n::t(&self.language, "welcome_hint")));
         });
     }
 
@@ -61,7 +61,7 @@ impl MiaoApp {
                                 .mod_loader
                                 .as_ref()
                                 .map(|l| format!("{} {}", l.loader_type, l.version))
-                                .unwrap_or_else(|| I18n::t(self.language, "vanilla").to_string());
+                                .unwrap_or_else(|| I18n::t(&self.language, "vanilla").to_string());
                             ui.label(theme::badge_loader(&loader));
                         });
                     });
@@ -71,10 +71,10 @@ impl MiaoApp {
                             self.launch_instance(idx);
                         }
                         ui.add_space(8.0);
-                        if ui.button(I18n::t(self.language, "export")).clicked() {
+                        if ui.button(I18n::t(&self.language, "export")).clicked() {
                             self.export_instance_with_dialog(idx);
                         }
-                        if ui.button(I18n::t(self.language, "open")).clicked() {
+                        if ui.button(I18n::t(&self.language, "open")).clicked() {
                             let dir = miao_core::instance::Instance::instance_dir(
                                 &self.config.instances_dir(),
                                 &inst.name,
@@ -84,12 +84,12 @@ impl MiaoApp {
                         ui.add_space(8.0);
                         if self.confirm_delete == Some(idx) {
                             ui.label(
-                                egui::RichText::new(I18n::t(self.language, "confirm"))
+                                egui::RichText::new(I18n::t(&self.language, "confirm"))
                                     .color(theme::Colors::danger())
                                     .size(12.0),
                             );
                             if ui
-                                .add(theme::danger_button(I18n::t(self.language, "yes")))
+                                .add(theme::danger_button(I18n::t(&self.language, "yes")))
                                 .clicked()
                             {
                                 let name = inst.name.clone();
@@ -108,11 +108,11 @@ impl MiaoApp {
                                 }
                                 self.confirm_delete = None;
                             }
-                            if ui.button(I18n::t(self.language, "no")).clicked() {
+                            if ui.button(I18n::t(&self.language, "no")).clicked() {
                                 self.confirm_delete = None;
                             }
                         } else if ui
-                            .add(theme::danger_button(I18n::t(self.language, "delete")))
+                            .add(theme::danger_button(I18n::t(&self.language, "delete")))
                             .clicked()
                         {
                             self.confirm_delete = Some(idx);
@@ -124,7 +124,7 @@ impl MiaoApp {
 
     fn render_tabs(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            let lang = self.language;
+            let lang = self.language.clone();
             for (tab, key) in [
                 (DetailTab::Mods, "tab_mods"),
                 (DetailTab::Resources, "tab_resources"),
@@ -132,7 +132,7 @@ impl MiaoApp {
                 (DetailTab::Log, "tab_log"),
                 (DetailTab::Settings, "tab_settings"),
             ] {
-                let label = I18n::t(lang, key);
+                let label = I18n::t(&lang, key);
                 let selected = self.active_tab == tab;
                 let text = if selected {
                     egui::RichText::new(label)

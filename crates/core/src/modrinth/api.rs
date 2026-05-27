@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::error::Result;
 use serde::Deserialize;
 
@@ -61,12 +63,70 @@ pub struct Dependency {
     pub dependency_type: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct ModUpdateInfo {
+    pub filename: String,
+    pub current_hash: String,
+    pub new_version_name: String,
+    pub new_version_number: String,
+    pub new_file_url: String,
+    pub new_filename: String,
+    pub project_id: String,
+}
+
+pub async fn check_mod_updates(
+    client: &reqwest::Client,
+    hashes: &[String],
+    mc_version: &str,
+    loader: &str,
+) -> Result<HashMap<String, ProjectVersion>> {
+    if hashes.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let body = serde_json::json!({
+        "hashes": hashes,
+        "algorithm": "sha1",
+        "loaders": [loader],
+        "game_versions": [mc_version]
+    });
+
+    let resp = client
+        .post(format!("{}/version_files/update", MODRINTH_API))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await?
+        .error_for_status()?;
+
+    let map: HashMap<String, ProjectVersion> = resp.json().await?;
+    Ok(map)
+}
+
+pub fn compute_sha1(path: &std::path::Path) -> std::io::Result<String> {
+    use sha1::{Digest, Sha1};
+    let data = std::fs::read(path)?;
+    let hash = Sha1::digest(&data);
+    Ok(format!("{:x}", hash))
+}
+
 pub async fn search_mods(
     http: &impl HttpClient,
     query: &str,
     mc_version: Option<&str>,
     loader: Option<&str>,
     limit: u32,
+) -> Result<SearchResult> {
+    search_mods_offset(http, query, mc_version, loader, limit, 0).await
+}
+
+pub async fn search_mods_offset(
+    http: &impl HttpClient,
+    query: &str,
+    mc_version: Option<&str>,
+    loader: Option<&str>,
+    limit: u32,
+    offset: u32,
 ) -> Result<SearchResult> {
     let mut facets = vec!["[\"project_type:mod\"]".to_string()];
     if let Some(mc) = mc_version {
@@ -78,8 +138,8 @@ pub async fn search_mods(
     let facets_str = format!("[{}]", facets.join(","));
 
     let url = format!(
-        "{}/search?query={}&facets={}&limit={}",
-        MODRINTH_API, query, facets_str, limit
+        "{}/search?query={}&facets={}&limit={}&offset={}",
+        MODRINTH_API, query, facets_str, limit, offset
     );
 
     http.get_json(&url).await

@@ -142,13 +142,14 @@ fn mod_search_produces_results_or_error() {
         query: "sodium".to_string(),
         mc_version: "1.21.4".to_string(),
         loader: Some("fabric".to_string()),
+        offset: 0,
     });
 
     let event = recv_event_blocking(&rt, &mut controller, 15000);
     assert!(event.is_some(), "Should receive mod search event");
 
     match event.unwrap() {
-        AppEvent::ModSearchResults(hits) => {
+        AppEvent::ModSearchResults { hits, .. } => {
             assert!(!hits.is_empty(), "Sodium should have search results");
         }
         AppEvent::ModError(_) => {}

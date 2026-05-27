@@ -10,7 +10,7 @@ impl MiaoApp {
         instance_idx: usize,
         java_major: u32,
     ) {
-        let lang = self.language;
+        let lang = self.language.clone();
         let mut open = true;
 
         let anim_id = egui::Id::new("java_confirm_dialog_anim");
@@ -99,7 +99,7 @@ impl MiaoApp {
                             self.download_java_for_instance(instance_idx);
                         }
                         ui.add_space(12.0);
-                        if ui.button(I18n::t(lang, "cancel")).clicked() {
+                        if ui.button(I18n::t(&lang, "cancel")).clicked() {
                             self.active_dialog = Dialog::None;
                             self.status = "Cancelled.".to_string();
                         }

@@ -19,8 +19,13 @@ pub struct LauncherConfig {
     pub curseforge_api_key: Option<String>,
     #[serde(default)]
     pub theme: ThemePreset,
+    #[serde(
+        default = "default_language",
+        deserialize_with = "deserialize_language"
+    )]
+    pub language: String,
     #[serde(default)]
-    pub language: LanguagePref,
+    pub setup_complete: bool,
     #[serde(skip)]
     pub config_file_override: Option<PathBuf>,
 }
@@ -53,13 +58,30 @@ impl ThemePreset {
 }
 
 /// User language preference. Lives in core only as a serializable enum so the
-/// config file format is stable; the actual translation table is in the GUI
-/// crate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum LanguagePref {
-    #[default]
-    English,
-    Chinese,
+pub fn default_language() -> String {
+    "en".to_string()
+}
+
+fn deserialize_language<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de;
+    struct LangVisitor;
+    impl<'de> de::Visitor<'de> for LangVisitor {
+        type Value = String;
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a language string like \"en\" or legacy enum like \"English\"")
+        }
+        fn visit_str<E: de::Error>(self, v: &str) -> std::result::Result<String, E> {
+            Ok(match v {
+                "English" => "en".to_string(),
+                "Chinese" => "zh".to_string(),
+                other => other.to_string(),
+            })
+        }
+    }
+    deserializer.deserialize_str(LangVisitor)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -96,7 +118,8 @@ impl Default for LauncherConfig {
             active_account_index: None,
             curseforge_api_key: None,
             theme: ThemePreset::default(),
-            language: LanguagePref::default(),
+            language: default_language(),
+            setup_complete: false,
             config_file_override: None,
         }
     }
@@ -114,7 +137,9 @@ impl LauncherConfig {
         let path = Self::config_path();
         if path.exists() {
             let content = std::fs::read_to_string(&path)?;
-            Ok(toml::from_str(&content)?)
+            let mut config: Self = toml::from_str(&content)?;
+            config.setup_complete = true;
+            Ok(config)
         } else {
             Ok(Self::default())
         }

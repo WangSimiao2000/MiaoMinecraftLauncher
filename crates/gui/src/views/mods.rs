@@ -26,30 +26,28 @@ struct VersionListAction {
 
 impl MiaoApp {
     pub fn render_mods_tab(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
-        let lang = self.language;
+        let lang = self.language.clone();
         self.file_scan_cache.get_or_scan(instance_dir);
         let mods_dir = miao_core::instance::Instance::mods_dir(instance_dir);
         let mods = self.file_scan_cache.mods.clone();
 
+        self.handle_file_drop(ui, instance_dir);
+
         ui.horizontal(|ui| {
             ui.label(theme::subheading(&format!("Mods ({})", mods.len())));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(I18n::t(lang, "open_folder")).clicked() {
-                    let _ = miao_core::instance::open_folder(&mods_dir);
-                }
-
                 let search_label = if self.mod_search_active {
                     egui::RichText::new(format!(
                         "{} {}",
                         crate::icons::ICON_X_CIRCLE,
-                        I18n::t(lang, "close_search")
+                        I18n::t(&lang, "close_search")
                     ))
                     .color(theme::Colors::text_secondary())
                 } else {
                     egui::RichText::new(format!(
                         "{} {}",
                         crate::icons::ICON_SEARCH,
-                        I18n::t(lang, "search_mods")
+                        I18n::t(&lang, "search_mods")
                     ))
                     .color(theme::Colors::text_primary())
                 };
@@ -58,6 +56,18 @@ impl MiaoApp {
                     if self.mod_search_active && !self.mod_search_query.is_empty() {
                         self.do_unified_search(instance_dir);
                     }
+                }
+
+                if !self.checking_updates && !mods.is_empty() {
+                    if ui.button(I18n::t(&lang, "check_updates")).clicked() {
+                        self.check_mod_updates(instance_dir);
+                    }
+                } else if self.checking_updates {
+                    ui.spinner();
+                }
+
+                if ui.button(I18n::t(&lang, "open_folder")).clicked() {
+                    let _ = miao_core::instance::open_folder(&mods_dir);
                 }
             });
         });
@@ -71,12 +81,36 @@ impl MiaoApp {
             ui.add_space(theme::Spacing::SMALL_GAP);
         }
 
+        if !self.mod_updates.is_empty() {
+            ui.add_space(6.0);
+            ui.label(theme::subheading(&format!(
+                "{} {} {}",
+                self.mod_updates.len(),
+                I18n::t(&lang, "updates_available"),
+                ""
+            )));
+            ui.add_space(4.0);
+            for update in self.mod_updates.clone() {
+                theme::list_item_card().show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.label(theme::body(&update.filename));
+                        ui.label(theme::small(&format!("→ {}", update.new_version_number)));
+                    });
+                });
+                ui.add_space(2.0);
+            }
+            ui.add_space(theme::Spacing::SMALL_GAP);
+            ui.separator();
+            ui.add_space(theme::Spacing::SMALL_GAP);
+        }
+
         if mods.is_empty() {
             ui.add_space(20.0);
             ui.vertical_centered(|ui| {
-                ui.label(theme::muted(I18n::t(lang, "no_mods")));
+                ui.label(theme::muted(I18n::t(&lang, "no_mods")));
                 ui.add_space(8.0);
-                ui.label(theme::small(I18n::t(lang, "no_mods_hint")));
+                ui.label(theme::small(I18n::t(&lang, "no_mods_hint")));
             });
         } else {
             let row_height = 30.0;
@@ -103,7 +137,7 @@ impl MiaoApp {
     }
 
     fn render_unified_search(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
-        let lang = self.language;
+        let lang = self.language.clone();
         ui.horizontal(|ui| {
             let mr_selected = self.mod_source == ModSource::Modrinth;
             let cf_selected = self.mod_source == ModSource::CurseForge;
@@ -162,12 +196,12 @@ impl MiaoApp {
         }
 
         if self.mod_source == ModSource::CurseForge && self.effective_cf_api_key().is_empty() {
-            ui.label(theme::muted(I18n::t(lang, "cf_no_key")));
+            ui.label(theme::muted(I18n::t(&lang, "cf_no_key")));
             return;
         }
 
         ui.horizontal(|ui| {
-            ui.label(I18n::t(lang, "search"));
+            ui.label(I18n::t(&lang, "search"));
             let response = ui.add(
                 egui::TextEdit::singleline(&mut self.mod_search_query)
                     .desired_width(ui.available_width() - 60.0)
@@ -177,7 +211,7 @@ impl MiaoApp {
             if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 self.do_unified_search(instance_dir);
             }
-            if ui.button(I18n::t(lang, "go")).clicked() {
+            if ui.button(I18n::t(&lang, "go")).clicked() {
                 self.do_unified_search(instance_dir);
             }
         });
@@ -205,12 +239,16 @@ impl MiaoApp {
                 self.mod_search.results.clear();
                 self.mod_search.versions.clear();
                 self.mod_search.selected = None;
+                self.mod_search.offset = 0;
+                self.mod_search.total_hits = 0;
                 self.do_mod_search_from_tab();
             }
             ModSource::CurseForge => {
                 self.cf_search.query = self.mod_search_query.clone();
                 self.cf_search.active = true;
                 self.cf_search.results.clear();
+                self.cf_search.offset = 0;
+                self.cf_search.total_count = 0;
                 self.do_cf_search(instance_dir);
             }
         }
@@ -225,7 +263,6 @@ impl MiaoApp {
             ui.add_space(8.0);
             let mut clicked_idx = None;
 
-            // Prepare results for shared rendering
             let results: Vec<SearchResultItem> = self
                 .mod_search
                 .results
@@ -244,6 +281,23 @@ impl MiaoApp {
             if let Some(i) = clicked_idx {
                 self.mod_search.selected = Some(i);
                 self.load_mod_versions_from_tab(i);
+            }
+
+            let has_more =
+                self.mod_search.offset < self.mod_search.total_hits && !self.mod_search.searching;
+            if has_more {
+                ui.add_space(6.0);
+                ui.vertical_centered(|ui| {
+                    let label = format!(
+                        "{} ({}/{})",
+                        I18n::t(&self.language, "load_more"),
+                        self.mod_search.offset,
+                        self.mod_search.total_hits
+                    );
+                    if ui.button(label).clicked() {
+                        self.do_mod_search_from_tab();
+                    }
+                });
             }
         }
 
@@ -303,11 +357,25 @@ impl MiaoApp {
                 self.cf_search.selected_mod_name = Some(cf_mod.name.clone());
                 self.do_cf_load_files(cf_mod.id);
             }
+
+            let has_more =
+                self.cf_search.offset < self.cf_search.total_count && !self.cf_search.searching;
+            if has_more {
+                ui.add_space(6.0);
+                ui.vertical_centered(|ui| {
+                    let label = format!(
+                        "{} ({}/{})",
+                        I18n::t(&self.language, "load_more"),
+                        self.cf_search.offset,
+                        self.cf_search.total_count
+                    );
+                    if ui.button(label).clicked() {
+                        self.do_cf_search(instance_dir);
+                    }
+                });
+            }
         }
     }
-
-    /// Shared helper to render search result cards.
-    /// Returns Some(index) if a card was clicked.
     fn render_search_results(
         &mut self,
         ui: &mut egui::Ui,
@@ -388,7 +456,7 @@ impl MiaoApp {
         title: &str,
         versions: &[VersionItem],
     ) -> VersionListAction {
-        let lang = self.language;
+        let lang = self.language.clone();
         let mut action = VersionListAction {
             install: false,
             back: false,
@@ -397,7 +465,7 @@ impl MiaoApp {
         ui.add_space(8.0);
         ui.label(theme::subheading(&format!(
             "{} '{}'",
-            I18n::t(lang, "versions_for"),
+            I18n::t(&lang, "versions_for"),
             title
         )));
         ui.add_space(6.0);
@@ -409,7 +477,7 @@ impl MiaoApp {
                     ui.label(theme::body(&item.name));
                     ui.label(theme::small(&item.release_label));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(I18n::t(lang, "install")).clicked() {
+                        if ui.button(I18n::t(&lang, "install")).clicked() {
                             action.install = true;
                         }
                     });
@@ -419,7 +487,7 @@ impl MiaoApp {
         }
 
         ui.add_space(6.0);
-        if ui.button(I18n::t(lang, "back")).clicked() {
+        if ui.button(I18n::t(&lang, "back")).clicked() {
             action.back = true;
         }
 
@@ -464,7 +532,7 @@ impl MiaoApp {
 
     /// Unified confirmation panel for both Modrinth and CurseForge pending installs.
     fn render_pending_confirmation(&mut self, ui: &mut egui::Ui, pending: &PendingInstall) {
-        let lang = self.language;
+        let lang = self.language.clone();
 
         // Extract common fields based on pending type
         let (
@@ -525,7 +593,7 @@ impl MiaoApp {
             .stroke(egui::Stroke::new(1.5_f32, stroke_color))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
-                ui.label(theme::subheading(I18n::t(lang, title_key)));
+                ui.label(theme::subheading(I18n::t(&lang, title_key)));
                 ui.add_space(8.0);
 
                 ui.label(theme::body(&format!(
@@ -537,7 +605,7 @@ impl MiaoApp {
                     ui.add_space(8.0);
                     ui.label(theme::muted(&format!(
                         "{} ({}):",
-                        I18n::t(lang, "required_deps"),
+                        I18n::t(&lang, "required_deps"),
                         dep_count
                     )));
                     ui.add_space(4.0);
@@ -552,19 +620,19 @@ impl MiaoApp {
                 ui.add_space(12.0);
                 ui.horizontal(|ui| {
                     if show_install_all && has_deps {
-                        if ui.button(I18n::t(lang, "install_all")).clicked() {
+                        if ui.button(I18n::t(&lang, "install_all")).clicked() {
                             self.do_confirmed_install(true);
                         }
-                        if ui.button(I18n::t(lang, "only_this_mod")).clicked() {
+                        if ui.button(I18n::t(&lang, "only_this_mod")).clicked() {
                             self.do_confirmed_install(false);
                         }
-                    } else if ui.button(I18n::t(lang, "install")).clicked() {
+                    } else if ui.button(I18n::t(&lang, "install")).clicked() {
                         match pending {
                             PendingInstall::Modrinth(_) => self.do_confirmed_install(false),
                             PendingInstall::CurseForge(_) => self.do_cf_confirmed_install(),
                         }
                     }
-                    if ui.button(I18n::t(lang, "cancel")).clicked() {
+                    if ui.button(I18n::t(&lang, "cancel")).clicked() {
                         self.pending_install = None;
                     }
                 });
@@ -597,6 +665,7 @@ impl MiaoApp {
                 .as_ref()
                 .map(|l| l.loader_type.as_str().to_string()),
             api_key,
+            index: self.cf_search.offset,
         });
     }
 
@@ -680,6 +749,7 @@ impl MiaoApp {
             query,
             mc_version,
             loader,
+            offset: self.mod_search.offset,
         });
     }
 
@@ -751,6 +821,63 @@ impl MiaoApp {
             pending: mr_pending,
             include_deps,
         });
+    }
+
+    fn check_mod_updates(&mut self, instance_dir: &Path) {
+        let Some(idx) = self.selected_instance else {
+            return;
+        };
+        let inst = &self.instances[idx];
+        let loader = inst
+            .mod_loader
+            .as_ref()
+            .map(|l| l.loader_type.as_str().to_string())
+            .unwrap_or_else(|| "fabric".to_string());
+        let mods_dir = miao_core::instance::Instance::mods_dir(instance_dir);
+        self.checking_updates = true;
+        self.mod_updates.clear();
+        self.controller.send(AppCommand::CheckModUpdates {
+            mods_dir,
+            mc_version: inst.minecraft_version.clone(),
+            loader,
+        });
+    }
+
+    fn handle_file_drop(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
+        let dropped = ui.ctx().input(|i| i.raw.dropped_files.clone());
+        if dropped.is_empty() {
+            return;
+        }
+
+        let mods_dir = miao_core::instance::Instance::mods_dir(instance_dir);
+        let _ = std::fs::create_dir_all(&mods_dir);
+
+        let mut count = 0u32;
+        for file in &dropped {
+            let Some(path) = &file.path else {
+                continue;
+            };
+            let Some(file_name) = path.file_name() else {
+                continue;
+            };
+            let name = file_name.to_string_lossy();
+            if name.ends_with(".jar") || name.ends_with(".zip") {
+                let dest = mods_dir.join(file_name);
+                if std::fs::copy(path, &dest).is_ok() {
+                    count += 1;
+                }
+            }
+        }
+
+        if count > 0 {
+            self.file_scan_cache.invalidate();
+            self.toasts.success(format!(
+                "{} {} {}",
+                count,
+                I18n::t(&self.language, "files_installed"),
+                ""
+            ));
+        }
     }
 }
 

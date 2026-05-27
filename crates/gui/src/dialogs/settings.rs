@@ -2,7 +2,7 @@ use eframe::egui;
 use miao_core::auth::AuthMethod;
 use miao_core::config::DownloadMirror;
 
-use crate::app::{I18n, Language, MiaoApp, SettingsTab};
+use crate::app::{I18n, MiaoApp, SettingsTab};
 use crate::theme::{self, ThemeColors};
 
 impl MiaoApp {
@@ -36,16 +36,16 @@ impl MiaoApp {
     }
 
     fn render_settings_nav(&mut self, ui: &mut egui::Ui) {
-        let lang = self.language;
+        let lang = self.language.clone();
         ui.add_space(8.0);
 
         let tabs = [
-            (SettingsTab::Account, I18n::t(lang, "account")),
-            (SettingsTab::Appearance, I18n::t(lang, "appearance")),
-            (SettingsTab::Data, I18n::t(lang, "data")),
-            (SettingsTab::Java, I18n::t(lang, "java")),
-            (SettingsTab::Help, I18n::t(lang, "help")),
-            (SettingsTab::About, I18n::t(lang, "about")),
+            (SettingsTab::Account, I18n::t(&lang, "account")),
+            (SettingsTab::Appearance, I18n::t(&lang, "appearance")),
+            (SettingsTab::Data, I18n::t(&lang, "data")),
+            (SettingsTab::Java, I18n::t(&lang, "java")),
+            (SettingsTab::Help, I18n::t(&lang, "help")),
+            (SettingsTab::About, I18n::t(&lang, "about")),
         ];
 
         let panel_width = ui.available_width();
@@ -104,12 +104,12 @@ impl MiaoApp {
     }
 
     fn render_tab_account(&mut self, ui: &mut egui::Ui) {
-        let lang = self.language;
-        ui.label(theme::subheading(I18n::t(lang, "active_account")));
+        let lang = self.language.clone();
+        ui.label(theme::subheading(I18n::t(&lang, "active_account")));
         ui.add_space(8.0);
 
         if self.config.accounts.is_empty() {
-            ui.label(theme::muted(I18n::t(lang, "no_accounts")));
+            ui.label(theme::muted(I18n::t(&lang, "no_accounts")));
         } else {
             let data_dir = self.config.data_dir.clone();
             let account_info: Vec<(
@@ -203,7 +203,7 @@ impl MiaoApp {
                                         to_delete = Some(i);
                                     }
                                     if !*active
-                                        && ui.small_button(I18n::t(lang, "set_active")).clicked()
+                                        && ui.small_button(I18n::t(&lang, "set_active")).clicked()
                                     {
                                         set_active = Some(i);
                                     }
@@ -237,30 +237,30 @@ impl MiaoApp {
                 if let Err(e) = self.config.save() {
                     self.status = format!("✗ Save failed: {}", e);
                 } else {
-                    self.status = I18n::t(lang, "account_removed").to_string();
+                    self.status = I18n::t(&lang, "account_removed").to_string();
                 }
             }
         }
 
         ui.add_space(16.0);
-        ui.label(theme::subheading(I18n::t(lang, "add_account")));
+        ui.label(theme::subheading(I18n::t(&lang, "add_account")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::body(I18n::t(lang, "offline_account")));
+            ui.label(theme::body(I18n::t(&lang, "offline_account")));
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.offline_username_input)
                         .vertical_align(egui::Align::Center)
                         .min_size(ui.spacing().interact_size)
-                        .hint_text(I18n::t(lang, "username")),
+                        .hint_text(I18n::t(&lang, "username")),
                 );
             });
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(theme::small(I18n::t(lang, "skin_model")));
+                ui.label(theme::small(I18n::t(&lang, "skin_model")));
                 ui.add_space(4.0);
                 let is_classic = self.offline_skin_model == miao_core::auth::SkinModel::Classic;
                 if ui
@@ -277,7 +277,7 @@ impl MiaoApp {
                 }
             });
             ui.add_space(6.0);
-            if ui.button(I18n::t(lang, "add")).clicked() && !self.offline_username_input.is_empty()
+            if ui.button(I18n::t(&lang, "add")).clicked() && !self.offline_username_input.is_empty()
             {
                 let account = miao_core::auth::offline::create_offline_account_with_model(
                     &self.offline_username_input,
@@ -291,7 +291,7 @@ impl MiaoApp {
                     self.status = format!("✗ Save failed: {}", e);
                 } else {
                     self.offline_username_input.clear();
-                    self.status = I18n::t(lang, "account_added").to_string();
+                    self.status = I18n::t(&lang, "account_added").to_string();
                 }
             }
         });
@@ -300,18 +300,18 @@ impl MiaoApp {
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::body(I18n::t(lang, "ms_account")));
+            ui.label(theme::body(I18n::t(&lang, "ms_account")));
             ui.add_space(6.0);
             if self.auth.logging_in {
                 if let Some(ref dc) = self.auth.device_code {
-                    ui.label(theme::muted(I18n::t(lang, "ms_login_hint")));
+                    ui.label(theme::muted(I18n::t(&lang, "ms_login_hint")));
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
                         ui.hyperlink_to(&dc.verification_uri, &dc.verification_uri);
                     });
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
-                        ui.label(theme::body(I18n::t(lang, "ms_code")));
+                        ui.label(theme::body(I18n::t(&lang, "ms_code")));
                         ui.label(
                             egui::RichText::new(&dc.user_code)
                                 .strong()
@@ -322,13 +322,13 @@ impl MiaoApp {
                     ui.add_space(4.0);
                     ui.spinner();
                 } else {
-                    ui.label(theme::muted(I18n::t(lang, "ms_initializing")));
+                    ui.label(theme::muted(I18n::t(&lang, "ms_initializing")));
                     ui.spinner();
                 }
             } else {
-                ui.label(theme::muted(I18n::t(lang, "ms_signin_desc")));
+                ui.label(theme::muted(I18n::t(&lang, "ms_signin_desc")));
                 ui.add_space(4.0);
-                if ui.button(I18n::t(lang, "sign_in")).clicked() {
+                if ui.button(I18n::t(&lang, "sign_in")).clicked() {
                     self.start_ms_login();
                 }
             }
@@ -338,9 +338,9 @@ impl MiaoApp {
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::body(I18n::t(lang, "authlib_account")));
+            ui.label(theme::body(I18n::t(&lang, "authlib_account")));
             ui.add_space(4.0);
-            ui.label(theme::muted(I18n::t(lang, "authlib_desc")));
+            ui.label(theme::muted(I18n::t(&lang, "authlib_desc")));
             ui.add_space(6.0);
             ui.add(
                 egui::TextEdit::singleline(&mut self.auth.authlib_server_url)
@@ -354,13 +354,13 @@ impl MiaoApp {
                     egui::TextEdit::singleline(&mut self.auth.authlib_email)
                         .vertical_align(egui::Align::Center)
                         .min_size(ui.spacing().interact_size)
-                        .hint_text(I18n::t(lang, "email")),
+                        .hint_text(I18n::t(&lang, "email")),
                 );
                 ui.add(
                     egui::TextEdit::singleline(&mut self.auth.authlib_password)
                         .vertical_align(egui::Align::Center)
                         .min_size(ui.spacing().interact_size)
-                        .hint_text(I18n::t(lang, "password"))
+                        .hint_text(I18n::t(&lang, "password"))
                         .password(true),
                 );
             });
@@ -368,9 +368,9 @@ impl MiaoApp {
             if self.auth.authlib_logging_in {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(theme::muted(I18n::t(lang, "logging_in")));
+                    ui.label(theme::muted(I18n::t(&lang, "logging_in")));
                 });
-            } else if ui.button(I18n::t(lang, "sign_in")).clicked()
+            } else if ui.button(I18n::t(&lang, "sign_in")).clicked()
                 && !self.auth.authlib_server_url.is_empty()
                 && !self.auth.authlib_email.is_empty()
                 && !self.auth.authlib_password.is_empty()
@@ -387,14 +387,14 @@ impl MiaoApp {
     }
 
     fn render_tab_appearance(&mut self, ui: &mut egui::Ui) {
-        let lang = self.language;
+        let lang = self.language.clone();
 
-        ui.label(theme::subheading(I18n::t(lang, "theme")));
+        ui.label(theme::subheading(I18n::t(&lang, "theme")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::muted(I18n::t(lang, "theme_desc")));
+            ui.label(theme::muted(I18n::t(&lang, "theme_desc")));
             ui.add_space(12.0);
 
             let current = self.theme_preset;
@@ -429,20 +429,27 @@ impl MiaoApp {
         });
 
         ui.add_space(16.0);
-        ui.label(theme::subheading(I18n::t(lang, "language")));
+        ui.horizontal(|ui| {
+            ui.label(theme::subheading(I18n::t(&lang, "language")));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.small_button(I18n::t(&lang, "refresh")).clicked() {
+                    I18n::load_external_locales(&self.config.data_dir.join("locales"));
+                }
+            });
+        });
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            for lang_option in Language::ALL {
-                let selected = self.language == lang_option;
+            for entry in I18n::available_languages() {
+                let selected = self.language == entry.id;
                 if ui
-                    .add(egui::Button::new(lang_option.name()).selected(selected))
+                    .add(egui::Button::new(&entry.name).selected(selected))
                     .clicked()
                     && !selected
                 {
-                    self.language = lang_option;
-                    self.config.language = lang_option.into();
+                    self.language = entry.id.clone();
+                    self.config.language = entry.id.clone();
                     if let Err(e) = self.config.save() {
                         self.status = format!("✗ Save failed: {}", e);
                     }
@@ -452,14 +459,14 @@ impl MiaoApp {
     }
 
     fn render_tab_data(&mut self, ui: &mut egui::Ui) {
-        let lang = self.language;
+        let lang = self.language.clone();
 
-        ui.label(theme::subheading(I18n::t(lang, "data_dir")));
+        ui.label(theme::subheading(I18n::t(&lang, "data_dir")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::muted(I18n::t(lang, "data_dir_desc")));
+            ui.label(theme::muted(I18n::t(&lang, "data_dir_desc")));
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.add(
@@ -467,7 +474,7 @@ impl MiaoApp {
                         .vertical_align(egui::Align::Center)
                         .min_size(ui.spacing().interact_size),
                 );
-                if ui.button(I18n::t(lang, "browse")).clicked()
+                if ui.button(I18n::t(&lang, "browse")).clicked()
                     && let Some(folder) = rfd::FileDialog::new()
                         .set_title("Select data directory")
                         .pick_folder()
@@ -477,7 +484,7 @@ impl MiaoApp {
             });
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button(I18n::t(lang, "apply")).clicked() {
+                if ui.button(I18n::t(&lang, "apply")).clicked() {
                     let new_path = std::path::PathBuf::from(&self.data_dir_input);
                     if let Err(e) = std::fs::create_dir_all(&new_path) {
                         self.status = format!("✗ Failed to create directory: {}", e);
@@ -490,11 +497,11 @@ impl MiaoApp {
                                 miao_core::instance::list_instances(&self.config.instances_dir())
                                     .unwrap_or_default();
                             self.selected_instance = None;
-                            self.status = I18n::t(lang, "data_dir_updated").to_string();
+                            self.status = I18n::t(&lang, "data_dir_updated").to_string();
                         }
                     }
                 }
-                if ui.button(I18n::t(lang, "apply_migrate")).clicked() {
+                if ui.button(I18n::t(&lang, "apply_migrate")).clicked() {
                     let new_path = std::path::PathBuf::from(&self.data_dir_input);
                     let old_path = self.config.data_dir.clone();
                     if new_path != old_path {
@@ -515,14 +522,14 @@ impl MiaoApp {
                                 )
                                 .unwrap_or_default();
                                 self.selected_instance = None;
-                                self.status = I18n::t(lang, "data_dir_migrated").to_string();
+                                self.status = I18n::t(&lang, "data_dir_migrated").to_string();
                             } else {
                                 self.instances = miao_core::instance::list_instances(
                                     &self.config.instances_dir(),
                                 )
                                 .unwrap_or_default();
                                 self.selected_instance = None;
-                                self.status = I18n::t(lang, "data_dir_partial").to_string();
+                                self.status = I18n::t(&lang, "data_dir_partial").to_string();
                             }
                         }
                     }
@@ -531,12 +538,12 @@ impl MiaoApp {
         });
 
         ui.add_space(16.0);
-        ui.label(theme::subheading(I18n::t(lang, "game_folders")));
+        ui.label(theme::subheading(I18n::t(&lang, "game_folders")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::muted(I18n::t(lang, "game_folders_desc")));
+            ui.label(theme::muted(I18n::t(&lang, "game_folders_desc")));
             ui.add_space(8.0);
 
             let active = self.config.data_dir.display().to_string();
@@ -550,7 +557,7 @@ impl MiaoApp {
                         ui.label(theme::body(&format!("▶ {}", folder.display())));
                     } else {
                         ui.label(theme::muted(&folder.display().to_string()));
-                        if ui.small_button(I18n::t(lang, "switch")).clicked() {
+                        if ui.small_button(I18n::t(&lang, "switch")).clicked() {
                             switch_to = Some(folder.clone());
                         }
                     }
@@ -569,7 +576,7 @@ impl MiaoApp {
             }
 
             ui.add_space(8.0);
-            if ui.button(I18n::t(lang, "add_folder")).clicked()
+            if ui.button(I18n::t(&lang, "add_folder")).clicked()
                 && let Some(folder) = rfd::FileDialog::new()
                     .set_title("Select game folder")
                     .pick_folder()
@@ -592,12 +599,12 @@ impl MiaoApp {
                     .unwrap_or_default();
                 self.selected_instance = None;
                 self.cached_javas = None;
-                self.status = I18n::t(lang, "folder_switched").to_string();
+                self.status = I18n::t(&lang, "folder_switched").to_string();
             }
         });
 
         ui.add_space(16.0);
-        ui.label(theme::subheading(I18n::t(lang, "mirror")));
+        ui.label(theme::subheading(I18n::t(&lang, "mirror")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
@@ -611,9 +618,9 @@ impl MiaoApp {
             let mut selected = current_mirror;
 
             ui.horizontal(|ui| {
-                ui.radio_value(&mut selected, 0, I18n::t(lang, "mirror_official"));
-                ui.radio_value(&mut selected, 1, I18n::t(lang, "mirror_bmclapi"));
-                ui.radio_value(&mut selected, 2, I18n::t(lang, "mirror_custom"));
+                ui.radio_value(&mut selected, 0, I18n::t(&lang, "mirror_official"));
+                ui.radio_value(&mut selected, 1, I18n::t(&lang, "mirror_bmclapi"));
+                ui.radio_value(&mut selected, 2, I18n::t(&lang, "mirror_custom"));
             });
 
             if selected == 2 {
@@ -639,7 +646,7 @@ impl MiaoApp {
                 if let Err(e) = self.config.save() {
                     self.status = format!("✗ Save failed: {}", e);
                 } else {
-                    self.status = I18n::t(lang, "mirror_updated").to_string();
+                    self.status = I18n::t(&lang, "mirror_updated").to_string();
                 }
             }
 
@@ -648,7 +655,7 @@ impl MiaoApp {
             ui.add_space(8.0);
 
             ui.horizontal(|ui| {
-                ui.label(theme::body(I18n::t(lang, "max_concurrent")));
+                ui.label(theme::body(I18n::t(&lang, "max_concurrent")));
                 ui.add_space(8.0);
                 let resp = ui.add(
                     egui::TextEdit::singleline(&mut self.max_downloads_input)
@@ -671,12 +678,12 @@ impl MiaoApp {
         });
 
         ui.add_space(16.0);
-        ui.label(theme::subheading(I18n::t(lang, "cf_api_key")));
+        ui.label(theme::subheading(I18n::t(&lang, "cf_api_key")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::muted(I18n::t(lang, "cf_api_key_desc")));
+            ui.label(theme::muted(I18n::t(&lang, "cf_api_key_desc")));
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 let resp = ui.add(
@@ -699,41 +706,14 @@ impl MiaoApp {
                 }
             });
         });
-
-        ui.add_space(16.0);
-        ui.label(theme::subheading(I18n::t(lang, "language")));
-        ui.add_space(8.0);
-
-        theme::section_frame().show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.horizontal(|ui| {
-                for l in Language::ALL {
-                    let selected = self.language == l;
-                    let text = if selected {
-                        egui::RichText::new(l.name())
-                            .strong()
-                            .color(theme::Colors::accent_light())
-                    } else {
-                        egui::RichText::new(l.name()).color(theme::Colors::text_secondary())
-                    };
-                    if ui.selectable_label(selected, text).clicked() && !selected {
-                        self.language = l;
-                        self.config.language = l.into();
-                        if let Err(e) = self.config.save() {
-                            self.status = format!("✗ Save failed: {}", e);
-                        }
-                    }
-                }
-            });
-        });
     }
 
     fn render_tab_java(&mut self, ui: &mut egui::Ui) {
-        let lang = self.language;
+        let lang = self.language.clone();
         ui.horizontal(|ui| {
-            ui.label(theme::subheading(I18n::t(lang, "java_installs")));
+            ui.label(theme::subheading(I18n::t(&lang, "java_installs")));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(I18n::t(lang, "refresh")).clicked() {
+                if ui.button(I18n::t(&lang, "refresh")).clicked() {
                     self.cached_javas = None;
                 }
             });
@@ -777,47 +757,13 @@ impl MiaoApp {
     }
 
     fn render_tab_help(&mut self, ui: &mut egui::Ui) {
-        let lang = self.language;
+        let lang = self.language.clone();
 
-        ui.label(theme::subheading(I18n::t(lang, "faq")));
+        ui.label(theme::subheading(I18n::t(&lang, "faq")));
         ui.add_space(8.0);
 
-        let faqs: &[(&str, &str)] = match lang {
-            Language::English => &[
-                (
-                    "Game won't launch / crashes immediately",
-                    "Check that you have a compatible Java version installed (Settings > Java). \
-                     Minecraft 1.17+ requires Java 17+, and 1.20.5+ requires Java 21+. \
-                     MMCL can auto-download the correct version if needed.",
-                ),
-                (
-                    "Mods not showing up after install",
-                    "Ensure the mod is compatible with both your Minecraft version and mod loader. \
-                     Fabric mods won't work with Forge/NeoForge and vice versa.",
-                ),
-                (
-                    "Microsoft login fails or times out",
-                    "Make sure you complete the device code login within 15 minutes. \
-                     If it keeps failing, check your network connection and try again.",
-                ),
-                (
-                    "Downloads are slow",
-                    "Try switching to BMCLAPI mirror in Settings > Data. \
-                     It significantly speeds up downloads in mainland China.",
-                ),
-                (
-                    "How to use a third-party skin site (LittleSkin)?",
-                    "Add an authlib-injector account in Settings > Account. \
-                     Enter the skin server URL (e.g. https://littleskin.cn/api/yggdrasil).",
-                ),
-                (
-                    "How to import/export modpacks?",
-                    "Use the Export button on an instance to create a .mrpack file. \
-                     Use the Import button in the sidebar to load one. \
-                     Only Modrinth .mrpack format is supported.",
-                ),
-            ],
-            Language::Chinese => &[
+        let faqs: &[(&str, &str)] = if lang == "zh" {
+            &[
                 (
                     "游戏无法启动 / 立即崩溃",
                     "检查是否安装了兼容的 Java 版本（设置 > Java）。\
@@ -850,7 +796,42 @@ impl MiaoApp {
                      点击侧边栏的「导入」按钮加载整合包。\
                      目前仅支持 Modrinth .mrpack 格式。",
                 ),
-            ],
+            ]
+        } else {
+            &[
+                (
+                    "Game won't launch / crashes immediately",
+                    "Check that you have a compatible Java version installed (Settings > Java). \
+                     Minecraft 1.17+ requires Java 17+, and 1.20.5+ requires Java 21+. \
+                     MMCL can auto-download the correct version if needed.",
+                ),
+                (
+                    "Mods not showing up after install",
+                    "Ensure the mod is compatible with both your Minecraft version and mod loader. \
+                     Fabric mods won't work with Forge/NeoForge and vice versa.",
+                ),
+                (
+                    "Microsoft login fails or times out",
+                    "Make sure you complete the device code login within 15 minutes. \
+                     If it keeps failing, check your network connection and try again.",
+                ),
+                (
+                    "Downloads are slow",
+                    "Try switching to BMCLAPI mirror in Settings > Data. \
+                     It significantly speeds up downloads in mainland China.",
+                ),
+                (
+                    "How to use a third-party skin site (LittleSkin)?",
+                    "Add an authlib-injector account in Settings > Account. \
+                     Enter the skin server URL (e.g. https://littleskin.cn/api/yggdrasil).",
+                ),
+                (
+                    "How to import/export modpacks?",
+                    "Use the Export button on an instance to create a .mrpack file. \
+                     Use the Import button in the sidebar to load one. \
+                     Only Modrinth .mrpack format is supported.",
+                ),
+            ]
         };
 
         for (question, answer) in faqs {
@@ -864,8 +845,8 @@ impl MiaoApp {
     }
 
     fn render_tab_about(&mut self, ui: &mut egui::Ui) {
-        let lang = self.language;
-        ui.label(theme::subheading(I18n::t(lang, "about")));
+        let lang = self.language.clone();
+        ui.label(theme::subheading(I18n::t(&lang, "about")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
@@ -903,13 +884,13 @@ impl MiaoApp {
                         );
                         ui.label(theme::body(&format!(
                             "{}: {}",
-                            I18n::t(self.language, "update_available"),
+                            I18n::t(&self.language, "update_available"),
                             version
                         )));
                         ui.with_layout(
                             egui::Layout::right_to_left(egui::Align::Center),
                             |ui| {
-                                if ui.button(I18n::t(lang, "download")).clicked() {
+                                if ui.button(I18n::t(&lang, "download")).clicked() {
                                     let _ = open::that(
                                         "https://github.com/WangSimiao2000/MiaoMinecraftLauncher/releases",
                                     );
@@ -921,7 +902,7 @@ impl MiaoApp {
         }
 
         ui.add_space(16.0);
-        ui.label(theme::subheading(I18n::t(lang, "author")));
+        ui.label(theme::subheading(I18n::t(&lang, "author")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {
@@ -942,7 +923,7 @@ impl MiaoApp {
         });
 
         ui.add_space(16.0);
-        ui.label(theme::subheading(I18n::t(lang, "open_source_credits")));
+        ui.label(theme::subheading(I18n::t(&lang, "open_source_credits")));
         ui.add_space(8.0);
 
         theme::section_frame().show(ui, |ui| {

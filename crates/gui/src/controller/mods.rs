@@ -11,22 +11,27 @@ pub fn handle_search(
     query: String,
     mc_version: String,
     loader: Option<String>,
+    offset: u32,
     http: Arc<reqwest::Client>,
     tx: mpsc::UnboundedSender<AppEvent>,
     ctx: Context,
 ) {
     tokio::spawn(async move {
-        let result = miao_core::modrinth::api::search_mods(
+        let result = miao_core::modrinth::api::search_mods_offset(
             &*http,
             &query,
             Some(&mc_version),
             loader.as_deref(),
             20,
+            offset,
         )
         .await;
         match result {
             Ok(r) => {
-                let _ = tx.send(AppEvent::ModSearchResults(r.hits));
+                let _ = tx.send(AppEvent::ModSearchResults {
+                    hits: r.hits,
+                    total_hits: r.total_hits,
+                });
             }
             Err(e) => {
                 let _ = tx.send(AppEvent::ModError(format!("Search failed: {}", e)));
@@ -142,17 +147,21 @@ pub fn handle_cf_search(
     mc_version: String,
     loader: Option<String>,
     api_key: String,
+    index: u32,
     tx: mpsc::UnboundedSender<AppEvent>,
     ctx: Context,
 ) {
     tokio::spawn(async move {
         let client = miao_core::curseforge::api::CurseForgeClient::new(&api_key);
         let result = client
-            .search_mods(&query, Some(&mc_version), loader.as_deref(), 20)
+            .search_mods_offset(&query, Some(&mc_version), loader.as_deref(), 20, index)
             .await;
         match result {
             Ok(r) => {
-                let _ = tx.send(AppEvent::CfSearchResults(r.mods));
+                let _ = tx.send(AppEvent::CfSearchResults {
+                    mods: r.mods,
+                    total_count: r.total_count,
+                });
             }
             Err(e) => {
                 let _ = tx.send(AppEvent::CfError(format!(
@@ -260,6 +269,72 @@ pub fn handle_cf_install(
                     "CurseForge install failed: {}",
                     e
                 )));
+            }
+        }
+        ctx.request_repaint();
+    });
+}
+
+pub fn handle_check_mod_updates(
+    mods_dir: std::path::PathBuf,
+    mc_version: String,
+    loader: String,
+    http: Arc<reqwest::Client>,
+    tx: mpsc::UnboundedSender<AppEvent>,
+    ctx: Context,
+) {
+    tokio::spawn(async move {
+        let mod_files = miao_core::modmanager::scan_mods_dir(&mods_dir);
+        let mut hash_to_filename: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+
+        for m in &mod_files {
+            if !m.enabled {
+                continue;
+            }
+            if let Ok(hash) = miao_core::modrinth::api::compute_sha1(&m.path) {
+                hash_to_filename.insert(hash, m.file_name.clone());
+            }
+        }
+
+        if hash_to_filename.is_empty() {
+            let _ = tx.send(AppEvent::ModUpdatesResult { updates: vec![] });
+            ctx.request_repaint();
+            return;
+        }
+
+        let hashes: Vec<String> = hash_to_filename.keys().cloned().collect();
+        let result =
+            miao_core::modrinth::api::check_mod_updates(&http, &hashes, &mc_version, &loader).await;
+
+        match result {
+            Ok(update_map) => {
+                let mut updates = Vec::new();
+                for (hash, version) in update_map {
+                    let filename = hash_to_filename.get(&hash).cloned().unwrap_or_default();
+                    let file = version
+                        .files
+                        .iter()
+                        .find(|f| f.primary)
+                        .or(version.files.first());
+                    if let Some(file) = file
+                        && file.hashes.sha1.as_deref() != Some(&hash)
+                    {
+                        updates.push(miao_core::modrinth::api::ModUpdateInfo {
+                            filename,
+                            current_hash: hash,
+                            new_version_name: version.name.clone(),
+                            new_version_number: version.version_number.clone(),
+                            new_file_url: file.url.clone(),
+                            new_filename: file.filename.clone(),
+                            project_id: version.project_id.clone(),
+                        });
+                    }
+                }
+                let _ = tx.send(AppEvent::ModUpdatesResult { updates });
+            }
+            Err(e) => {
+                let _ = tx.send(AppEvent::ModError(format!("Update check failed: {}", e)));
             }
         }
         ctx.request_repaint();

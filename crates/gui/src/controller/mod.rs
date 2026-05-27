@@ -145,11 +145,13 @@ async fn controller_loop(
                 query,
                 mc_version,
                 loader,
+                offset,
             } => {
                 mods::handle_search(
                     query,
                     mc_version,
                     loader,
+                    offset,
                     http.clone(),
                     event_tx.clone(),
                     ctx.clone(),
@@ -202,12 +204,14 @@ async fn controller_loop(
                 mc_version,
                 loader,
                 api_key,
+                index,
             } => {
                 mods::handle_cf_search(
                     query,
                     mc_version,
                     loader,
                     api_key,
+                    index,
                     event_tx.clone(),
                     ctx.clone(),
                 );
@@ -257,6 +261,20 @@ async fn controller_loop(
                     loader,
                     instance_dir,
                     api_key,
+                    event_tx.clone(),
+                    ctx.clone(),
+                );
+            }
+            AppCommand::CheckModUpdates {
+                mods_dir,
+                mc_version,
+                loader,
+            } => {
+                mods::handle_check_mod_updates(
+                    mods_dir,
+                    mc_version,
+                    loader,
+                    http.clone(),
                     event_tx.clone(),
                     ctx.clone(),
                 );

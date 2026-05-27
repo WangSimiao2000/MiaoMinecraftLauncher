@@ -5,18 +5,18 @@ use crate::theme;
 
 impl MiaoApp {
     pub fn render_instance_settings_tab(&mut self, ui: &mut egui::Ui) {
-        let lang = self.language;
+        let lang = self.language.clone();
 
-        ui.label(theme::subheading(I18n::t(lang, "instance_settings")));
+        ui.label(theme::subheading(I18n::t(&lang, "instance_settings")));
         ui.add_space(theme::Spacing::SMALL_GAP);
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
 
-            ui.label(theme::body(I18n::t(lang, "memory")));
+            ui.label(theme::body(I18n::t(&lang, "memory")));
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(I18n::t(lang, "memory_min"));
+                ui.label(I18n::t(&lang, "memory_min"));
                 let resp = ui.add(
                     egui::TextEdit::singleline(&mut self.instance_settings_edit.memory_min)
                         .desired_width(80.0)
@@ -26,7 +26,7 @@ impl MiaoApp {
                     self.instance_settings_edit.dirty = true;
                 }
                 ui.add_space(16.0);
-                ui.label(I18n::t(lang, "memory_max"));
+                ui.label(I18n::t(&lang, "memory_max"));
                 let resp = ui.add(
                     egui::TextEdit::singleline(&mut self.instance_settings_edit.memory_max)
                         .desired_width(80.0)
@@ -43,10 +43,10 @@ impl MiaoApp {
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
 
-            ui.label(theme::body(I18n::t(lang, "resolution")));
+            ui.label(theme::body(I18n::t(&lang, "resolution")));
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(I18n::t(lang, "width"));
+                ui.label(I18n::t(&lang, "width"));
                 let resp = ui.add(
                     egui::TextEdit::singleline(&mut self.instance_settings_edit.resolution_width)
                         .desired_width(80.0)
@@ -59,7 +59,7 @@ impl MiaoApp {
                 ui.add_space(8.0);
                 ui.label("×");
                 ui.add_space(8.0);
-                ui.label(I18n::t(lang, "height"));
+                ui.label(I18n::t(&lang, "height"));
                 let resp = ui.add(
                     egui::TextEdit::singleline(&mut self.instance_settings_edit.resolution_height)
                         .desired_width(80.0)
@@ -79,7 +79,7 @@ impl MiaoApp {
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
 
-            ui.label(theme::body(I18n::t(lang, "java_path")));
+            ui.label(theme::body(I18n::t(&lang, "java_path")));
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 let resp = ui.add(
@@ -109,7 +109,7 @@ impl MiaoApp {
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
 
-            ui.label(theme::body(I18n::t(lang, "jvm_args")));
+            ui.label(theme::body(I18n::t(&lang, "jvm_args")));
             ui.add_space(4.0);
             let resp = ui.add(
                 egui::TextEdit::singleline(&mut self.instance_settings_edit.jvm_args)
@@ -129,7 +129,7 @@ impl MiaoApp {
         ui.horizontal(|ui| {
             let can_save = self.instance_settings_edit.dirty;
             ui.add_enabled_ui(can_save, |ui| {
-                if ui.button(I18n::t(lang, "save")).clicked() {
+                if ui.button(I18n::t(&lang, "save")).clicked() {
                     self.save_instance_settings();
                 }
             });

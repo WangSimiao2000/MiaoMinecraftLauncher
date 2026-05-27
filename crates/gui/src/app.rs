@@ -15,11 +15,12 @@ use std::sync::Mutex;
 
 use crate::blur::BlurRenderer;
 use crate::controller::AppController;
+pub use crate::dialogs::setup_wizard::SetupStep;
 use crate::messages::{AppCommand, AppEvent};
 use crate::navigation::{NavigationStack, Page};
 pub use crate::state::{
     AuthUiState, CfPendingInstall, CfSearchState, DetailTab, Dialog, GameLogState, I18n,
-    InstallProgress, InstanceSettingsEdit, Language, LoaderUiState, ModSearchState, ModSource,
+    InstallProgress, InstanceSettingsEdit, LoaderUiState, ModSearchState, ModSource,
     NewInstanceInput, PendingInstall, SettingsTab, VersionsUiState,
 };
 use crate::theme;
@@ -66,7 +67,7 @@ pub struct MiaoApp {
     pub theme_preset: crate::theme::ThemePreset,
 
     pub instance_settings_edit: InstanceSettingsEdit,
-    pub language: Language,
+    pub language: String,
     pub mirror_custom_url: String,
     pub max_downloads_input: String,
 
@@ -79,6 +80,9 @@ pub struct MiaoApp {
     pub update_available: Option<String>,
 
     pub file_scan_cache: FileScanCache,
+    pub mod_updates: Vec<miao_core::modrinth::api::ModUpdateInfo>,
+    pub checking_updates: bool,
+    pub setup_step: SetupStep,
 
     pub blur_renderer: Arc<Mutex<BlurRenderer>>,
     pub toasts: ToastQueue,
@@ -163,7 +167,8 @@ impl MiaoApp {
         };
         let max_downloads_input = config.max_concurrent_downloads.to_string();
         let theme_preset = config.theme;
-        let language = Language::from(config.language);
+        let language = config.language.clone();
+        I18n::load_external_locales(&config.data_dir.join("locales"));
         let cf_api_key_input = config.curseforge_api_key.clone().unwrap_or_default();
 
         Self {
@@ -205,6 +210,9 @@ impl MiaoApp {
             active_installs: std::collections::HashSet::new(),
             update_available: None,
             file_scan_cache: FileScanCache::new(),
+            mod_updates: Vec::new(),
+            checking_updates: false,
+            setup_step: SetupStep::default(),
 
             blur_renderer,
             toasts: ToastQueue::new(),
@@ -321,8 +329,14 @@ impl MiaoApp {
                     self.status = format!("✗ {}", msg);
                     self.toasts.error(&msg);
                 }
-                AppEvent::ModSearchResults(hits) => {
-                    self.mod_search.results = hits;
+                AppEvent::ModSearchResults { hits, total_hits } => {
+                    if self.mod_search.offset == 0 {
+                        self.mod_search.results = hits;
+                    } else {
+                        self.mod_search.results.extend(hits);
+                    }
+                    self.mod_search.total_hits = total_hits;
+                    self.mod_search.offset = self.mod_search.results.len() as u32;
                     self.mod_search.searching = false;
                 }
                 AppEvent::ModVersions(versions) => {
@@ -345,8 +359,14 @@ impl MiaoApp {
                     self.toasts.error(&msg);
                     self.mod_search.searching = false;
                 }
-                AppEvent::CfSearchResults(mods) => {
-                    self.cf_search.results = mods;
+                AppEvent::CfSearchResults { mods, total_count } => {
+                    if self.cf_search.offset == 0 {
+                        self.cf_search.results = mods;
+                    } else {
+                        self.cf_search.results.extend(mods);
+                    }
+                    self.cf_search.total_count = total_count;
+                    self.cf_search.offset = self.cf_search.results.len() as u32;
                     self.cf_search.files.clear();
                     self.cf_search.selected_mod_id = None;
                     self.cf_search.selected_mod_name = None;
@@ -386,6 +406,21 @@ impl MiaoApp {
                     self.status = msg.clone();
                     self.toasts.error(&msg);
                     self.cf_search.searching = false;
+                }
+                AppEvent::ModUpdatesResult { updates } => {
+                    self.checking_updates = false;
+                    if updates.is_empty() {
+                        self.toasts
+                            .success(I18n::t(&self.language, "up_to_date").to_string());
+                    } else {
+                        let msg = format!(
+                            "{} {}",
+                            updates.len(),
+                            I18n::t(&self.language, "updates_available")
+                        );
+                        self.toasts.success(msg);
+                    }
+                    self.mod_updates = updates;
                 }
                 AppEvent::GameLogLine(line) => {
                     if self.game_log.lines.len() >= GameLogState::MAX_LINES {
@@ -542,6 +577,28 @@ impl eframe::App for MiaoApp {
                 }
             });
 
+        if !self.config.setup_complete {
+            egui::TopBottomPanel::top("setup_top_bar")
+                .frame(theme::top_bar_frame())
+                .show(ctx, |ui| {
+                    self.render_title_bar(ui, ctx, false);
+                });
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::NONE
+                        .fill(theme::Colors::bg_main())
+                        .inner_margin(egui::Margin::same(12)),
+                )
+                .show(ctx, |ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(80.0);
+                        self.render_setup_wizard(ui);
+                    });
+                });
+            self.toasts.render(ctx);
+            return;
+        }
+
         egui::TopBottomPanel::top("top_bar")
             .frame(theme::top_bar_frame())
             .show(ctx, |ui| {
@@ -609,7 +666,7 @@ impl eframe::App for MiaoApp {
 
 impl MiaoApp {
     fn render_title_bar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, is_settings: bool) {
-        let lang = self.language;
+        let lang = self.language.clone();
         let height = 30.0;
         ui.set_min_height(height);
         let title_bar_rect = ui.max_rect();
@@ -634,11 +691,11 @@ impl MiaoApp {
                 .layout(egui::Layout::left_to_right(egui::Align::Center)),
             |ui| {
                 if is_settings {
-                    if ui.button(I18n::t(lang, "back")).clicked() {
+                    if ui.button(I18n::t(&lang, "back")).clicked() {
                         self.nav_stack.pop();
                     }
                     ui.add_space(8.0);
-                    ui.label(theme::heading(I18n::t(lang, "settings")));
+                    ui.label(theme::heading(I18n::t(&lang, "settings")));
                 } else {
                     ui.add_space(4.0);
                     ui.label(theme::heading("MMCL"));
@@ -766,8 +823,8 @@ impl MiaoApp {
 impl MiaoApp {
     pub fn launch_instance(&mut self, idx: usize) {
         if self.config.accounts.is_empty() || self.config.active_account_index.is_none() {
-            let lang = self.language;
-            self.toasts.warning(I18n::t(lang, "no_account_to_launch"));
+            let lang = self.language.clone();
+            self.toasts.warning(I18n::t(&lang, "no_account_to_launch"));
             return;
         }
 
@@ -1049,7 +1106,7 @@ impl MiaoApp {
         let instance_dir = Instance::instance_dir(&self.config.instances_dir(), &inst.name);
         let _ = inst.save_to(&instance_dir);
         self.instance_settings_edit.dirty = false;
-        self.status = I18n::t(self.language, "saved").to_string();
+        self.status = I18n::t(&self.language, "saved").to_string();
     }
 
     pub fn update_version_filter(

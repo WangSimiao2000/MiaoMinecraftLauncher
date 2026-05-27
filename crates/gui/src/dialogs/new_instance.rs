@@ -15,7 +15,7 @@ impl MiaoApp {
             self.fetch_loader_versions(&mc_ver);
         }
 
-        let lang = self.language;
+        let lang = self.language.clone();
         let mut open = true;
 
         let anim_id = egui::Id::new("new_instance_dialog_anim");
@@ -31,7 +31,7 @@ impl MiaoApp {
             .corner_radius(egui::CornerRadius::same(10))
             .inner_margin(egui::Margin::same(16));
 
-        egui::Window::new(I18n::t(lang, "create_instance"))
+        egui::Window::new(I18n::t(&lang, "create_instance"))
             .title_bar(false)
             .resizable(false)
             .default_width(420.0)
@@ -43,7 +43,7 @@ impl MiaoApp {
             .show(ctx, |ui| {
                 ui.set_opacity(opacity);
                 ui.horizontal(|ui| {
-                    ui.label(theme::subheading(I18n::t(lang, "create_instance")));
+                    ui.label(theme::subheading(I18n::t(&lang, "create_instance")));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let btn_size = egui::vec2(28.0, 28.0);
                         let (rect, response) =
@@ -77,7 +77,7 @@ impl MiaoApp {
                 ui.add_space(theme::Spacing::SMALL_GAP);
 
                 ui.horizontal(|ui| {
-                    ui.label("Name:");
+                    ui.label(I18n::t(&lang, "instance_name"));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.new_instance.name)
                             .vertical_align(egui::Align::Center)
@@ -86,7 +86,7 @@ impl MiaoApp {
                 });
 
                 ui.horizontal(|ui| {
-                    ui.label("MC Version:");
+                    ui.label(I18n::t(&lang, "mc_version"));
                     if !self.versions.versions.is_empty() {
                         let current = self
                             .versions
@@ -116,32 +116,32 @@ impl MiaoApp {
                         }
                     } else {
                         ui.spinner();
-                        ui.label("Loading versions...");
+                        ui.label(I18n::t(&lang, "loading"));
                     }
                 });
 
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.label(theme::small("Show:"));
+                    ui.label(theme::small(I18n::t(&lang, "show")));
                     ui.add_space(4.0);
                     let mut show_snap = self.versions.show_snapshots;
                     let mut show_beta = self.versions.show_old_beta;
                     let mut show_alpha = self.versions.show_old_alpha;
 
                     if ui
-                        .checkbox(&mut show_snap, I18n::t(lang, "show_snapshots"))
+                        .checkbox(&mut show_snap, I18n::t(&lang, "show_snapshots"))
                         .changed()
                     {
                         self.update_version_filter(show_snap, show_beta, show_alpha);
                     }
                     if ui
-                        .checkbox(&mut show_beta, I18n::t(lang, "show_old_beta"))
+                        .checkbox(&mut show_beta, I18n::t(&lang, "show_old_beta"))
                         .changed()
                     {
                         self.update_version_filter(show_snap, show_beta, show_alpha);
                     }
                     if ui
-                        .checkbox(&mut show_alpha, I18n::t(lang, "show_old_alpha"))
+                        .checkbox(&mut show_alpha, I18n::t(&lang, "show_old_alpha"))
                         .changed()
                     {
                         self.update_version_filter(show_snap, show_beta, show_alpha);
@@ -150,7 +150,7 @@ impl MiaoApp {
                 ui.add_space(4.0);
 
                 ui.horizontal(|ui| {
-                    ui.label("Mod Loader:");
+                    ui.label(I18n::t(&lang, "mod_loader"));
                     let loaders = self.get_available_loaders();
                     let current_name = loaders
                         .iter()
@@ -179,7 +179,7 @@ impl MiaoApp {
                         self.get_loader_versions().into_iter().cloned().collect();
                     if !loader_versions.is_empty() {
                         ui.horizontal(|ui| {
-                            ui.label("Loader Version:");
+                            ui.label(I18n::t(&lang, "loader_version"));
                             let current = loader_versions
                                 .get(self.new_instance.loader_version_idx)
                                 .map(|v| v.version.as_str())
@@ -204,7 +204,7 @@ impl MiaoApp {
                     } else if self.loader.loading {
                         ui.horizontal(|ui| {
                             ui.spinner();
-                            ui.label("Loading loader versions...");
+                            ui.label(I18n::t(&lang, "loading"));
                         });
                     }
                 }
@@ -213,33 +213,35 @@ impl MiaoApp {
 
                 let can_create = !self.versions.versions.is_empty();
                 ui.add_enabled_ui(can_create, |ui| {
-                    if ui.button(I18n::t(self.language, "create")).clicked() {
-                        let ver = self.versions.versions[self.new_instance.version_idx].clone();
-                        let name = if self.new_instance.name.is_empty() {
-                            ver.id.clone()
-                        } else {
-                            self.new_instance.name.clone()
-                        };
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(I18n::t(&self.language, "create")).clicked() {
+                            let ver = self.versions.versions[self.new_instance.version_idx].clone();
+                            let name = if self.new_instance.name.is_empty() {
+                                ver.id.clone()
+                            } else {
+                                self.new_instance.name.clone()
+                            };
 
-                        let loader = if self.new_instance.loader > 0 {
-                            let lt = miao_core::modloader::ModLoaderType::from_index(
-                                self.new_instance.loader - 1,
-                            );
-                            let lv = self
-                                .get_loader_versions()
-                                .get(self.new_instance.loader_version_idx)
-                                .map(|v| v.version.clone());
-                            match (lt, lv) {
-                                (Some(lt), Some(lv)) => Some((lt.as_str().to_string(), lv)),
-                                _ => None,
-                            }
-                        } else {
-                            None
-                        };
+                            let loader = if self.new_instance.loader > 0 {
+                                let lt = miao_core::modloader::ModLoaderType::from_index(
+                                    self.new_instance.loader - 1,
+                                );
+                                let lv = self
+                                    .get_loader_versions()
+                                    .get(self.new_instance.loader_version_idx)
+                                    .map(|v| v.version.clone());
+                                match (lt, lv) {
+                                    (Some(lt), Some(lv)) => Some((lt.as_str().to_string(), lv)),
+                                    _ => None,
+                                }
+                            } else {
+                                None
+                            };
 
-                        self.create_instance(ver, name, loader);
-                        self.active_dialog = Dialog::None;
-                    }
+                            self.create_instance(ver, name, loader);
+                            self.active_dialog = Dialog::None;
+                        }
+                    });
                 });
             });
 

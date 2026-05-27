@@ -8,19 +8,19 @@ use crate::widgets::InstanceCard;
 impl MiaoApp {
     #[allow(deprecated)]
     pub fn render_sidebar(&mut self, ctx: &egui::Context) {
-        let lang = self.language;
+        let lang = self.language.clone();
         egui::Panel::left("instance_list")
             .resizable(true)
             .default_size(240.0)
             .frame(theme::panel_frame())
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(theme::subheading(I18n::t(lang, "instances")));
+                    ui.label(theme::subheading(I18n::t(&lang, "instances")));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button(I18n::t(lang, "import")).clicked() {
+                        if ui.small_button(I18n::t(&lang, "import")).clicked() {
                             self.import_with_dialog();
                         }
-                        if ui.small_button(I18n::t(lang, "new")).clicked() {
+                        if ui.small_button(I18n::t(&lang, "new")).clicked() {
                             self.open_new_instance_dialog();
                         }
                     });
@@ -32,9 +32,9 @@ impl MiaoApp {
                 if self.instances.is_empty() {
                     ui.add_space(40.0);
                     ui.vertical_centered(|ui| {
-                        ui.label(theme::muted(I18n::t(lang, "no_instances")));
+                        ui.label(theme::muted(I18n::t(&lang, "no_instances")));
                         ui.add_space(8.0);
-                        ui.label(theme::small(I18n::t(lang, "no_instances_hint")));
+                        ui.label(theme::small(I18n::t(&lang, "no_instances_hint")));
                     });
                 } else {
                     let row_height = 36.0;
@@ -99,7 +99,11 @@ impl MiaoApp {
                     ui.painter().text(
                         rect.left_center() + egui::vec2(12.0, 0.0),
                         egui::Align2::LEFT_CENTER,
-                        format!("{}  {}", crate::icons::ICON_GEAR, I18n::t(lang, "settings")),
+                        format!(
+                            "{}  {}",
+                            crate::icons::ICON_GEAR,
+                            I18n::t(&lang, "settings")
+                        ),
                         egui::FontId::proportional(13.0),
                         text_color,
                     );
