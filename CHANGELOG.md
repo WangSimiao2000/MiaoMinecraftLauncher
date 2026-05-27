@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-beta.2] - 2026-05-27
+
+### Added
+
+- Authlib-injector login UI in Settings > Account.
+- Multi game folder management with folder switching.
+- Built-in FAQ help page.
+- Rounded window corners via transparent viewport.
+
+### Changed
+
+- Upgraded eframe/egui from 0.30 to 0.34.
+- Unified mod search UI: shared search result cards, shared version list
+  renderer, single `PendingInstall` enum for both Modrinth and CurseForge.
+- Removed `async-trait` / `async-recursion` crates in favor of native
+  `async fn` in trait (Rust edition 2024).
+- Virtualized long lists with `show_rows()` for better scroll performance.
+- Rewrote README with screenshots, badges, and structured layout.
+- Consolidated icon into `assets/icon.png` as single source of truth.
+
+### Fixed
+
+- Mod search confirmation panel now interrupts/replaces results instead of
+  appearing below them.
+- Search result highlight no longer paints over card content (z-order fix).
+- Blur no longer paints over dialog on backdrop click.
+- Settings nav panel flush to left edge; tabs centered.
+- New instance dialog constrained to 420px width.
+- Window close button replaced with custom 28px hit target.
+- CollapsibleCard header is full-width clickable with hover feedback.
+- Language preference persists across restarts.
+- Console window hidden on Windows release builds.
+- About page description updated to cross-platform.
+
+### Internal / CI
+
+- Bumped actions/checkout v4→v6, codecov-action v4→v6,
+  softprops/action-gh-release v2→v3.
+- Updated `zip` crate 2→8, `toml` crate 0.8→1.1.
+- Release workflow uses CHANGELOG section as release body.
+
+[0.2.0-beta.2]: https://github.com/WangSimiao2000/MiaoMinecraftLauncher/compare/v0.2.0-beta.1...v0.2.0-beta.2
+
 ## [0.2.0-beta.1] - 2026-05-27
 
 This is the first prerelease of the 0.2.0 line. It collects 66 commits since
