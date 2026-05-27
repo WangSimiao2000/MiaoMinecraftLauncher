@@ -20,7 +20,7 @@ use crate::navigation::{NavigationStack, Page};
 pub use crate::state::{
     AuthUiState, CfPendingInstall, CfSearchState, DetailTab, Dialog, GameLogState, I18n,
     InstallProgress, InstanceSettingsEdit, Language, LoaderUiState, ModSearchState, ModSource,
-    NewInstanceInput, PendingModInstall, SettingsTab, VersionsUiState,
+    NewInstanceInput, PendingInstall, SettingsTab, VersionsUiState,
 };
 use crate::theme;
 use crate::toast::ToastQueue;
@@ -57,8 +57,7 @@ pub struct MiaoApp {
     pub mod_search_query: String,
     pub mod_search: ModSearchState,
     pub cf_search: CfSearchState,
-    pub pending_mod_install: Option<PendingModInstall>,
-    pub pending_cf_install: Option<CfPendingInstall>,
+    pub pending_install: Option<PendingInstall>,
 
     pub confirm_delete: Option<usize>,
     pub settings_tab: SettingsTab,
@@ -185,8 +184,7 @@ impl MiaoApp {
             mod_search_query: String::new(),
             mod_search: ModSearchState::default(),
             cf_search: CfSearchState::default(),
-            pending_mod_install: None,
-            pending_cf_install: None,
+            pending_install: None,
             confirm_delete: None,
             settings_tab: SettingsTab::default(),
             cached_javas: None,
@@ -332,7 +330,7 @@ impl MiaoApp {
                     self.mod_search.searching = false;
                 }
                 AppEvent::ModPendingInstall(pending) => {
-                    self.pending_mod_install = Some(pending);
+                    self.pending_install = Some(PendingInstall::Modrinth(pending));
                     self.mod_search.searching = false;
                 }
                 AppEvent::ModInstalled { count } => {
@@ -366,14 +364,14 @@ impl MiaoApp {
                     loader,
                     api_key,
                 } => {
-                    self.pending_cf_install = Some(CfPendingInstall {
+                    self.pending_install = Some(PendingInstall::CurseForge(CfPendingInstall {
                         mod_name,
                         deps,
                         instance_dir,
                         mc_version,
                         loader,
                         api_key,
-                    });
+                    }));
                     self.cf_search.searching = false;
                 }
                 AppEvent::CfInstalled { count } => {
@@ -381,7 +379,7 @@ impl MiaoApp {
                     self.status = msg.clone();
                     self.toasts.success(msg);
                     self.cf_search.searching = false;
-                    self.pending_cf_install = None;
+                    self.pending_install = None;
                     self.file_scan_cache.invalidate();
                 }
                 AppEvent::CfError(msg) => {

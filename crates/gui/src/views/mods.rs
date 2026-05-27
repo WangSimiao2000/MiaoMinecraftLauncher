@@ -3,9 +3,26 @@ use std::path::Path;
 
 use crate::app::{I18n, MiaoApp};
 use crate::messages::AppCommand;
-use crate::state::ModSource;
+use crate::state::{ModSource, PendingInstall};
 use crate::theme;
 use crate::widgets::{ModCard, mod_card::ModCardAction};
+
+/// Data needed to render a search result card.
+struct SearchResultItem {
+    title: String,
+    description: String,
+    downloads: u64,
+}
+
+struct VersionItem {
+    name: String,
+    release_label: String,
+}
+
+struct VersionListAction {
+    install: bool,
+    back: bool,
+}
 
 impl MiaoApp {
     pub fn render_mods_tab(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
@@ -49,13 +66,6 @@ impl MiaoApp {
 
         if self.mod_search_active {
             self.render_unified_search(ui, instance_dir);
-            ui.add_space(theme::Spacing::SECTION_GAP);
-            ui.separator();
-            ui.add_space(theme::Spacing::SMALL_GAP);
-        }
-
-        if let Some(ref pending) = self.pending_mod_install.clone() {
-            self.render_install_confirmation(ui, pending);
             ui.add_space(theme::Spacing::SECTION_GAP);
             ui.separator();
             ui.add_space(theme::Spacing::SMALL_GAP);
@@ -145,6 +155,12 @@ impl MiaoApp {
 
         ui.add_space(6.0);
 
+        // BUG FIX #1: Check for pending install first and render confirmation instead of search results
+        if let Some(ref pending) = self.pending_install.clone() {
+            self.render_pending_confirmation(ui, pending);
+            return;
+        }
+
         if self.mod_source == ModSource::CurseForge && self.effective_cf_api_key().is_empty() {
             ui.label(theme::muted(I18n::t(lang, "cf_no_key")));
             return;
@@ -201,7 +217,6 @@ impl MiaoApp {
     }
 
     fn render_modrinth_results(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
-        let lang = self.language;
         if self.mod_search.searching {
             ui.spinner();
         }
@@ -209,61 +224,23 @@ impl MiaoApp {
         if !self.mod_search.results.is_empty() && self.mod_search.versions.is_empty() {
             ui.add_space(8.0);
             let mut clicked_idx = None;
-            for (i, hit) in self.mod_search.results.iter().enumerate() {
-                let is_selected = self.mod_search.selected == Some(i);
-                let card_id = egui::Id::new(("mod_hit", i));
-                let pointer_pos = ui.ctx().input(|inp| inp.pointer.hover_pos());
 
-                let frame_response = egui::Frame::NONE
-                    .fill(theme::Colors::bg_elevated())
-                    .corner_radius(egui::CornerRadius::same(6))
-                    .inner_margin(egui::Margin::symmetric(12, 8))
-                    .show(ui, |ui| {
-                        ui.set_min_width(ui.available_width());
-                        ui.horizontal(|ui| {
-                            ui.vertical(|ui| {
-                                ui.label(
-                                    egui::RichText::new(&hit.title)
-                                        .size(13.0)
-                                        .strong()
-                                        .color(theme::Colors::text_primary()),
-                                );
-                                let desc: String = hit.description.chars().take(60).collect();
-                                ui.label(theme::small(&desc));
-                            });
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    let dl = format_downloads(hit.downloads);
-                                    ui.label(theme::small(&format!("↓ {}", dl)));
-                                },
-                            );
-                        });
-                    });
+            // Prepare results for shared rendering
+            let results: Vec<SearchResultItem> = self
+                .mod_search
+                .results
+                .iter()
+                .map(|hit| SearchResultItem {
+                    title: hit.title.clone(),
+                    description: hit.description.chars().take(60).collect(),
+                    downloads: hit.downloads,
+                })
+                .collect();
 
-                let card_rect = frame_response.response.rect;
-                let is_hovered = pointer_pos.is_some_and(|pos| card_rect.contains(pos));
-
-                if is_selected || is_hovered {
-                    let fill = if is_selected {
-                        theme::Colors::bg_widget_hover()
-                    } else {
-                        egui::Color32::from_white_alpha(8)
-                    };
-                    ui.painter()
-                        .rect_filled(card_rect, egui::CornerRadius::same(6), fill);
-                }
-
-                let response = ui.interact(card_rect, card_id, egui::Sense::click());
-                if is_hovered {
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                }
-
-                if response.clicked() {
-                    clicked_idx = Some(i);
-                }
-                ui.add_space(4.0);
+            if let Some(idx) = self.render_search_results(ui, &results, self.mod_search.selected) {
+                clicked_idx = Some(idx);
             }
+
             if let Some(i) = clicked_idx {
                 self.mod_search.selected = Some(i);
                 self.load_mod_versions_from_tab(i);
@@ -271,40 +248,27 @@ impl MiaoApp {
         }
 
         if !self.mod_search.versions.is_empty() {
-            ui.add_space(8.0);
             let hit_title = self
                 .mod_search
                 .results
                 .get(self.mod_search.selected.unwrap_or(0))
                 .map(|h| h.title.as_str())
                 .unwrap_or("?");
-            ui.label(theme::subheading(&format!(
-                "{} '{}'",
-                I18n::t(lang, "versions_for"),
-                hit_title
-            )));
-            ui.add_space(6.0);
-            let mut do_install = false;
-            for ver in self.mod_search.versions.iter().take(10) {
-                theme::list_item_card().show(ui, |ui| {
-                    ui.set_min_width(ui.available_width());
-                    ui.horizontal(|ui| {
-                        ui.label(theme::body(&ver.name));
-                        ui.label(theme::small(&format!("[{}]", ver.version_type)));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button(I18n::t(lang, "install")).clicked() {
-                                do_install = true;
-                            }
-                        });
-                    });
-                });
-                ui.add_space(3.0);
-            }
-            if do_install {
+            let versions: Vec<VersionItem> = self
+                .mod_search
+                .versions
+                .iter()
+                .take(10)
+                .map(|ver| VersionItem {
+                    name: ver.name.clone(),
+                    release_label: format!("[{}]", ver.version_type),
+                })
+                .collect();
+            let action = self.render_version_list(ui, hit_title, &versions);
+            if action.install {
                 self.install_mod_from_tab(instance_dir);
             }
-            ui.add_space(6.0);
-            if ui.button(I18n::t(lang, "back")).clicked() {
+            if action.back {
                 self.mod_search.versions.clear();
             }
         }
@@ -315,11 +279,6 @@ impl MiaoApp {
             ui.spinner();
         }
 
-        if let Some(ref pending) = self.pending_cf_install.clone() {
-            self.render_cf_install_confirmation(ui, pending);
-            return;
-        }
-
         if !self.cf_search.files.is_empty() {
             self.render_cf_file_versions(ui, instance_dir);
             return;
@@ -327,96 +286,131 @@ impl MiaoApp {
 
         if !self.cf_search.results.is_empty() {
             ui.add_space(8.0);
-            let results = self.cf_search.results.clone();
-            let mut clicked_mod: Option<(u32, String)> = None;
-            for cf_mod in &results {
-                let card_id = egui::Id::new(("cf_mod", cf_mod.id));
-                let pointer_pos = ui.ctx().input(|inp| inp.pointer.hover_pos());
+            let results: Vec<SearchResultItem> = self
+                .cf_search
+                .results
+                .iter()
+                .map(|cf_mod| SearchResultItem {
+                    title: cf_mod.name.clone(),
+                    description: cf_mod.summary.clone(),
+                    downloads: cf_mod.download_count,
+                })
+                .collect();
 
-                let frame_response = egui::Frame::NONE
-                    .fill(theme::Colors::bg_elevated())
-                    .corner_radius(egui::CornerRadius::same(6))
-                    .inner_margin(egui::Margin::symmetric(12, 8))
-                    .show(ui, |ui| {
-                        ui.set_min_width(ui.available_width());
-                        ui.horizontal(|ui| {
-                            ui.vertical(|ui| {
-                                ui.label(
-                                    egui::RichText::new(&cf_mod.name)
-                                        .size(13.0)
-                                        .strong()
-                                        .color(theme::Colors::text_primary()),
-                                );
-                                ui.label(theme::small(&cf_mod.summary));
-                            });
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    let dl = format_downloads(cf_mod.download_count);
-                                    ui.label(theme::small(&format!("↓ {}", dl)));
-                                },
-                            );
-                        });
-                    });
-
-                let card_rect = frame_response.response.rect;
-                let is_hovered = pointer_pos.is_some_and(|pos| card_rect.contains(pos));
-
-                if is_hovered {
-                    ui.painter().rect_filled(
-                        card_rect,
-                        egui::CornerRadius::same(6),
-                        egui::Color32::from_white_alpha(8),
-                    );
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                }
-
-                let response = ui.interact(card_rect, card_id, egui::Sense::click());
-                if response.clicked() {
-                    clicked_mod = Some((cf_mod.id, cf_mod.name.clone()));
-                }
-                ui.add_space(4.0);
-            }
-            if let Some((mod_id, mod_name)) = clicked_mod {
-                self.cf_search.selected_mod_id = Some(mod_id);
-                self.cf_search.selected_mod_name = Some(mod_name);
-                self.do_cf_load_files(mod_id);
+            if let Some(idx) = self.render_search_results(ui, &results, None) {
+                let cf_mod = &self.cf_search.results[idx];
+                self.cf_search.selected_mod_id = Some(cf_mod.id);
+                self.cf_search.selected_mod_name = Some(cf_mod.name.clone());
+                self.do_cf_load_files(cf_mod.id);
             }
         }
     }
 
-    fn render_cf_file_versions(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
+    /// Shared helper to render search result cards.
+    /// Returns Some(index) if a card was clicked.
+    fn render_search_results(
+        &mut self,
+        ui: &mut egui::Ui,
+        results: &[SearchResultItem],
+        selected: Option<usize>,
+    ) -> Option<usize> {
+        let mut clicked_idx = None;
+
+        for (i, item) in results.iter().enumerate() {
+            let is_selected = selected == Some(i);
+            let card_id = egui::Id::new(("search_result_card", i));
+
+            // BUG FIX #2: Determine fill color BEFORE rendering the Frame
+            // Selected state uses bg_widget_hover as the Frame fill (not painted on top)
+            // Hover is handled with semi-transparent overlay after rendering
+            let fill_color = if is_selected {
+                theme::Colors::bg_widget_hover()
+            } else {
+                theme::Colors::bg_elevated()
+            };
+
+            let frame_response = egui::Frame::NONE
+                .fill(fill_color)
+                .corner_radius(egui::CornerRadius::same(6))
+                .inner_margin(egui::Margin::symmetric(12, 8))
+                .show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.vertical(|ui| {
+                            ui.label(
+                                egui::RichText::new(&item.title)
+                                    .size(13.0)
+                                    .strong()
+                                    .color(theme::Colors::text_primary()),
+                            );
+                            ui.label(theme::small(&item.description));
+                        });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let dl = format_downloads(item.downloads);
+                            ui.label(theme::small(&format!("↓ {}", dl)));
+                        });
+                    });
+                });
+
+            let card_rect = frame_response.response.rect;
+
+            // Check for hover AFTER rendering so we can apply semi-transparent overlay
+            let pointer_pos = ui.ctx().input(|inp| inp.pointer.hover_pos());
+            let is_hovered = pointer_pos.is_some_and(|pos| card_rect.contains(pos));
+
+            // Apply hover overlay ONLY (semi-transparent, won't hide text)
+            // Selected state is already handled via Frame fill
+            if is_hovered && !is_selected {
+                ui.painter().rect_filled(
+                    card_rect,
+                    egui::CornerRadius::same(6),
+                    egui::Color32::from_white_alpha(8),
+                );
+            }
+
+            let response = ui.interact(card_rect, card_id, egui::Sense::click());
+            if is_hovered {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+
+            if response.clicked() {
+                clicked_idx = Some(i);
+            }
+            ui.add_space(4.0);
+        }
+
+        clicked_idx
+    }
+
+    fn render_version_list(
+        &self,
+        ui: &mut egui::Ui,
+        title: &str,
+        versions: &[VersionItem],
+    ) -> VersionListAction {
         let lang = self.language;
-        let mod_name = self
-            .cf_search
-            .selected_mod_name
-            .clone()
-            .unwrap_or_else(|| "?".to_string());
+        let mut action = VersionListAction {
+            install: false,
+            back: false,
+        };
+
         ui.add_space(8.0);
         ui.label(theme::subheading(&format!(
             "{} '{}'",
             I18n::t(lang, "versions_for"),
-            mod_name
+            title
         )));
         ui.add_space(6.0);
 
-        let files = self.cf_search.files.clone();
-        let mut install_mod_id = None;
-        for file in files.iter().take(15) {
-            let release_label = match file.release_type {
-                1 => "[Release]",
-                2 => "[Beta]",
-                3 => "[Alpha]",
-                _ => "[Unknown]",
-            };
+        for item in versions {
             theme::list_item_card().show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    ui.label(theme::body(&file.display_name));
-                    ui.label(theme::small(release_label));
+                    ui.label(theme::body(&item.name));
+                    ui.label(theme::small(&item.release_label));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button(I18n::t(lang, "install")).clicked() {
-                            install_mod_id = self.cf_search.selected_mod_id;
+                            action.install = true;
                         }
                     });
                 });
@@ -424,76 +418,154 @@ impl MiaoApp {
             ui.add_space(3.0);
         }
 
-        if let Some(mod_id) = install_mod_id {
-            self.do_cf_resolve_deps(mod_id, instance_dir);
-        }
-
         ui.add_space(6.0);
         if ui.button(I18n::t(lang, "back")).clicked() {
+            action.back = true;
+        }
+
+        action
+    }
+
+    fn render_cf_file_versions(&mut self, ui: &mut egui::Ui, instance_dir: &Path) {
+        let mod_name = self
+            .cf_search
+            .selected_mod_name
+            .clone()
+            .unwrap_or_else(|| "?".to_string());
+
+        let versions: Vec<VersionItem> = self
+            .cf_search
+            .files
+            .iter()
+            .take(15)
+            .map(|file| VersionItem {
+                name: file.display_name.clone(),
+                release_label: match file.release_type {
+                    1 => "[Release]".to_string(),
+                    2 => "[Beta]".to_string(),
+                    3 => "[Alpha]".to_string(),
+                    _ => "[Unknown]".to_string(),
+                },
+            })
+            .collect();
+
+        let action = self.render_version_list(ui, &mod_name, &versions);
+        if action.install
+            && let Some(mod_id) = self.cf_search.selected_mod_id
+        {
+            self.do_cf_resolve_deps(mod_id, instance_dir);
+        }
+        if action.back {
             self.cf_search.files.clear();
             self.cf_search.selected_mod_id = None;
             self.cf_search.selected_mod_name = None;
         }
     }
 
-    fn render_cf_install_confirmation(
-        &mut self,
-        ui: &mut egui::Ui,
-        pending: &crate::state::CfPendingInstall,
-    ) {
+    /// Unified confirmation panel for both Modrinth and CurseForge pending installs.
+    fn render_pending_confirmation(&mut self, ui: &mut egui::Ui, pending: &PendingInstall) {
         let lang = self.language;
-        let has_deps = pending.deps.iter().any(|d| d.is_dependency);
-        let main_dep = pending.deps.iter().find(|d| !d.is_dependency);
-        let dep_list: Vec<_> = pending.deps.iter().filter(|d| d.is_dependency).collect();
+
+        // Extract common fields based on pending type
+        let (
+            title_key,
+            has_deps,
+            main_name,
+            main_size_kb,
+            dep_count,
+            deps_iter,
+            stroke_color,
+            show_install_all,
+        ) = match pending {
+            PendingInstall::Modrinth(p) => {
+                let has = p.deps.iter().any(|d| d.is_dependency);
+                let main = p.deps.iter().find(|d| !d.is_dependency);
+                let dep_list: Vec<_> = p.deps.iter().filter(|d| d.is_dependency).collect();
+                let count = dep_list.len();
+                (
+                    "confirm_install",
+                    has,
+                    main.map(|m| m.name.clone()).unwrap_or_default(),
+                    main.map(|m| m.file_size as f64 / 1024.0).unwrap_or(0.0),
+                    count,
+                    dep_list
+                        .into_iter()
+                        .map(|d| (d.name.clone(), d.file_size as f64 / 1024.0))
+                        .collect::<Vec<_>>(),
+                    theme::Colors::accent(),
+                    true, // Modrinth shows "Install All" and "Only This Mod"
+                )
+            }
+            PendingInstall::CurseForge(p) => {
+                let has = p.deps.iter().any(|d| d.is_dependency);
+                let main = p.deps.iter().find(|d| !d.is_dependency);
+                let dep_list: Vec<_> = p.deps.iter().filter(|d| d.is_dependency).collect();
+                let count = dep_list.len();
+                (
+                    "confirm_install_cf",
+                    has,
+                    main.map(|m| m.name.clone())
+                        .unwrap_or_else(|| p.mod_name.clone()),
+                    main.map(|m| m.file_size as f64 / 1024.0).unwrap_or(0.0),
+                    count,
+                    dep_list
+                        .into_iter()
+                        .map(|d| (d.name.clone(), d.file_size as f64 / 1024.0))
+                        .collect::<Vec<_>>(),
+                    egui::Color32::from_rgb(240, 100, 30),
+                    false, // CurseForge shows only "Install"
+                )
+            }
+        };
 
         egui::Frame::NONE
             .fill(theme::Colors::bg_elevated())
             .corner_radius(egui::CornerRadius::same(8))
             .inner_margin(egui::Margin::same(14))
-            .stroke(egui::Stroke::new(
-                1.5_f32,
-                egui::Color32::from_rgb(240, 100, 30),
-            ))
+            .stroke(egui::Stroke::new(1.5_f32, stroke_color))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
-                ui.label(theme::subheading(I18n::t(lang, "confirm_install_cf")));
+                ui.label(theme::subheading(I18n::t(lang, title_key)));
                 ui.add_space(8.0);
 
-                if let Some(main) = main_dep {
-                    ui.label(theme::body(&format!(
-                        "{}  ({:.1} KB)",
-                        main.name,
-                        main.file_size as f64 / 1024.0
-                    )));
-                }
+                ui.label(theme::body(&format!(
+                    "{}  ({:.1} KB)",
+                    main_name, main_size_kb
+                )));
 
                 if has_deps {
                     ui.add_space(8.0);
                     ui.label(theme::muted(&format!(
                         "{} ({}):",
                         I18n::t(lang, "required_deps"),
-                        dep_list.len()
+                        dep_count
                     )));
                     ui.add_space(4.0);
-                    for dep in &dep_list {
+                    for (name, size_kb) in &deps_iter {
                         ui.horizontal(|ui| {
                             ui.add_space(12.0);
-                            ui.label(theme::small(&format!(
-                                "• {}  ({:.1} KB)",
-                                dep.name,
-                                dep.file_size as f64 / 1024.0
-                            )));
+                            ui.label(theme::small(&format!("• {}  ({:.1} KB)", name, size_kb)));
                         });
                     }
                 }
 
                 ui.add_space(12.0);
                 ui.horizontal(|ui| {
-                    if ui.button(I18n::t(lang, "install")).clicked() {
-                        self.do_cf_confirmed_install();
+                    if show_install_all && has_deps {
+                        if ui.button(I18n::t(lang, "install_all")).clicked() {
+                            self.do_confirmed_install(true);
+                        }
+                        if ui.button(I18n::t(lang, "only_this_mod")).clicked() {
+                            self.do_confirmed_install(false);
+                        }
+                    } else if ui.button(I18n::t(lang, "install")).clicked() {
+                        match pending {
+                            PendingInstall::Modrinth(_) => self.do_confirmed_install(false),
+                            PendingInstall::CurseForge(_) => self.do_cf_confirmed_install(),
+                        }
                     }
                     if ui.button(I18n::t(lang, "cancel")).clicked() {
-                        self.pending_cf_install = None;
+                        self.pending_install = None;
                     }
                 });
             });
@@ -568,20 +640,23 @@ impl MiaoApp {
     }
 
     fn do_cf_confirmed_install(&mut self) {
-        let Some(pending) = self.pending_cf_install.take() else {
+        let Some(pending) = self.pending_install.take() else {
             return;
         };
-        let Some(main_dep) = pending.deps.iter().find(|d| !d.is_dependency) else {
+        let PendingInstall::CurseForge(cf_pending) = pending else {
             return;
         };
-        self.status = format!("Installing {}...", pending.mod_name);
+        let Some(main_dep) = cf_pending.deps.iter().find(|d| !d.is_dependency) else {
+            return;
+        };
+        self.status = format!("Installing {}...", cf_pending.mod_name);
         self.cf_search.searching = true;
         self.controller.send(AppCommand::CfInstallMod {
             mod_id: main_dep.mod_id,
-            mc_version: pending.mc_version,
-            loader: pending.loader,
-            instance_dir: pending.instance_dir,
-            api_key: pending.api_key,
+            mc_version: cf_pending.mc_version,
+            loader: cf_pending.loader,
+            instance_dir: cf_pending.instance_dir,
+            api_key: cf_pending.api_key,
         });
     }
 
@@ -631,73 +706,6 @@ impl MiaoApp {
         });
     }
 
-    fn render_install_confirmation(
-        &mut self,
-        ui: &mut egui::Ui,
-        pending: &crate::state::PendingModInstall,
-    ) {
-        let lang = self.language;
-        let has_deps = pending.deps.iter().any(|d| d.is_dependency);
-        let main_mod = pending.deps.iter().find(|d| !d.is_dependency);
-        let dep_mods: Vec<_> = pending.deps.iter().filter(|d| d.is_dependency).collect();
-
-        egui::Frame::NONE
-            .fill(theme::Colors::bg_elevated())
-            .corner_radius(egui::CornerRadius::same(8))
-            .inner_margin(egui::Margin::same(14))
-            .stroke(egui::Stroke::new(1.5_f32, theme::Colors::accent()))
-            .show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                ui.label(theme::subheading(I18n::t(lang, "confirm_install")));
-                ui.add_space(8.0);
-
-                if let Some(main) = main_mod {
-                    ui.label(theme::body(&format!(
-                        "{}  ({:.1} KB)",
-                        main.name,
-                        main.file_size as f64 / 1024.0
-                    )));
-                }
-
-                if has_deps {
-                    ui.add_space(8.0);
-                    ui.label(theme::muted(&format!(
-                        "{} ({}):",
-                        I18n::t(lang, "required_deps"),
-                        dep_mods.len()
-                    )));
-                    ui.add_space(4.0);
-                    for dep in &dep_mods {
-                        ui.horizontal(|ui| {
-                            ui.add_space(12.0);
-                            ui.label(theme::small(&format!(
-                                "• {}  ({:.1} KB)",
-                                dep.name,
-                                dep.file_size as f64 / 1024.0
-                            )));
-                        });
-                    }
-                }
-
-                ui.add_space(12.0);
-                ui.horizontal(|ui| {
-                    if has_deps {
-                        if ui.button(I18n::t(lang, "install_all")).clicked() {
-                            self.do_confirmed_install(true);
-                        }
-                        if ui.button(I18n::t(lang, "only_this_mod")).clicked() {
-                            self.do_confirmed_install(false);
-                        }
-                    } else if ui.button(I18n::t(lang, "install")).clicked() {
-                        self.do_confirmed_install(false);
-                    }
-                    if ui.button(I18n::t(lang, "cancel")).clicked() {
-                        self.pending_mod_install = None;
-                    }
-                });
-            });
-    }
-
     fn install_mod_from_tab(&mut self, instance_dir: &Path) {
         let Some(selected) = self.mod_search.selected else {
             return;
@@ -729,15 +737,18 @@ impl MiaoApp {
     }
 
     pub fn do_confirmed_install(&mut self, include_deps: bool) {
-        let Some(pending) = self.pending_mod_install.take() else {
+        let Some(pending) = self.pending_install.take() else {
+            return;
+        };
+        let PendingInstall::Modrinth(mr_pending) = pending else {
             return;
         };
 
-        self.status = format!("Installing {}...", pending.project_slug);
+        self.status = format!("Installing {}...", mr_pending.project_slug);
         self.mod_search.searching = false;
 
         self.controller.send(AppCommand::InstallMod {
-            pending,
+            pending: mr_pending,
             include_deps,
         });
     }

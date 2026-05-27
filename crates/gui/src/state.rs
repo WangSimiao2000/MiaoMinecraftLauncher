@@ -122,6 +122,13 @@ pub struct PendingModInstall {
     pub loader: String,
 }
 
+/// Unified pending install enum that wraps both Modrinth and CurseForge pending installs.
+#[derive(Debug, Clone)]
+pub enum PendingInstall {
+    Modrinth(PendingModInstall),
+    CurseForge(CfPendingInstall),
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct GameLogState {
     pub lines: VecDeque<String>,
