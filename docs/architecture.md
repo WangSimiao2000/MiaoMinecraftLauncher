@@ -70,9 +70,10 @@
 
 ### Modrinth Integration (`modrinth`)
 
-- Mod search with faceted filtering (version, loader)
+- Mod search with faceted filtering (version, loader) and pagination (offset)
 - Dependency resolution with cycle detection
 - Mod installation with automatic dependency handling
+- Mod update detection via `/v2/version_files/update` (SHA-1 hash lookup)
 - Mrpack modpack import/export
 
 ### CurseForge Integration (`curseforge`)
@@ -103,6 +104,7 @@
 
 - Scan mods directory
 - Enable/disable mods (`.jar` ↔ `.jar.disabled`)
+- SHA-1 hash computation for update detection
 
 ### Resource Packs & Shaders (`resource`)
 
@@ -155,6 +157,8 @@ Config and data directories are determined by `dirs::config_dir()` / `dirs::data
 │   └── objects/
 ├── java/
 │   └── jdk-21/
+├── locales/            (optional: user-contributed translations)
+│   └── ja.json
 └── instances/
     └── my-instance/
         ├── instance.toml

@@ -38,9 +38,9 @@ Comparison baseline: PCL2 (Plain Craft Launcher 2) — the most popular Chinese 
 | 自动更新 | ✅ | ✅ | — | update/ 模块，下载+替换+回滚 |
 | 第三方皮肤站登录 | ✅ | ✅ | — | authlib-injector Yggdrasil 协议 |
 | 自定义离线皮肤 | ❌ | ✅ | Low | |
-| 多游戏文件夹管理 | ❌ | ✅ | Medium | 切换 .minecraft 目录 |
+| 多游戏文件夹管理 | ✅ | ✅ | — | 切换 .minecraft 目录 |
 | 版本分类与收藏 | ❌ | ✅ | Low | |
-| 内置帮助库 | ❌ | ✅ | Low | 新手教程 |
+| 内置帮助库 | ✅ | ✅ | — | FAQ 页面 |
 | 联机 (P2P/穿透) | ❌ | ✅ | Low | 实现难度极高 |
 | 自动备份存档 | ❌ | ✅ | Low | |
 
@@ -128,7 +128,13 @@ main.rs (入口)
 ├── dialogs/ (弹窗/全页面)
 │   ├── new_instance.rs   → 新建实例
 │   ├── settings.rs       → 全局设置（Account/Appearance/Data/Java/About）
-│   └── java_confirm.rs   → Java 下载确认
+│   ├── java_confirm.rs   → Java 下载确认
+│   └── setup_wizard.rs   → 首次启动引导 (Language → Java → Done)
+│
+├── locales/ (i18n JSON 翻译文件)
+│   ├── en.json           → English (内置)
+│   ├── zh.json           → 中文 (内置)
+│   └── *.json            → 社区贡献语言 (运行时从 data_dir/locales/ 加载)
 │
 ├── controller/ (异步业务层)
 │   ├── mod.rs            → 事件循环 + 命令分发
@@ -136,7 +142,7 @@ main.rs (入口)
 │   ├── auth.rs           → MS OAuth 登录 + 皮肤获取
 │   ├── java.rs           → Java 下载
 │   ├── versions.rs       → 版本/加载器获取
-│   └── mods.rs           → Modrinth + CurseForge 搜索/安装
+│   └── mods.rs           → Modrinth + CurseForge 搜索/安装/更新检测
 │
 ├── widgets/
 │   ├── instance_card.rs  → 实例卡片
@@ -196,17 +202,29 @@ main.rs (入口)
 | 11 | OptiFine 一键安装 | ✅ Done | `core/src/modloader/optifine.rs` |
 | 12 | 文件完整性检查与自动补全 | ✅ Done | `core/src/integrity.rs` |
 
-### Phase 3 — 进阶功能
+### Phase 3 — 进阶功能 ✅
+
+| # | Feature | 状态 | 模块 |
+|---|---------|------|------|
+| 13 | 多游戏文件夹管理 | ✅ Done | `gui/src/dialogs/settings.rs` |
+| 14 | 虚拟化长列表优化 | ✅ Done | `show_rows()` 全面应用 |
+| 15 | 内置帮助 FAQ | ✅ Done | `gui/src/dialogs/settings.rs` render_tab_help |
+| 16 | Mod 搜索分页 (Load More) | ✅ Done | Modrinth offset + CurseForge index |
+| 17 | 已安装 Mod 更新检测 | ✅ Done | SHA-1 hash → Modrinth update API |
+| 18 | 拖拽导入 Mod/资源包 | ✅ Done | `gui/src/views/mods.rs` handle_file_drop |
+| 19 | 首次启动引导 | ✅ Done | `gui/src/dialogs/setup_wizard.rs` |
+| 20 | i18n 外置化 (JSON locale files) | ✅ Done | `gui/locales/` + runtime loading |
+
+### Phase 4 — 未来计划
 
 | # | Feature | 预估工时 | 依赖 |
 |---|---------|---------|------|
-| 13 | 多游戏文件夹管理 | 0.5 天 | 无 |
-| 14 | 版本分类/收藏夹 | 0.5 天 | 无 |
-| 15 | 自定义离线皮肤 | 1 天 | 无 |
-| 16 | 自动备份存档 | 1 天 | 无 |
-| 17 | 虚拟化长列表优化 | 0.5 天 | 无 |
-| 18 | 内置帮助 FAQ | 1 天 | 无 |
-| 19 | 联机穿透 (P2P) | 5+ 天 | 复杂度极高 |
+| 21 | 版本分类/收藏夹 | 0.5 天 | 无 |
+| 22 | 自定义离线皮肤 | 1 天 | 无 |
+| 23 | 自动备份存档 | 1 天 | 无 |
+| 24 | 实例克隆/复制 | 0.5 天 | 无 |
+| 25 | macOS 支持 + .app bundle | 1 天 | CI |
+| 26 | 联机穿透 (P2P) | 5+ 天 | 复杂度极高 |
 
 ---
 
@@ -214,10 +232,10 @@ main.rs (入口)
 
 | 项目 | 状态 | 描述 |
 |------|------|------|
-| CI 跨平台矩阵 | ⬜ | 加 macOS + Windows 构建到 CI |
+| CI 跨平台矩阵 | ⬜ | 加 macOS 构建到 CI |
 | CLI 集成测试 | ⬜ | 用 assert_cmd 测试命令行 |
-| 去除 async-trait/async-recursion | ⬜ | nightly 原生支持 |
-| Dead code 清理 (theme.rs) | ⬜ | 启用或删除 7 个 unused 项 |
+| 去除 async-trait/async-recursion | ✅ | nightly 原生 async fn in trait |
+| Dead code 清理 (theme.rs) | ⬜ | 启用或删除 unused 项 |
 | MS_CLIENT_ID 环境变量化 | ⬜ | 安全性改善 |
 | 日志系统 (tracing) | ⬜ | GUI 目前无结构化日志 |
-| 升级 eframe 0.30 → 0.34+ | ⬜ | wgpu 后端支持 Wayland 窗口透明/圆角；egui/egui_extras/egui_glow 需同步升级；预计 50-100 行 breaking changes 适配 |
+| 升级 eframe 0.30 → 0.34+ | ✅ | 已升级到 egui 0.34 |
