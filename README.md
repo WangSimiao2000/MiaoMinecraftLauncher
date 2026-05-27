@@ -34,15 +34,18 @@ A feature-rich Minecraft launcher built in Rust — fast, native, and open sourc
 |----------|-----------|
 | **Instances** | Create, configure, and launch isolated Minecraft instances |
 | **Mod Loaders** | One-click install for Fabric, Quilt, NeoForge, and Forge |
-| **Modrinth** | Search & install mods with automatic dependency resolution |
-| **CurseForge** | Search & install mods with built-in API key |
+| **Modrinth** | Search & install mods with dependency resolution, pagination, update detection |
+| **CurseForge** | Search & install mods with built-in API key, pagination |
 | **Modpacks** | Import/export `.mrpack` modpacks |
+| **Drag & Drop** | Drop `.jar` / `.zip` files into the window to install mods or resource packs |
+| **Mod Updates** | One-click check for newer versions of installed mods via Modrinth |
 | **Java** | Auto-detect compatible JVM or download from Adoptium |
 | **Downloads** | BMCLAPI mirror, multi-source failover, concurrent downloads |
 | **Auth** | Microsoft OAuth device-code flow, offline mode, authlib-injector (LittleSkin, etc.) |
 | **Diagnostics** | Crash-report & log parsing with mod-level identification |
 | **Updates** | Self-update from GitHub Releases |
 | **Resources** | Resource packs, shader packs, world saves |
+| **i18n** | External JSON locale files — community-contributed translations without code changes |
 
 ## Quick Start
 
@@ -125,6 +128,17 @@ cargo tarpaulin -p miao-core --skip-clean  # Coverage
 3. Create a feature branch
 4. Ensure `cargo clippy -- -D warnings` and `cargo test` pass
 5. Submit a pull request
+
+### Adding a Translation
+
+No Rust knowledge required — just create a JSON file:
+
+1. Copy `crates/gui/locales/en.json` to a new file (e.g. `ja.json`, `ko.json`, `de.json`)
+2. Add a `"_name"` field with the language's native name (e.g. `"日本語"`)
+3. Translate all values (keys stay in English)
+4. Submit a PR — or place the file in `<data-dir>/locales/` for personal use
+
+Users can also hot-reload new translations at runtime via Settings > Appearance > Refresh.
 
 ## Credits
 
