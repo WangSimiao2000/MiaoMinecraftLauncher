@@ -19,16 +19,13 @@ cp "$PROJECT_DIR/target/release/miao-gui" "$APP_DIR/usr/bin/"
 cp "$SCRIPT_DIR/miao-mc.desktop" "$APP_DIR/usr/share/applications/"
 cp "$SCRIPT_DIR/miao-mc.desktop" "$APP_DIR/"
 
-if [ -f "$SCRIPT_DIR/miao-mc.png" ]; then
-    cp "$SCRIPT_DIR/miao-mc.png" "$APP_DIR/usr/share/icons/hicolor/256x256/apps/"
-    cp "$SCRIPT_DIR/miao-mc.png" "$APP_DIR/"
+ICON_SRC="$PROJECT_DIR/assets/icon.png"
+if [ -f "$ICON_SRC" ]; then
+    cp "$ICON_SRC" "$APP_DIR/usr/share/icons/hicolor/256x256/apps/miao-mc.png"
+    cp "$ICON_SRC" "$APP_DIR/miao-mc.png"
 else
-    echo "Warning: No icon found at appimage/miao-mc.png, generating placeholder..."
-    convert -size 256x256 xc:'#4a9eff' -gravity center \
-        -pointsize 80 -fill white -annotate 0 'M' \
-        "$APP_DIR/miao-mc.png" 2>/dev/null || \
-    printf '\x89PNG\r\n\x1a\n' > "$APP_DIR/miao-mc.png"
-    cp "$APP_DIR/miao-mc.png" "$APP_DIR/usr/share/icons/hicolor/256x256/apps/"
+    echo "Error: Icon not found at assets/icon.png"
+    exit 1
 fi
 
 cat > "$APP_DIR/AppRun" << 'EOF'

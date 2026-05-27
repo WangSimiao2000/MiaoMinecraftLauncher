@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="icon.png" width="128" alt="MMCL Logo">
+<img src="assets/icon.png" width="128" alt="MMCL Logo">
 
 # MMCL (MiaoMinecraftLauncher)
 
