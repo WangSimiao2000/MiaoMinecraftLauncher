@@ -37,27 +37,34 @@ impl MiaoApp {
                         ui.label(theme::small(I18n::t(lang, "no_instances_hint")));
                     });
                 } else {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        for i in 0..self.instances.len() {
-                            let selected = self.selected_instance == Some(i);
-                            let inst = &self.instances[i];
-                            let loader_label =
-                                inst.mod_loader.as_ref().map(|l| l.loader_type.to_string());
+                    let row_height = 36.0;
+                    let total = self.instances.len();
+                    egui::ScrollArea::vertical().show_rows(
+                        ui,
+                        row_height,
+                        total,
+                        |ui, row_range| {
+                            for i in row_range {
+                                let selected = self.selected_instance == Some(i);
+                                let inst = &self.instances[i];
+                                let loader_label =
+                                    inst.mod_loader.as_ref().map(|l| l.loader_type.to_string());
 
-                            let response = InstanceCard::new(&inst.name, selected)
-                                .loader(loader_label.as_deref())
-                                .show(ui);
+                                let response = InstanceCard::new(&inst.name, selected)
+                                    .loader(loader_label.as_deref())
+                                    .show(ui);
 
-                            if response.clicked() {
-                                self.selected_instance = Some(i);
-                                self.active_tab = DetailTab::Mods;
-                                self.confirm_delete = None;
-                                if matches!(self.nav_stack.current(), Page::Settings) {
-                                    self.nav_stack.pop();
+                                if response.clicked() {
+                                    self.selected_instance = Some(i);
+                                    self.active_tab = DetailTab::Mods;
+                                    self.confirm_delete = None;
+                                    if matches!(self.nav_stack.current(), Page::Settings) {
+                                        self.nav_stack.pop();
+                                    }
                                 }
                             }
-                        }
-                    });
+                        },
+                    );
                 }
 
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {

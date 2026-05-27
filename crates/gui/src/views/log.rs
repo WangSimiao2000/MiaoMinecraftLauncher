@@ -29,17 +29,20 @@ impl MiaoApp {
         });
         ui.add_space(theme::Spacing::SMALL_GAP);
 
+        const LOG_ROW_HEIGHT: f32 = 15.0;
+
         if has_live_log {
             egui::Frame::NONE
                 .fill(theme::Colors::bg_dark())
                 .corner_radius(theme::Radii::WIDGET)
                 .inner_margin(egui::Margin::same(8))
                 .show(ui, |ui| {
+                    let total = live_lines.len();
                     egui::ScrollArea::vertical()
                         .max_height(500.0)
                         .stick_to_bottom(true)
-                        .show(ui, |ui| {
-                            for line in &live_lines {
+                        .show_rows(ui, LOG_ROW_HEIGHT, total, |ui, row_range| {
+                            for line in &live_lines[row_range] {
                                 let color = if line.starts_with("[ERR]") {
                                     theme::Colors::danger()
                                 } else if line.contains("WARN") {
@@ -67,11 +70,12 @@ impl MiaoApp {
                 .corner_radius(theme::Radii::WIDGET)
                 .inner_margin(egui::Margin::same(8))
                 .show(ui, |ui| {
+                    let total = tail.len();
                     egui::ScrollArea::vertical()
                         .max_height(500.0)
                         .stick_to_bottom(true)
-                        .show(ui, |ui| {
-                            for line in tail {
+                        .show_rows(ui, LOG_ROW_HEIGHT, total, |ui, row_range| {
+                            for line in &tail[row_range] {
                                 ui.label(
                                     egui::RichText::new(*line)
                                         .monospace()

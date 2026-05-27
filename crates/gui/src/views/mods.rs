@@ -69,18 +69,26 @@ impl MiaoApp {
                 ui.label(theme::small(I18n::t(lang, "no_mods_hint")));
             });
         } else {
-            for mut m in mods {
-                match ModCard::new(&m.name, m.enabled).show(ui) {
-                    ModCardAction::Toggle => {
-                        let _ = m.toggle();
+            let row_height = 30.0;
+            let total = mods.len();
+            egui::ScrollArea::vertical()
+                .max_height(400.0)
+                .id_salt("installed_mods_scroll")
+                .show_rows(ui, row_height, total, |ui, row_range| {
+                    for i in row_range {
+                        let mut m = mods[i].clone();
+                        match ModCard::new(&m.name, m.enabled).show(ui) {
+                            ModCardAction::Toggle => {
+                                let _ = m.toggle();
+                            }
+                            ModCardAction::Delete => {
+                                let _ = m.delete();
+                            }
+                            ModCardAction::None => {}
+                        }
+                        ui.add_space(2.0);
                     }
-                    ModCardAction::Delete => {
-                        let _ = m.delete();
-                    }
-                    ModCardAction::None => {}
-                }
-                ui.add_space(2.0);
-            }
+                });
         }
     }
 
