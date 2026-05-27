@@ -304,6 +304,12 @@ pub fn panel_frame() -> egui::Frame {
 pub fn top_bar_frame() -> egui::Frame {
     egui::Frame::NONE
         .fill(Colors::bg_dark().gamma_multiply(0.94))
+        .corner_radius(CornerRadius {
+            nw: Radii::WINDOW.nw,
+            ne: Radii::WINDOW.ne,
+            sw: 0,
+            se: 0,
+        })
         .inner_margin(Margin::symmetric(12, 6))
         .stroke(Stroke::new(0.5, Color32::from_white_alpha(10)))
 }
@@ -311,6 +317,12 @@ pub fn top_bar_frame() -> egui::Frame {
 pub fn bottom_bar_frame() -> egui::Frame {
     egui::Frame::NONE
         .fill(Colors::bg_dark().gamma_multiply(0.94))
+        .corner_radius(CornerRadius {
+            nw: 0,
+            ne: 0,
+            sw: Radii::WINDOW.sw,
+            se: Radii::WINDOW.se,
+        })
         .inner_margin(Margin::symmetric(12, 6))
 }
 

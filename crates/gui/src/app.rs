@@ -440,6 +440,11 @@ impl MiaoApp {
 }
 
 impl eframe::App for MiaoApp {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        // Fully transparent background so rounded window corners show through
+        egui::Rgba::TRANSPARENT.to_array()
+    }
+
     #[allow(deprecated)]
     fn ui(&mut self, _root_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = _root_ui.ctx();
@@ -470,6 +475,14 @@ impl eframe::App for MiaoApp {
         }
 
         let _transition_alpha = self.nav_stack.animate(ctx);
+
+        // Paint rounded window background; corners remain transparent
+        let window_rect = ctx.input(|i| i.screen_rect());
+        ctx.layer_painter(egui::LayerId::background()).rect_filled(
+            window_rect,
+            theme::Radii::WINDOW,
+            theme::Colors::bg_main(),
+        );
 
         egui::TopBottomPanel::bottom("status_bar")
             .frame(theme::bottom_bar_frame())
