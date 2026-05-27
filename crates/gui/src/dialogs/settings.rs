@@ -10,7 +10,7 @@ impl MiaoApp {
         egui::Panel::left("settings_nav")
             .resizable(false)
             .exact_size(140.0)
-            .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(6, 0)))
+            .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(10, 0)))
             .show_inside(ui, |ui| {
                 self.render_settings_nav(ui);
             });
@@ -37,7 +37,7 @@ impl MiaoApp {
 
     fn render_settings_nav(&mut self, ui: &mut egui::Ui) {
         let lang = self.language;
-        ui.vertical(|ui| {
+        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
             ui.set_min_width(ui.available_width());
             ui.add_space(8.0);
 
@@ -50,6 +50,7 @@ impl MiaoApp {
                 (SettingsTab::About, I18n::t(lang, "about")),
             ];
 
+            let full_width = ui.available_width();
             for (tab, label) in tabs {
                 let selected = self.settings_tab == tab;
                 let text = if selected {
@@ -61,7 +62,7 @@ impl MiaoApp {
                 };
 
                 let response = ui.add_sized(
-                    [ui.available_width(), 32.0],
+                    [full_width, 32.0],
                     egui::Button::new(text).selected(selected),
                 );
 
