@@ -23,14 +23,14 @@ impl MiaoApp {
         let opacity = t;
         let scale = 0.95 + 0.05 * t;
 
-        let frame = egui::Frame::window(&ctx.style())
+        let frame = egui::Frame::window(&ctx.global_style())
             .fill(theme::Colors::bg_elevated())
             .stroke(egui::Stroke::new(
                 1.0,
                 theme::Colors::accent().gamma_multiply(0.5),
             ))
-            .rounding(egui::Rounding::same(10.0))
-            .inner_margin(egui::Margin::same(16.0));
+            .corner_radius(egui::CornerRadius::same(10))
+            .inner_margin(egui::Margin::same(16));
 
         egui::Window::new(I18n::t(lang, "create_instance"))
             .open(&mut open)

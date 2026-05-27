@@ -440,7 +440,9 @@ impl MiaoApp {
 }
 
 impl eframe::App for MiaoApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    #[allow(deprecated)]
+    fn ui(&mut self, _root_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = _root_ui.ctx();
         self.drain_events();
         theme::apply_theme(ctx, self.theme_preset);
 
@@ -536,9 +538,9 @@ impl eframe::App for MiaoApp {
 
         egui::CentralPanel::default()
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(theme::Colors::bg_main())
-                    .inner_margin(egui::Margin::same(12.0)),
+                    .inner_margin(egui::Margin::same(12)),
             )
             .show(ctx, |ui| {
                 ui.set_opacity(content_opacity);
@@ -550,7 +552,7 @@ impl eframe::App for MiaoApp {
             });
 
         if self.active_dialog != Dialog::None {
-            let screen = ctx.screen_rect();
+            let screen = ctx.content_rect();
             egui::Area::new(egui::Id::new("dialog_blur_backdrop"))
                 .fixed_pos(screen.min)
                 .interactable(true)
@@ -603,7 +605,7 @@ impl MiaoApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
         }
 
-        ui.allocate_new_ui(
+        ui.scope_builder(
             egui::UiBuilder::new()
                 .max_rect(title_bar_rect)
                 .layout(egui::Layout::left_to_right(egui::Align::Center)),
@@ -623,7 +625,7 @@ impl MiaoApp {
             },
         );
 
-        ui.allocate_new_ui(
+        ui.scope_builder(
             egui::UiBuilder::new()
                 .max_rect(title_bar_rect)
                 .layout(egui::Layout::right_to_left(egui::Align::Center)),
@@ -666,7 +668,7 @@ impl MiaoApp {
 
         if response.hovered() {
             ui.painter()
-                .rect_filled(rect, egui::Rounding::ZERO, hover_color);
+                .rect_filled(rect, egui::CornerRadius::ZERO, hover_color);
         }
 
         let icon_color = if response.hovered() && button == WindowButton::Close {
@@ -695,8 +697,9 @@ impl MiaoApp {
                 let d = 5.0;
                 painter.rect_stroke(
                     egui::Rect::from_center_size(center, egui::vec2(d * 2.0, d * 2.0)),
-                    egui::Rounding::ZERO,
+                    egui::CornerRadius::ZERO,
                     stroke,
+                    egui::StrokeKind::Inside,
                 );
             }
             WindowButton::Restore => {
@@ -706,13 +709,23 @@ impl MiaoApp {
                     center + egui::vec2(-d + offset, -d - offset),
                     egui::vec2(d * 2.0 - offset, d * 2.0 - offset),
                 );
-                painter.rect_stroke(back, egui::Rounding::ZERO, stroke);
+                painter.rect_stroke(
+                    back,
+                    egui::CornerRadius::ZERO,
+                    stroke,
+                    egui::StrokeKind::Inside,
+                );
                 let front = egui::Rect::from_min_size(
                     center + egui::vec2(-d, -d + offset),
                     egui::vec2(d * 2.0 - offset, d * 2.0 - offset),
                 );
-                painter.rect_filled(front, egui::Rounding::ZERO, theme::Colors::bg_dark());
-                painter.rect_stroke(front, egui::Rounding::ZERO, stroke);
+                painter.rect_filled(front, egui::CornerRadius::ZERO, theme::Colors::bg_dark());
+                painter.rect_stroke(
+                    front,
+                    egui::CornerRadius::ZERO,
+                    stroke,
+                    egui::StrokeKind::Inside,
+                );
             }
             WindowButton::Minimize => {
                 let d = 5.0;

@@ -7,16 +7,16 @@ use crate::theme::{self, ThemeColors};
 
 impl MiaoApp {
     pub fn render_settings_page(&mut self, ui: &mut egui::Ui) {
-        egui::SidePanel::left("settings_nav")
+        egui::Panel::left("settings_nav")
             .resizable(false)
-            .exact_width(140.0)
-            .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(6.0, 0.0)))
+            .exact_size(140.0)
+            .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(6, 0)))
             .show_inside(ui, |ui| {
                 self.render_settings_nav(ui);
             });
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(16.0, 0.0)))
+            .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(16, 0)))
             .show_inside(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .id_salt("settings_content")
@@ -60,7 +60,7 @@ impl MiaoApp {
 
                 let response = ui.add_sized(
                     [ui.available_width(), 32.0],
-                    egui::SelectableLabel::new(selected, text),
+                    egui::Button::new(text).selected(selected),
                 );
 
                 if selected {
@@ -70,7 +70,7 @@ impl MiaoApp {
                             egui::pos2(rect.right() - 3.0, rect.top() + 4.0),
                             egui::pos2(rect.right(), rect.bottom() - 4.0),
                         ),
-                        egui::Rounding::same(1.5),
+                        egui::CornerRadius::same(2),
                         theme::Colors::accent(),
                     );
                 }
@@ -125,22 +125,22 @@ impl MiaoApp {
 
             for (i, (name, kind, avatar_path, cape_path, active)) in account_info.iter().enumerate()
             {
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(if *active {
                         theme::Colors::bg_widget_hover()
                     } else {
                         theme::Colors::bg_elevated()
                     })
-                    .rounding(egui::Rounding::same(6.0))
-                    .inner_margin(egui::Margin::symmetric(12.0, 8.0))
+                    .corner_radius(egui::CornerRadius::same(6))
+                    .inner_margin(egui::Margin::symmetric(12, 8))
                     .show(ui, |ui| {
                         ui.set_min_width(ui.available_width());
                         ui.horizontal(|ui| {
                             let (rect, _) = ui
                                 .allocate_exact_size(egui::vec2(32.0, 32.0), egui::Sense::hover());
                             let avatar_uri = format!("file://{}", avatar_path.display());
-                            let img =
-                                egui::Image::new(&avatar_uri).rounding(egui::Rounding::same(4.0));
+                            let img = egui::Image::new(&avatar_uri)
+                                .corner_radius(egui::CornerRadius::same(4));
                             img.paint_at(ui, rect);
                             if let Some(cape) = cape_path {
                                 ui.add_space(4.0);
@@ -149,8 +149,8 @@ impl MiaoApp {
                                     egui::Sense::hover(),
                                 );
                                 let cape_uri = format!("file://{}", cape.display());
-                                let cape_img =
-                                    egui::Image::new(&cape_uri).rounding(egui::Rounding::same(2.0));
+                                let cape_img = egui::Image::new(&cape_uri)
+                                    .corner_radius(egui::CornerRadius::same(2));
                                 cape_img.paint_at(ui, cape_rect);
                             }
                             ui.add_space(6.0);
@@ -243,13 +243,13 @@ impl MiaoApp {
                 ui.add_space(4.0);
                 let is_classic = self.offline_skin_model == miao_core::auth::SkinModel::Classic;
                 if ui
-                    .add(egui::SelectableLabel::new(is_classic, "Classic (Steve)"))
+                    .add(egui::Button::new("Classic (Steve)").selected(is_classic))
                     .clicked()
                 {
                     self.offline_skin_model = miao_core::auth::SkinModel::Classic;
                 }
                 if ui
-                    .add(egui::SelectableLabel::new(!is_classic, "Slim (Alex)"))
+                    .add(egui::Button::new("Slim (Alex)").selected(!is_classic))
                     .clicked()
                 {
                     self.offline_skin_model = miao_core::auth::SkinModel::Slim;
@@ -334,7 +334,7 @@ impl MiaoApp {
                     let (rect, _) =
                         ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
                     ui.painter()
-                        .rect_filled(rect, egui::Rounding::same(3.0), accent);
+                        .rect_filled(rect, egui::CornerRadius::same(3), accent);
 
                     let text = if selected {
                         egui::RichText::new(preset.name())
@@ -344,7 +344,7 @@ impl MiaoApp {
                         egui::RichText::new(preset.name()).color(theme::Colors::text_primary())
                     };
 
-                    if ui.add(egui::SelectableLabel::new(selected, text)).clicked() && !selected {
+                    if ui.add(egui::Button::new(text).selected(selected)).clicked() && !selected {
                         self.theme_preset = preset;
                         self.config.theme = preset;
                         if let Err(e) = self.config.save() {
@@ -365,7 +365,7 @@ impl MiaoApp {
             for lang_option in Language::ALL {
                 let selected = self.language == lang_option;
                 if ui
-                    .add(egui::SelectableLabel::new(selected, lang_option.name()))
+                    .add(egui::Button::new(lang_option.name()).selected(selected))
                     .clicked()
                     && !selected
                 {
@@ -661,10 +661,10 @@ impl MiaoApp {
 
         if let Some(ref version) = self.update_available.clone() {
             ui.add_space(12.0);
-            egui::Frame::none()
+            egui::Frame::NONE
                 .fill(theme::Colors::bg_elevated())
-                .rounding(egui::Rounding::same(6.0))
-                .inner_margin(egui::Margin::same(12.0))
+                .corner_radius(egui::CornerRadius::same(6))
+                .inner_margin(egui::Margin::same(12))
                 .stroke(egui::Stroke::new(1.5_f32, theme::Colors::warning()))
                 .show(ui, |ui| {
                     ui.set_min_width(ui.available_width());

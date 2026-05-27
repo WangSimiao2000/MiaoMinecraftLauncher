@@ -6,11 +6,12 @@ use crate::theme;
 use crate::widgets::InstanceCard;
 
 impl MiaoApp {
+    #[allow(deprecated)]
     pub fn render_sidebar(&mut self, ctx: &egui::Context) {
         let lang = self.language;
-        egui::SidePanel::left("instance_list")
+        egui::Panel::left("instance_list")
             .resizable(true)
-            .default_width(240.0)
+            .default_size(240.0)
             .frame(theme::panel_frame())
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
@@ -77,7 +78,7 @@ impl MiaoApp {
 
                     if bg_color != egui::Color32::TRANSPARENT {
                         ui.painter()
-                            .rect_filled(rect, egui::Rounding::same(4.0), bg_color);
+                            .rect_filled(rect, egui::CornerRadius::same(4), bg_color);
                     }
 
                     let text_color = if is_active {

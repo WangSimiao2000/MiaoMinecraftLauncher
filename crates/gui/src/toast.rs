@@ -115,7 +115,7 @@ impl ToastQueue {
 
         ctx.request_repaint();
 
-        let screen_rect = ctx.screen_rect();
+        let screen_rect = ctx.content_rect();
         let toast_width = 320.0_f32.min(screen_rect.width() - 32.0);
         let base_x = screen_rect.right() - toast_width - 16.0;
         let mut y = screen_rect.top() + 50.0;
@@ -145,10 +145,10 @@ impl ToastQueue {
 
             let response = area.show(ctx, |ui| {
                 let color = toast.level.color();
-                let frame = egui::Frame::none()
+                let frame = egui::Frame::NONE
                     .fill(theme::Colors::bg_elevated().gamma_multiply(alpha as f32 / 255.0))
-                    .rounding(egui::Rounding::same(6.0))
-                    .inner_margin(egui::Margin::symmetric(12.0, 8.0))
+                    .corner_radius(egui::CornerRadius::same(6))
+                    .inner_margin(egui::Margin::symmetric(12, 8))
                     .stroke(egui::Stroke::new(
                         1.0,
                         color.gamma_multiply(alpha as f32 / 255.0),

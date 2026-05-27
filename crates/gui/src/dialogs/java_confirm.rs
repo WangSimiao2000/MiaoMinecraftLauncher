@@ -17,14 +17,14 @@ impl MiaoApp {
         let t = ctx.animate_bool_with_time(anim_id, true, 0.15);
         let opacity = t;
 
-        let frame = egui::Frame::window(&ctx.style())
+        let frame = egui::Frame::window(&ctx.global_style())
             .fill(theme::Colors::bg_elevated())
             .stroke(egui::Stroke::new(
                 1.0,
                 theme::Colors::accent().gamma_multiply(0.5),
             ))
-            .rounding(egui::Rounding::same(10.0))
-            .inner_margin(egui::Margin::same(16.0));
+            .corner_radius(egui::CornerRadius::same(10))
+            .inner_margin(egui::Margin::same(16));
 
         egui::Window::new("Java Required")
             .open(&mut open)

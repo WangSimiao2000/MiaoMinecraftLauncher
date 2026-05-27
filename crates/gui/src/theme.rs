@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use egui::{Color32, Margin, RichText, Rounding, Stroke, Vec2};
+use egui::{Color32, CornerRadius, Margin, RichText, Stroke, Vec2};
 pub use miao_core::config::ThemePreset;
 
 #[derive(Debug, Clone, Copy)]
@@ -170,8 +170,8 @@ impl Spacing {
     pub const ITEM: Vec2 = Vec2::new(8.0, 8.0);
     pub const BUTTON_PADDING: Vec2 = Vec2::new(12.0, 6.0);
     pub const INTERACT_SIZE: Vec2 = Vec2::new(40.0, 28.0);
-    pub const WINDOW_MARGIN: Margin = Margin::same(14.0);
-    pub const PANEL_MARGIN: Margin = Margin::same(12.0);
+    pub const WINDOW_MARGIN: Margin = Margin::same(14);
+    pub const PANEL_MARGIN: Margin = Margin::same(12);
     pub const SECTION_GAP: f32 = 16.0;
     pub const SMALL_GAP: f32 = 6.0;
 }
@@ -179,8 +179,8 @@ impl Spacing {
 pub struct Radii;
 
 impl Radii {
-    pub const WIDGET: Rounding = Rounding::same(4.0);
-    pub const WINDOW: Rounding = Rounding::same(8.0);
+    pub const WIDGET: CornerRadius = CornerRadius::same(4);
+    pub const WINDOW: CornerRadius = CornerRadius::same(8);
 }
 
 pub struct Fonts;
@@ -245,7 +245,7 @@ pub fn status_text(text: &str) -> RichText {
         .color(Colors::text_secondary())
 }
 
-pub const LIST_ITEM_ROUNDING: Rounding = Rounding::same(6.0);
+pub const LIST_ITEM_ROUNDING: CornerRadius = CornerRadius::same(6);
 pub const TAB_UNDERLINE_HEIGHT: f32 = 2.5;
 
 pub fn list_item_frame(hovered: bool, selected: bool) -> egui::Frame {
@@ -256,30 +256,30 @@ pub fn list_item_frame(hovered: bool, selected: bool) -> egui::Frame {
     } else {
         Color32::TRANSPARENT
     };
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(fill)
-        .rounding(LIST_ITEM_ROUNDING)
-        .inner_margin(Margin::symmetric(10.0, 6.0))
+        .corner_radius(LIST_ITEM_ROUNDING)
+        .inner_margin(Margin::symmetric(10, 6))
 }
 
 pub fn launch_button() -> egui::Button<'static> {
     egui::Button::new(RichText::new("▶ Launch").size(Fonts::BUTTON).strong())
         .fill(Colors::success())
-        .rounding(Rounding::same(6.0))
+        .corner_radius(CornerRadius::same(6))
 }
 
 pub fn danger_button(text: &str) -> egui::Button<'_> {
     egui::Button::new(RichText::new(text).size(Fonts::BODY))
         .fill(Colors::danger())
-        .rounding(Rounding::same(6.0))
+        .corner_radius(CornerRadius::same(6))
 }
 
 #[allow(dead_code)]
 pub fn card_frame() -> egui::Frame {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(Colors::bg_elevated())
-        .rounding(Rounding::same(8.0))
-        .inner_margin(Margin::same(14.0))
+        .corner_radius(CornerRadius::same(8))
+        .inner_margin(Margin::same(14))
         .stroke(Stroke::new(1.0_f32, Color32::from_white_alpha(6)))
 }
 
@@ -296,36 +296,36 @@ pub fn subtle_separator(ui: &mut egui::Ui) {
 }
 
 pub fn panel_frame() -> egui::Frame {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(Colors::bg_panel().gamma_multiply(0.92))
         .inner_margin(Spacing::PANEL_MARGIN)
 }
 
 pub fn top_bar_frame() -> egui::Frame {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(Colors::bg_dark().gamma_multiply(0.94))
-        .inner_margin(Margin::symmetric(12.0, 6.0))
+        .inner_margin(Margin::symmetric(12, 6))
         .stroke(Stroke::new(0.5, Color32::from_white_alpha(10)))
 }
 
 pub fn bottom_bar_frame() -> egui::Frame {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(Colors::bg_dark().gamma_multiply(0.94))
-        .inner_margin(Margin::symmetric(12.0, 6.0))
+        .inner_margin(Margin::symmetric(12, 6))
 }
 
 pub fn section_frame() -> egui::Frame {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(Colors::bg_elevated())
-        .rounding(Radii::WINDOW)
-        .inner_margin(Margin::same(16.0))
+        .corner_radius(Radii::WINDOW)
+        .inner_margin(Margin::same(16))
 }
 
 pub fn list_item_card() -> egui::Frame {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(Colors::bg_elevated())
-        .rounding(Rounding::same(6.0))
-        .inner_margin(Margin::symmetric(12.0, 8.0))
+        .corner_radius(CornerRadius::same(6))
+        .inner_margin(Margin::symmetric(12, 8))
 }
 
 #[allow(dead_code)]
@@ -361,17 +361,17 @@ fn build_visuals(pal: &Palette) -> egui::Visuals {
     widgets.inactive.bg_fill = pal.bg_widget;
     widgets.inactive.weak_bg_fill = pal.bg_widget;
     widgets.inactive.fg_stroke = Stroke::new(1.0, pal.text_primary);
-    widgets.inactive.rounding = Radii::WIDGET;
+    widgets.inactive.corner_radius = Radii::WIDGET;
 
     widgets.hovered.bg_fill = pal.bg_widget_hover;
     widgets.hovered.weak_bg_fill = pal.bg_widget_hover;
     widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::WHITE);
-    widgets.hovered.rounding = Radii::WIDGET;
+    widgets.hovered.corner_radius = Radii::WIDGET;
 
     widgets.active.bg_fill = pal.accent;
     widgets.active.weak_bg_fill = pal.accent;
     widgets.active.fg_stroke = Stroke::new(1.0, Color32::WHITE);
-    widgets.active.rounding = Radii::WIDGET;
+    widgets.active.corner_radius = Radii::WIDGET;
 
     widgets.open.bg_fill = pal.bg_widget_hover;
     widgets.open.weak_bg_fill = pal.bg_widget_hover;
@@ -390,21 +390,21 @@ fn build_visuals(pal: &Palette) -> egui::Visuals {
     visuals.panel_fill = pal.bg_main;
     visuals.window_fill = pal.bg_elevated;
     visuals.window_stroke = Stroke::new(1.0, pal.accent.gamma_multiply(0.3));
-    visuals.window_rounding = Radii::WINDOW;
+    visuals.window_corner_radius = Radii::WINDOW;
     visuals.extreme_bg_color = pal.bg_dark;
     visuals.faint_bg_color = pal.bg_elevated;
 
     // Shadows.
-    visuals.window_shadow = egui::epaint::Shadow {
-        offset: Vec2::new(0.0, 4.0),
-        blur: 12.0,
-        spread: 0.0,
+    visuals.window_shadow = egui::Shadow {
+        offset: [0, 4],
+        blur: 12,
+        spread: 0,
         color: Color32::from_black_alpha(60),
     };
-    visuals.popup_shadow = egui::epaint::Shadow {
-        offset: Vec2::new(0.0, 8.0),
-        blur: 24.0,
-        spread: 2.0,
+    visuals.popup_shadow = egui::Shadow {
+        offset: [0, 8],
+        blur: 24,
+        spread: 2,
         color: Color32::from_black_alpha(100),
     };
 
@@ -430,5 +430,5 @@ pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
     ACTIVE_PALETTE.with(|p| *p.borrow_mut() = pal);
 
     ctx.set_visuals(build_visuals(&pal));
-    ctx.style_mut(apply_layout);
+    ctx.global_style_mut(apply_layout);
 }

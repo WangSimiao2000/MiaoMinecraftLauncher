@@ -45,10 +45,10 @@ impl MiaoApp {
         inst: &miao_core::instance::Instance,
         idx: usize,
     ) {
-        egui::Frame::none()
+        egui::Frame::NONE
             .fill(theme::Colors::bg_elevated())
-            .rounding(theme::Radii::WIDGET)
-            .inner_margin(egui::Margin::same(12.0))
+            .corner_radius(theme::Radii::WIDGET)
+            .inner_margin(egui::Margin::same(12))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
@@ -152,7 +152,7 @@ impl MiaoApp {
                             egui::pos2(rect.left() + 2.0, bottom - theme::TAB_UNDERLINE_HEIGHT),
                             egui::pos2(rect.right() - 2.0, bottom),
                         ),
-                        egui::Rounding::same(1.5),
+                        egui::CornerRadius::same(2),
                         theme::Colors::accent(),
                     );
                 }

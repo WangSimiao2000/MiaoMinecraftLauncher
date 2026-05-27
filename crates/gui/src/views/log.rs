@@ -30,10 +30,10 @@ impl MiaoApp {
         ui.add_space(theme::Spacing::SMALL_GAP);
 
         if has_live_log {
-            egui::Frame::none()
+            egui::Frame::NONE
                 .fill(theme::Colors::bg_dark())
-                .rounding(theme::Radii::WIDGET)
-                .inner_margin(egui::Margin::same(8.0))
+                .corner_radius(theme::Radii::WIDGET)
+                .inner_margin(egui::Margin::same(8))
                 .show(ui, |ui| {
                     egui::ScrollArea::vertical()
                         .max_height(500.0)
@@ -62,10 +62,10 @@ impl MiaoApp {
             let tail_start = lines.len().saturating_sub(100);
             let tail = &lines[tail_start..];
 
-            egui::Frame::none()
+            egui::Frame::NONE
                 .fill(theme::Colors::bg_dark())
-                .rounding(theme::Radii::WIDGET)
-                .inner_margin(egui::Margin::same(8.0))
+                .corner_radius(theme::Radii::WIDGET)
+                .inner_margin(egui::Margin::same(8))
                 .show(ui, |ui| {
                     egui::ScrollArea::vertical()
                         .max_height(500.0)

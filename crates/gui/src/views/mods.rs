@@ -93,18 +93,18 @@ impl MiaoApp {
             let mr_btn = if mr_selected {
                 egui::Button::new(egui::RichText::new("Modrinth").color(egui::Color32::WHITE))
                     .fill(theme::Colors::accent())
-                    .rounding(egui::Rounding {
-                        nw: 6.0,
-                        sw: 6.0,
-                        ne: 0.0,
-                        se: 0.0,
+                    .corner_radius(egui::CornerRadius {
+                        nw: 6,
+                        sw: 6,
+                        ne: 0,
+                        se: 0,
                     })
             } else {
-                egui::Button::new("Modrinth").rounding(egui::Rounding {
-                    nw: 6.0,
-                    sw: 6.0,
-                    ne: 0.0,
-                    se: 0.0,
+                egui::Button::new("Modrinth").corner_radius(egui::CornerRadius {
+                    nw: 6,
+                    sw: 6,
+                    ne: 0,
+                    se: 0,
                 })
             };
             if ui.add(mr_btn).clicked() && !mr_selected {
@@ -115,18 +115,18 @@ impl MiaoApp {
             let cf_btn = if cf_selected {
                 egui::Button::new(egui::RichText::new("CurseForge").color(egui::Color32::WHITE))
                     .fill(egui::Color32::from_rgb(240, 100, 30))
-                    .rounding(egui::Rounding {
-                        nw: 0.0,
-                        sw: 0.0,
-                        ne: 6.0,
-                        se: 6.0,
+                    .corner_radius(egui::CornerRadius {
+                        nw: 0,
+                        sw: 0,
+                        ne: 6,
+                        se: 6,
                     })
             } else {
-                egui::Button::new("CurseForge").rounding(egui::Rounding {
-                    nw: 0.0,
-                    sw: 0.0,
-                    ne: 6.0,
-                    se: 6.0,
+                egui::Button::new("CurseForge").corner_radius(egui::CornerRadius {
+                    nw: 0,
+                    sw: 0,
+                    ne: 6,
+                    se: 6,
                 })
             };
             if ui.add(cf_btn).clicked() && !cf_selected {
@@ -206,10 +206,10 @@ impl MiaoApp {
                 let card_id = egui::Id::new(("mod_hit", i));
                 let pointer_pos = ui.ctx().input(|inp| inp.pointer.hover_pos());
 
-                let frame_response = egui::Frame::none()
+                let frame_response = egui::Frame::NONE
                     .fill(theme::Colors::bg_elevated())
-                    .rounding(egui::Rounding::same(6.0))
-                    .inner_margin(egui::Margin::symmetric(12.0, 8.0))
+                    .corner_radius(egui::CornerRadius::same(6))
+                    .inner_margin(egui::Margin::symmetric(12, 8))
                     .show(ui, |ui| {
                         ui.set_min_width(ui.available_width());
                         ui.horizontal(|ui| {
@@ -243,7 +243,7 @@ impl MiaoApp {
                         egui::Color32::from_white_alpha(8)
                     };
                     ui.painter()
-                        .rect_filled(card_rect, egui::Rounding::same(6.0), fill);
+                        .rect_filled(card_rect, egui::CornerRadius::same(6), fill);
                 }
 
                 let response = ui.interact(card_rect, card_id, egui::Sense::click());
@@ -325,10 +325,10 @@ impl MiaoApp {
                 let card_id = egui::Id::new(("cf_mod", cf_mod.id));
                 let pointer_pos = ui.ctx().input(|inp| inp.pointer.hover_pos());
 
-                let frame_response = egui::Frame::none()
+                let frame_response = egui::Frame::NONE
                     .fill(theme::Colors::bg_elevated())
-                    .rounding(egui::Rounding::same(6.0))
-                    .inner_margin(egui::Margin::symmetric(12.0, 8.0))
+                    .corner_radius(egui::CornerRadius::same(6))
+                    .inner_margin(egui::Margin::symmetric(12, 8))
                     .show(ui, |ui| {
                         ui.set_min_width(ui.available_width());
                         ui.horizontal(|ui| {
@@ -357,7 +357,7 @@ impl MiaoApp {
                 if is_hovered {
                     ui.painter().rect_filled(
                         card_rect,
-                        egui::Rounding::same(6.0),
+                        egui::CornerRadius::same(6),
                         egui::Color32::from_white_alpha(8),
                     );
                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -438,10 +438,10 @@ impl MiaoApp {
         let main_dep = pending.deps.iter().find(|d| !d.is_dependency);
         let dep_list: Vec<_> = pending.deps.iter().filter(|d| d.is_dependency).collect();
 
-        egui::Frame::none()
+        egui::Frame::NONE
             .fill(theme::Colors::bg_elevated())
-            .rounding(egui::Rounding::same(8.0))
-            .inner_margin(egui::Margin::same(14.0))
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::same(14))
             .stroke(egui::Stroke::new(
                 1.5_f32,
                 egui::Color32::from_rgb(240, 100, 30),
@@ -633,10 +633,10 @@ impl MiaoApp {
         let main_mod = pending.deps.iter().find(|d| !d.is_dependency);
         let dep_mods: Vec<_> = pending.deps.iter().filter(|d| d.is_dependency).collect();
 
-        egui::Frame::none()
+        egui::Frame::NONE
             .fill(theme::Colors::bg_elevated())
-            .rounding(egui::Rounding::same(8.0))
-            .inner_margin(egui::Margin::same(14.0))
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::same(14))
             .stroke(egui::Stroke::new(1.5_f32, theme::Colors::accent()))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());

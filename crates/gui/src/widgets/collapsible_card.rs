@@ -31,10 +31,10 @@ impl<'a> CollapsibleCard<'a> {
             .ctx()
             .data_mut(|d| *d.get_persisted_mut_or(self.id, self.default_open));
 
-        let frame = egui::Frame::none()
+        let frame = egui::Frame::NONE
             .fill(theme::Colors::bg_elevated())
-            .rounding(egui::Rounding::same(8.0))
-            .inner_margin(egui::Margin::same(0.0))
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::same(0))
             .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(6)));
 
         frame.show(ui, |ui| {
@@ -64,12 +64,10 @@ impl<'a> CollapsibleCard<'a> {
 
             if open {
                 ui.add_space(4.0);
-                let inner_margin = egui::Margin::symmetric(14.0, 0.0);
-                egui::Frame::none()
-                    .inner_margin(inner_margin)
-                    .show(ui, |ui| {
-                        add_body(ui);
-                    });
+                let inner_margin = egui::Margin::symmetric(14, 0);
+                egui::Frame::NONE.inner_margin(inner_margin).show(ui, |ui| {
+                    add_body(ui);
+                });
                 ui.add_space(14.0);
             }
         })
