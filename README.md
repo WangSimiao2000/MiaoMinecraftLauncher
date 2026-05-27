@@ -1,27 +1,50 @@
+<div align="center">
+
+<img src="icon.png" width="128" alt="MMCL Logo">
+
 # MMCL (MiaoMinecraftLauncher)
 
-A feature-rich Minecraft launcher built in Rust with cross-platform support. Ships with both CLI and native GUI interfaces.
+A feature-rich Minecraft launcher built in Rust — fast, native, and open source.
 
-## Features
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-nightly-orange.svg)](rust-toolchain.toml)
+[![Tests](https://img.shields.io/badge/Tests-265%20passing-brightgreen.svg)](#development)
 
-- **Instance Management** — Create, configure, and launch isolated Minecraft instances
-- **Mod Loader Support** — Fabric, Quilt, NeoForge, and Forge with one-click install
-- **Modrinth Integration** — Search, install mods with automatic dependency resolution
-- **CurseForge Integration** — Search, install mods with dependency resolution (built-in API key)
-- **Modpack Support** — Import/export `.mrpack` modpacks
-- **Java Auto-Detection** — Finds compatible system Java or downloads from Adoptium
-- **Download Mirrors** — BMCLAPI mirror with multi-source failover and automatic retry
-- **Microsoft Login** — Full OAuth device code flow (+ offline mode)
-- **Third-Party Skin Sites** — authlib-injector support (LittleSkin, Blessing Skin, etc.)
-- **Crash Analysis** — Intelligent crash-report and log parsing with mod identification
-- **Self-Update** — Check and apply updates from GitHub Releases
-- **Resource Management** — Resource packs, shader packs, world saves
+</div>
+
+---
 
 ## Screenshots
 
-*Coming soon*
+<p align="center">
+  <img src="screenshots/instance.png" width="720" alt="Instance view with mod management">
+  <br>
+  <em>Instance detail — Fabric 1.21.11 with installed mods</em>
+</p>
 
-## Installation
+<p align="center">
+  <img src="screenshots/about.png" width="720" alt="Settings — About page">
+  <br>
+  <em>Settings — About</em>
+</p>
+
+## Features
+
+| Category | Highlights |
+|----------|-----------|
+| **Instances** | Create, configure, and launch isolated Minecraft instances |
+| **Mod Loaders** | One-click install for Fabric, Quilt, NeoForge, and Forge |
+| **Modrinth** | Search & install mods with automatic dependency resolution |
+| **CurseForge** | Search & install mods with built-in API key |
+| **Modpacks** | Import/export `.mrpack` modpacks |
+| **Java** | Auto-detect compatible JVM or download from Adoptium |
+| **Downloads** | BMCLAPI mirror, multi-source failover, concurrent downloads |
+| **Auth** | Microsoft OAuth device-code flow, offline mode, authlib-injector (LittleSkin, etc.) |
+| **Diagnostics** | Crash-report & log parsing with mod-level identification |
+| **Updates** | Self-update from GitHub Releases |
+| **Resources** | Resource packs, shader packs, world saves |
+
+## Quick Start
 
 ### Build from Source
 
@@ -34,75 +57,43 @@ cargo build --release
 ```
 
 Binaries output to `target/release/`:
-- `miao` — Command-line interface
-- `miao-gui` — Native GUI (egui)
 
-### System Dependencies (GUI)
+| Binary | Description |
+|--------|-------------|
+| `miao` | Command-line interface |
+| `miao-gui` | Native GUI (egui) |
 
-On Debian/Ubuntu:
+### System Dependencies (Linux GUI)
+
 ```bash
+# Debian / Ubuntu
 sudo apt install libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
 ```
 
-## Usage
-
-### GUI
+### Run
 
 ```bash
+# GUI
 cargo run -p miao-gui --release
-```
 
-### CLI
-
-```bash
-# List available versions
+# CLI examples
 miao versions
-
-# Create an instance
-miao new 1.20.4 --name "My Server" --loader fabric
-
-# Launch
-miao launch "My Server"
-
-# Search and install mods
-miao mod-search sodium --mc-version 1.20.4 --loader fabric
-miao mod-install "My Server" sodium
+miao new 1.21.1 --name "My Instance" --loader fabric
+miao launch "My Instance"
+miao mod-search sodium --mc-version 1.21.1 --loader fabric
+miao mod-install "My Instance" sodium
 ```
 
-## Project Structure
+## Architecture
 
 ```
 crates/
-├── core/       # Core library (auth, downloads, instance, modloader, modrinth)
-├── cli/        # CLI interface (clap)
-└── gui/        # Native GUI (egui/eframe)
-docs/
-├── architecture.md    # System architecture & modules
-├── cross-platform.md  # Cross-platform support roadmap
-├── ui-design.md       # UI design system & rules
-└── testing.md         # Testing strategy & coverage
+├── core/    Core library — auth, downloads, instance, modloaders, Modrinth, CurseForge
+├── cli/     CLI frontend (clap)
+└── gui/     Native GUI frontend (egui / eframe)
 ```
 
-See [docs/architecture.md](docs/architecture.md) for detailed module documentation.
-
-## Development
-
-```bash
-# Check everything compiles
-cargo check --workspace
-
-# Run all tests
-cargo test --workspace
-
-# Lint
-cargo clippy --workspace -- -D warnings
-
-# Format
-cargo fmt --all
-
-# Coverage (requires cargo-tarpaulin)
-cargo tarpaulin -p miao-core --skip-clean
-```
+See [`docs/architecture.md`](docs/architecture.md) for detailed module documentation.
 
 ## Tech Stack
 
@@ -113,10 +104,19 @@ cargo tarpaulin -p miao-core --skip-clean
 | HTTP | reqwest |
 | GUI | egui 0.34 / eframe |
 | CLI | clap (derive) |
-| Serialization | serde + toml/json |
-| Font | MiSans Medium (bundled, 7.8MB) |
+| Serialization | serde + toml / json |
+| Font | MiSans Medium (bundled) |
 | Icons | Bootstrap Icons (bundled TTF) |
-| Skin | Mojang session server → local crop & cache |
+
+## Development
+
+```bash
+cargo check --workspace          # Compile check
+cargo test --workspace           # Run all tests
+cargo clippy --workspace -- -D warnings  # Lint
+cargo fmt --all                  # Format
+cargo tarpaulin -p miao-core --skip-clean  # Coverage
+```
 
 ## Contributing
 
@@ -126,7 +126,7 @@ cargo tarpaulin -p miao-core --skip-clean
 4. Ensure `cargo clippy -- -D warnings` and `cargo test` pass
 5. Submit a pull request
 
-## Open Source Credits
+## Credits
 
 | Asset | License | Source |
 |-------|---------|--------|
