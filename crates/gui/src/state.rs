@@ -19,6 +19,7 @@ pub enum SettingsTab {
     Appearance,
     Data,
     Java,
+    Help,
     About,
 }
 
@@ -398,6 +399,24 @@ impl I18n {
             (Language::Chinese, "author") => "作者",
             (Language::English, "open_source_credits") => "Open Source Credits",
             (Language::Chinese, "open_source_credits") => "开源致谢",
+            (Language::English, "game_folders") => "Game Folders",
+            (Language::Chinese, "game_folders") => "游戏文件夹",
+            (Language::English, "game_folders_desc") => {
+                "Manage multiple game directories. Switch between them to use different instance sets."
+            }
+            (Language::Chinese, "game_folders_desc") => {
+                "管理多个游戏目录，切换后将使用对应目录下的实例。"
+            }
+            (Language::English, "add_folder") => "Add Folder",
+            (Language::Chinese, "add_folder") => "添加文件夹",
+            (Language::English, "switch") => "Switch",
+            (Language::Chinese, "switch") => "切换",
+            (Language::English, "folder_switched") => "Switched game folder.",
+            (Language::Chinese, "folder_switched") => "已切换游戏文件夹。",
+            (Language::English, "help") => "Help",
+            (Language::Chinese, "help") => "帮助",
+            (Language::English, "faq") => "Frequently Asked Questions",
+            (Language::Chinese, "faq") => "常见问题",
             (Language::English, "username") => "Username",
             (Language::Chinese, "username") => "用户名",
             (Language::English, "cf_no_key") => {

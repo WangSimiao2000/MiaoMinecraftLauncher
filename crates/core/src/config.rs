@@ -8,6 +8,8 @@ use crate::auth::AuthMethod;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LauncherConfig {
     pub data_dir: PathBuf,
+    #[serde(default)]
+    pub game_folders: Vec<PathBuf>,
     pub java_paths: Vec<PathBuf>,
     pub download_mirror: DownloadMirror,
     pub max_concurrent_downloads: usize,
@@ -86,6 +88,7 @@ impl Default for LauncherConfig {
 
         Self {
             data_dir,
+            game_folders: Vec::new(),
             java_paths: Vec::new(),
             download_mirror: DownloadMirror::default(),
             max_concurrent_downloads: 64,

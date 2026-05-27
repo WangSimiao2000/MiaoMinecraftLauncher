@@ -27,6 +27,7 @@ impl MiaoApp {
                             SettingsTab::Appearance => self.render_tab_appearance(ui),
                             SettingsTab::Data => self.render_tab_data(ui),
                             SettingsTab::Java => self.render_tab_java(ui),
+                            SettingsTab::Help => self.render_tab_help(ui),
                             SettingsTab::About => self.render_tab_about(ui),
                         }
                         ui.add_space(16.0);
@@ -45,6 +46,7 @@ impl MiaoApp {
                 (SettingsTab::Appearance, I18n::t(lang, "appearance")),
                 (SettingsTab::Data, I18n::t(lang, "data")),
                 (SettingsTab::Java, I18n::t(lang, "java")),
+                (SettingsTab::Help, I18n::t(lang, "help")),
                 (SettingsTab::About, I18n::t(lang, "about")),
             ];
 
@@ -459,6 +461,72 @@ impl MiaoApp {
         });
 
         ui.add_space(16.0);
+        ui.label(theme::subheading(I18n::t(lang, "game_folders")));
+        ui.add_space(8.0);
+
+        theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.label(theme::muted(I18n::t(lang, "game_folders_desc")));
+            ui.add_space(8.0);
+
+            let active = self.config.data_dir.display().to_string();
+            let mut switch_to: Option<std::path::PathBuf> = None;
+            let mut remove_idx: Option<usize> = None;
+
+            for (i, folder) in self.config.game_folders.iter().enumerate() {
+                let is_active = *folder == self.config.data_dir;
+                ui.horizontal(|ui| {
+                    if is_active {
+                        ui.label(theme::body(&format!("▶ {}", folder.display())));
+                    } else {
+                        ui.label(theme::muted(&folder.display().to_string()));
+                        if ui.small_button(I18n::t(lang, "switch")).clicked() {
+                            switch_to = Some(folder.clone());
+                        }
+                    }
+                    if !is_active && ui.small_button("✕").clicked() {
+                        remove_idx = Some(i);
+                    }
+                });
+            }
+
+            if self.config.game_folders.is_empty()
+                || !self.config.game_folders.contains(&self.config.data_dir)
+            {
+                ui.horizontal(|ui| {
+                    ui.label(theme::body(&format!("▶ {}", active)));
+                });
+            }
+
+            ui.add_space(8.0);
+            if ui.button(I18n::t(lang, "add_folder")).clicked()
+                && let Some(folder) = rfd::FileDialog::new()
+                    .set_title("Select game folder")
+                    .pick_folder()
+                && !self.config.game_folders.contains(&folder)
+            {
+                self.config.game_folders.push(folder);
+                let _ = self.config.save();
+            }
+
+            if let Some(idx) = remove_idx {
+                self.config.game_folders.remove(idx);
+                let _ = self.config.save();
+            }
+
+            if let Some(path) = switch_to {
+                self.config.data_dir = path;
+                self.data_dir_input = self.config.data_dir.display().to_string();
+                let _ = self.config.save();
+                self.instances = miao_core::instance::list_instances(&self.config.instances_dir())
+                    .unwrap_or_default();
+                self.selected_instance = None;
+                self.cached_javas = None;
+                self.status = I18n::t(lang, "folder_switched").to_string();
+            }
+        });
+
+        ui.add_space(16.0);
         ui.label(theme::subheading(I18n::t(lang, "mirror")));
         ui.add_space(8.0);
 
@@ -635,6 +703,93 @@ impl MiaoApp {
                     ui.add_space(4.0);
                 }
             }
+        }
+    }
+
+    fn render_tab_help(&mut self, ui: &mut egui::Ui) {
+        let lang = self.language;
+
+        ui.label(theme::subheading(I18n::t(lang, "faq")));
+        ui.add_space(8.0);
+
+        let faqs: &[(&str, &str)] = match lang {
+            Language::English => &[
+                (
+                    "Game won't launch / crashes immediately",
+                    "Check that you have a compatible Java version installed (Settings > Java). \
+                     Minecraft 1.17+ requires Java 17+, and 1.20.5+ requires Java 21+. \
+                     MMCL can auto-download the correct version if needed.",
+                ),
+                (
+                    "Mods not showing up after install",
+                    "Ensure the mod is compatible with both your Minecraft version and mod loader. \
+                     Fabric mods won't work with Forge/NeoForge and vice versa.",
+                ),
+                (
+                    "Microsoft login fails or times out",
+                    "Make sure you complete the device code login within 15 minutes. \
+                     If it keeps failing, check your network connection and try again.",
+                ),
+                (
+                    "Downloads are slow",
+                    "Try switching to BMCLAPI mirror in Settings > Data. \
+                     It significantly speeds up downloads in mainland China.",
+                ),
+                (
+                    "How to use a third-party skin site (LittleSkin)?",
+                    "Add an authlib-injector account in Settings > Account. \
+                     Enter the skin server URL (e.g. https://littleskin.cn/api/yggdrasil).",
+                ),
+                (
+                    "How to import/export modpacks?",
+                    "Use the Export button on an instance to create a .mrpack file. \
+                     Use the Import button in the sidebar to load one. \
+                     Only Modrinth .mrpack format is supported.",
+                ),
+            ],
+            Language::Chinese => &[
+                (
+                    "游戏无法启动 / 立即崩溃",
+                    "检查是否安装了兼容的 Java 版本（设置 > Java）。\
+                     Minecraft 1.17+ 需要 Java 17+，1.20.5+ 需要 Java 21+。\
+                     MMCL 可以自动下载正确版本。",
+                ),
+                (
+                    "安装 Mod 后不显示",
+                    "确保 Mod 与你的 Minecraft 版本和加载器兼容。\
+                     Fabric Mod 不能用于 Forge/NeoForge，反之亦然。",
+                ),
+                (
+                    "微软登录失败或超时",
+                    "请在 15 分钟内完成设备码登录。\
+                     若持续失败，检查网络连接后重试。",
+                ),
+                (
+                    "下载速度很慢",
+                    "尝试在 设置 > 数据 中切换到 BMCLAPI 镜像源，\
+                     可显著提高国内下载速度。",
+                ),
+                (
+                    "如何使用第三方皮肤站（LittleSkin）？",
+                    "在 设置 > 账户 中添加 authlib-injector 账号，\
+                     输入皮肤站地址（如 https://littleskin.cn/api/yggdrasil）。",
+                ),
+                (
+                    "如何导入/导出整合包？",
+                    "点击实例的「导出」按钮生成 .mrpack 文件。\
+                     点击侧边栏的「导入」按钮加载整合包。\
+                     目前仅支持 Modrinth .mrpack 格式。",
+                ),
+            ],
+        };
+
+        for (question, answer) in faqs {
+            crate::widgets::CollapsibleCard::new(question, question)
+                .default_open(false)
+                .show(ui, |ui| {
+                    ui.label(theme::body(answer));
+                });
+            ui.add_space(4.0);
         }
     }
 
