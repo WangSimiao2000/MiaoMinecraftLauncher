@@ -81,14 +81,64 @@ pub async fn fetch_latest_asset(
         ADOPTIUM_API, major_version, arch, os
     );
 
-    let assets: Vec<AdoptiumAsset> = http.get(&url).send().await?.json().await?;
+    // 添加重试机制
+    let mut attempts = 0;
+    let max_attempts = 3;
+    let mut last_error = None;
 
-    assets.into_iter().next().ok_or_else(|| {
+    while attempts < max_attempts {
+        attempts += 1;
+
+        match http
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(15))
+            .send()
+            .await
+        {
+            Ok(response) => {
+                match response.json::<Vec<AdoptiumAsset>>().await {
+                    Ok(assets) => {
+                        if let Some(asset) = assets.into_iter().next() {
+                            // 验证下载链接
+                            if asset.binary.package.link.is_empty() {
+                                last_error = Some(crate::error::MiaoError::Other(
+                                    "Empty download link in API response".to_string(),
+                                ));
+                                continue;
+                            }
+                            return Ok(asset);
+                        } else {
+                            last_error = Some(crate::error::MiaoError::Other(format!(
+                                "No JRE available for Java {} on {}/{}",
+                                major_version, os, arch
+                            )));
+                        }
+                    }
+                    Err(e) => {
+                        last_error = Some(e.into());
+                        if attempts < max_attempts {
+                            tokio::time::sleep(std::time::Duration::from_secs(2 * attempts)).await;
+                            continue;
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                last_error = Some(e.into());
+                if attempts < max_attempts {
+                    tokio::time::sleep(std::time::Duration::from_secs(2 * attempts)).await;
+                    continue;
+                }
+            }
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| {
         crate::error::MiaoError::Other(format!(
-            "No JRE available for Java {} on {}/{}",
-            major_version, os, arch
+            "Failed to fetch Java {} asset after {} attempts",
+            major_version, max_attempts
         ))
-    })
+    }))
 }
 
 pub async fn download_and_extract_java(
@@ -106,6 +156,7 @@ pub async fn download_and_extract_java_with_progress(
     on_progress: impl Fn(DownloadPhase),
 ) -> Result<PathBuf> {
     use futures::StreamExt;
+    use std::io::Write;
 
     let dest_dir = java_base_dir.join(format!("java-{}", asset.version.major));
     if dest_dir.exists() {
@@ -113,26 +164,84 @@ pub async fn download_and_extract_java_with_progress(
     }
     std::fs::create_dir_all(&dest_dir)?;
 
-    let response = http
-        .get(&asset.binary.package.link)
-        .send()
-        .await?
-        .error_for_status()?;
+    // 创建临时文件来存储下载
+    let temp_dir = std::env::temp_dir();
+    let temp_path = temp_dir.join(format!("java-download-{}.tmp", std::process::id()));
+
+    // 添加超时和重试
+    let mut attempts = 0;
+    let max_attempts = 3;
+    let mut last_error = None;
+    let mut response_opt = None;
+
+    while attempts < max_attempts {
+        attempts += 1;
+
+        match http
+            .get(&asset.binary.package.link)
+            .timeout(std::time::Duration::from_secs(30))
+            .send()
+            .await
+        {
+            Ok(response) => match response.error_for_status() {
+                Ok(response) => {
+                    response_opt = Some(response);
+                    break;
+                }
+                Err(e) => {
+                    last_error = Some(e);
+                    if attempts < max_attempts {
+                        tokio::time::sleep(std::time::Duration::from_secs(2 * attempts)).await;
+                        continue;
+                    }
+                }
+            },
+            Err(e) => {
+                last_error = Some(e);
+                if attempts < max_attempts {
+                    tokio::time::sleep(std::time::Duration::from_secs(2 * attempts)).await;
+                    continue;
+                }
+            }
+        }
+    }
+
+    // 如果所有尝试都失败
+    let response = match response_opt {
+        Some(response) => response,
+        None => {
+            if let Some(err) = last_error {
+                return Err(err.into());
+            } else {
+                return Err(crate::error::MiaoError::Other(
+                    "Failed to download Java after multiple attempts".to_string(),
+                )
+                .into());
+            }
+        }
+    };
 
     let total_size = asset.binary.package.size;
     let mut downloaded: u64 = 0;
-    let mut all_bytes = Vec::with_capacity(total_size as usize);
 
+    // 流式下载到文件，避免内存占用过大
+    let mut file = std::fs::File::create(&temp_path)?;
     let mut stream = response.bytes_stream();
+
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
         downloaded += chunk.len() as u64;
-        all_bytes.extend_from_slice(&chunk);
+        file.write_all(&chunk)?;
+
         on_progress(DownloadPhase::Downloading {
             downloaded,
             total: total_size,
         });
     }
+
+    // 确保所有数据都写入磁盘
+    file.sync_all()?;
+    drop(file); // 关闭文件句柄
 
     on_progress(DownloadPhase::Extracting);
 
@@ -140,14 +249,18 @@ pub async fn download_and_extract_java_with_progress(
     let is_windows = std::env::consts::OS == "windows";
     tokio::task::spawn_blocking(move || -> Result<()> {
         if is_windows {
-            let reader = std::io::Cursor::new(&all_bytes);
-            let mut archive = zip::ZipArchive::new(reader)?;
+            let file = std::fs::File::open(&temp_path)?;
+            let mut archive = zip::ZipArchive::new(file)?;
             archive.extract(&extract_dir)?;
         } else {
-            let tar_gz = flate2::read::GzDecoder::new(&all_bytes[..]);
+            let file = std::fs::File::open(&temp_path)?;
+            let tar_gz = flate2::read::GzDecoder::new(file);
             let mut archive = tar::Archive::new(tar_gz);
             archive.unpack(&extract_dir)?;
         }
+
+        // 清理临时文件
+        let _ = std::fs::remove_file(&temp_path);
         Ok(())
     })
     .await??;

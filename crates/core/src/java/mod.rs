@@ -19,20 +19,36 @@ impl JavaInstallation {
     }
 }
 
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
+
+static JAVA_CACHE: OnceLock<(Vec<JavaInstallation>, Instant)> = OnceLock::new();
+const CACHE_DURATION: Duration = Duration::from_secs(30); // 缓存30秒
+
 pub fn detect_system_java() -> Vec<JavaInstallation> {
+    let now = Instant::now();
+
+    // 检查缓存
+    if let Some((installations, cached_at)) = JAVA_CACHE.get() {
+        if now.duration_since(*cached_at) < CACHE_DURATION {
+            return installations.clone();
+        }
+    }
+
+    // 重新检测
     let data_dir = crate::config::LauncherConfig::default().data_dir;
-    detect_java_with_data_dir(&data_dir)
+    let installations = detect_java_with_data_dir(&data_dir);
+
+    // 更新缓存
+    let _ = JAVA_CACHE.set((installations.clone(), now));
+
+    installations
 }
 
 pub fn detect_java_with_data_dir(data_dir: &Path) -> Vec<JavaInstallation> {
-    let search_paths = system_java_search_paths();
-    let mut installations =
-        detect_java_in_paths(&search_paths.iter().map(|s| s.as_str()).collect::<Vec<_>>());
+    let mut installations = Vec::new();
 
-    // 检测PATH环境变量中的Java
-    installations.extend(detect_java_in_path());
-
-    // 检测JAVA_HOME环境变量
+    // 首先检查JAVA_HOME（最快）
     if let Ok(java_home) = std::env::var("JAVA_HOME") {
         let java_home_path = PathBuf::from(&java_home);
         let java_bin = java_home_path.join("bin").join(java_binary_name());
@@ -43,7 +59,16 @@ pub fn detect_java_with_data_dir(data_dir: &Path) -> Vec<JavaInstallation> {
         }
     }
 
-    // Windows注册表检测
+    // 然后检查PATH（次快）
+    installations.extend(detect_java_in_path());
+
+    // 并行检查其他路径
+    let search_paths = system_java_search_paths();
+    installations.extend(detect_java_in_paths(
+        &search_paths.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+    ));
+
+    // Windows注册表检测（可能较慢，放在后面）
     #[cfg(windows)]
     {
         installations.extend(detect_java_from_registry());
