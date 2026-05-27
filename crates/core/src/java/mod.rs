@@ -157,10 +157,10 @@ fn detect_java_in_path() -> Vec<JavaInstallation> {
     if let Ok(path_var) = std::env::var("PATH") {
         for path in path_var.split(std::path::MAIN_SEPARATOR) {
             let java_bin = PathBuf::from(path).join(java_binary_name());
-            if java_bin.exists() && java_bin.is_file() {
-                if let Ok(info) = probe_java(&java_bin) {
-                    installations.push(info);
-                }
+            if java_bin.exists() && java_bin.is_file()
+                && let Ok(info) = probe_java(&java_bin)
+            {
+                installations.push(info);
             }
         }
     }
@@ -170,6 +170,7 @@ fn detect_java_in_path() -> Vec<JavaInstallation> {
 
 /// Windows注册表检测Java安装
 #[cfg(windows)]
+#[allow(dead_code)]
 fn detect_java_from_registry() -> Vec<JavaInstallation> {
     use winreg::{enums::*, RegKey};
     
@@ -190,16 +191,16 @@ fn detect_java_from_registry() -> Vec<JavaInstallation> {
             // 获取所有子键（版本）
             let versions = key.enum_keys();
             for version in versions.flatten() {
-                if let Ok(subkey) = key.open_subkey(&version) {
-                    if let Ok(java_home) = subkey.get_value::<String, _>("JavaHome") {
-                        let java_home_path = PathBuf::from(&java_home);
-                        let java_bin = java_home_path.join("bin").join(java_binary_name());
-                        
-                        if java_bin.exists() {
-                            if let Ok(info) = probe_java(&java_bin) {
-                                installations.push(info);
-                            }
-                        }
+                if let Ok(subkey) = key.open_subkey(&version)
+                    && let Ok(java_home) = subkey.get_value::<String, _>("JavaHome")
+                {
+                    let java_home_path = PathBuf::from(&java_home);
+                    let java_bin = java_home_path.join("bin").join(java_binary_name());
+                    
+                    if java_bin.exists()
+                        && let Ok(info) = probe_java(&java_bin)
+                    {
+                        installations.push(info);
                     }
                 }
             }
@@ -210,6 +211,7 @@ fn detect_java_from_registry() -> Vec<JavaInstallation> {
 }
 
 #[cfg(not(windows))]
+#[allow(dead_code)]
 fn detect_java_from_registry() -> Vec<JavaInstallation> {
     Vec::new()
 }
