@@ -94,6 +94,20 @@ async fn controller_loop(
             AppCommand::StartMsLogin { client_id, config } => {
                 auth::handle_ms_login(client_id, config, event_tx.clone(), ctx.clone());
             }
+            AppCommand::StartAuthlibLogin {
+                server_url,
+                email,
+                password,
+            } => {
+                auth::handle_authlib_login(
+                    server_url,
+                    email,
+                    password,
+                    http.clone(),
+                    event_tx.clone(),
+                    ctx.clone(),
+                );
+            }
             AppCommand::DownloadJava {
                 task_id,
                 required_major,

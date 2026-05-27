@@ -314,6 +314,57 @@ impl MiaoApp {
                 }
             }
         });
+
+        ui.add_space(12.0);
+
+        theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.label(theme::body(I18n::t(lang, "authlib_account")));
+            ui.add_space(4.0);
+            ui.label(theme::muted(I18n::t(lang, "authlib_desc")));
+            ui.add_space(6.0);
+            ui.add(
+                egui::TextEdit::singleline(&mut self.auth.authlib_server_url)
+                    .vertical_align(egui::Align::Center)
+                    .min_size(ui.spacing().interact_size)
+                    .hint_text("https://littleskin.cn/api/yggdrasil"),
+            );
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.auth.authlib_email)
+                        .vertical_align(egui::Align::Center)
+                        .min_size(ui.spacing().interact_size)
+                        .hint_text(I18n::t(lang, "email")),
+                );
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.auth.authlib_password)
+                        .vertical_align(egui::Align::Center)
+                        .min_size(ui.spacing().interact_size)
+                        .hint_text(I18n::t(lang, "password"))
+                        .password(true),
+                );
+            });
+            ui.add_space(6.0);
+            if self.auth.authlib_logging_in {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(theme::muted(I18n::t(lang, "logging_in")));
+                });
+            } else if ui.button(I18n::t(lang, "sign_in")).clicked()
+                && !self.auth.authlib_server_url.is_empty()
+                && !self.auth.authlib_email.is_empty()
+                && !self.auth.authlib_password.is_empty()
+            {
+                self.auth.authlib_logging_in = true;
+                self.controller
+                    .send(crate::messages::AppCommand::StartAuthlibLogin {
+                        server_url: self.auth.authlib_server_url.clone(),
+                        email: self.auth.authlib_email.clone(),
+                        password: self.auth.authlib_password.clone(),
+                    });
+            }
+        });
     }
 
     fn render_tab_appearance(&mut self, ui: &mut egui::Ui) {

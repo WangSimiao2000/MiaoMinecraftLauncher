@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use egui::Context;
 use miao_core::auth::AuthMethod;
 use miao_core::auth::microsoft::{MicrosoftAuth, PollResult};
@@ -75,5 +77,33 @@ pub fn handle_ms_login(
                 Err(_) => continue,
             }
         }
+    });
+}
+
+pub fn handle_authlib_login(
+    server_url: String,
+    email: String,
+    password: String,
+    http: Arc<reqwest::Client>,
+    tx: mpsc::UnboundedSender<AppEvent>,
+    ctx: Context,
+) {
+    tokio::spawn(async move {
+        match miao_core::auth::authlib_injector::authenticate(&http, &server_url, &email, &password)
+            .await
+        {
+            Ok(account) => {
+                let _ = tx.send(AppEvent::LoginComplete {
+                    account: AuthMethod::AuthlibInjector(account),
+                });
+            }
+            Err(e) => {
+                let _ = tx.send(AppEvent::LoginFailed(format!(
+                    "Authlib login failed: {}",
+                    e
+                )));
+            }
+        }
+        ctx.request_repaint();
     });
 }

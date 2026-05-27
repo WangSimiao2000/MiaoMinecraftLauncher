@@ -283,11 +283,15 @@ impl MiaoApp {
                     self.auth.device_code = Some(dc);
                 }
                 AppEvent::LoginComplete { account } => {
-                    if let AuthMethod::Microsoft(ref ms) = account {
-                        let msg = format!("Logged in as {}", ms.username);
-                        self.status = format!("✓ {}", msg);
-                        self.toasts.success(msg);
-                    }
+                    let msg = match &account {
+                        AuthMethod::Microsoft(ms) => format!("Logged in as {}", ms.username),
+                        AuthMethod::AuthlibInjector(a) => {
+                            format!("Logged in as {} ({})", a.username, a.server_name)
+                        }
+                        AuthMethod::Offline(o) => format!("Added {}", o.username),
+                    };
+                    self.status = format!("✓ {}", msg);
+                    self.toasts.success(&msg);
                     self.config.accounts.push(account);
                     if self.config.active_account_index.is_none() {
                         self.config.active_account_index = Some(0);
@@ -298,12 +302,14 @@ impl MiaoApp {
                     }
                     self.auth.device_code = None;
                     self.auth.logging_in = false;
+                    self.auth.authlib_logging_in = false;
                 }
                 AppEvent::LoginFailed(msg) => {
                     self.status = msg.clone();
                     self.toasts.error(&msg);
                     self.auth.device_code = None;
                     self.auth.logging_in = false;
+                    self.auth.authlib_logging_in = false;
                 }
                 AppEvent::JavaProgress(msg) => {
                     self.status = msg;

@@ -48,6 +48,11 @@ pub enum AppCommand {
         client_id: String,
         config: LauncherConfig,
     },
+    StartAuthlibLogin {
+        server_url: String,
+        email: String,
+        password: String,
+    },
 
     // ── Java ──
     DownloadJava {

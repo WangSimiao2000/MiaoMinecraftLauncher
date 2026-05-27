@@ -70,6 +70,10 @@ pub struct InstallProgress {
 pub struct AuthUiState {
     pub device_code: Option<DeviceCodeResponse>,
     pub logging_in: bool,
+    pub authlib_server_url: String,
+    pub authlib_email: String,
+    pub authlib_password: String,
+    pub authlib_logging_in: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -415,6 +419,20 @@ impl I18n {
             (Language::Chinese, "folder_switched") => "已切换游戏文件夹。",
             (Language::English, "help") => "Help",
             (Language::Chinese, "help") => "帮助",
+            (Language::English, "authlib_account") => "Third-Party Skin Site (authlib-injector)",
+            (Language::Chinese, "authlib_account") => "第三方皮肤站（authlib-injector）",
+            (Language::English, "authlib_desc") => {
+                "Login with a Yggdrasil-compatible server (LittleSkin, Blessing Skin, etc.)"
+            }
+            (Language::Chinese, "authlib_desc") => {
+                "使用兼容 Yggdrasil 协议的皮肤站登录（LittleSkin、Blessing Skin 等）"
+            }
+            (Language::English, "email") => "Email",
+            (Language::Chinese, "email") => "邮箱",
+            (Language::English, "password") => "Password",
+            (Language::Chinese, "password") => "密码",
+            (Language::English, "logging_in") => "Logging in...",
+            (Language::Chinese, "logging_in") => "正在登录…",
             (Language::English, "faq") => "Frequently Asked Questions",
             (Language::Chinese, "faq") => "常见问题",
             (Language::English, "username") => "Username",
