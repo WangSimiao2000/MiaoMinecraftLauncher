@@ -32,6 +32,7 @@ impl MiaoApp {
             .collapsible(false)
             .default_width(380.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .order(egui::Order::Foreground)
             .frame(frame)
             .show(ctx, |ui| {
                 ui.set_opacity(opacity);

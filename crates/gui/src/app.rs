@@ -576,7 +576,7 @@ impl eframe::App for MiaoApp {
 
         if self.active_dialog != Dialog::None {
             let screen = ctx.content_rect();
-            let backdrop_clicked = egui::Area::new(egui::Id::new("dialog_blur_backdrop"))
+            egui::Area::new(egui::Id::new("dialog_blur_backdrop"))
                 .fixed_pos(screen.min)
                 .interactable(true)
                 .order(egui::Order::Middle)
@@ -584,12 +584,10 @@ impl eframe::App for MiaoApp {
                     ui.set_clip_rect(screen);
                     let tint = egui::Color32::from_black_alpha(120);
                     crate::blur::blur_behind(ui, &self.blur_renderer, screen, 12.0, tint);
-                    ui.allocate_rect(screen, egui::Sense::click()).clicked()
-                })
-                .inner;
-            if backdrop_clicked {
-                self.active_dialog = Dialog::None;
-            }
+                    if ui.allocate_rect(screen, egui::Sense::click()).clicked() {
+                        self.active_dialog = Dialog::None;
+                    }
+                });
         }
 
         match self.active_dialog {

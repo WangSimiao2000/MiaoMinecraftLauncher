@@ -141,6 +141,7 @@ impl BlurRenderer {
         rect_pixels: egui::Rect,
         radius: f32,
         tint: [f32; 4],
+        source_fbo: Option<glow::Framebuffer>,
     ) {
         let x = rect_pixels.left() as u32;
         let y = rect_pixels.top() as u32;
@@ -191,7 +192,7 @@ impl BlurRenderer {
                 gl.draw_arrays(glow::TRIANGLES, 0, 6);
             }
 
-            gl.bind_framebuffer(glow::FRAMEBUFFER, None);
+            gl.bind_framebuffer(glow::FRAMEBUFFER, source_fbo);
             gl.viewport(0, 0, screen_pixels[0] as i32, screen_pixels[1] as i32);
 
             gl.enable(glow::SCISSOR_TEST);
@@ -352,11 +353,12 @@ pub fn blur_behind(
                 tint.a() as f32 / 255.0,
             ];
 
-            renderer.render_blur(screen, rect_pixels, radius, tint_f);
+            let intermediate_fbo = painter.intermediate_fbo();
+            renderer.render_blur(screen, rect_pixels, radius, tint_f, intermediate_fbo);
 
             unsafe {
                 let gl = painter.gl();
-                gl.bind_framebuffer(glow::FRAMEBUFFER, painter.intermediate_fbo());
+                gl.bind_framebuffer(glow::FRAMEBUFFER, intermediate_fbo);
             }
         })),
     };
