@@ -12,7 +12,7 @@ edition = "2024"
 license = "GPL-3.0-or-later"
 authors = ["WangSimiao2000"]
 repository = "https://github.com/WangSimiao2000/MiaoMinecraftLauncher"
-description = "A feature-rich Minecraft launcher for Linux with CLI and GUI"
+description = "A feature-rich cross-platform Minecraft launcher with CLI and GUI"
 
 [workspace.dependencies]
 # Async runtime
