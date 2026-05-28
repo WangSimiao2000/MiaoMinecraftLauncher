@@ -432,7 +432,7 @@ impl MiaoApp {
                 ui.painter().rect_filled(
                     card_rect,
                     egui::CornerRadius::same(6),
-                    egui::Color32::from_white_alpha(8),
+                    theme::Colors::subtle_border(),
                 );
             }
 

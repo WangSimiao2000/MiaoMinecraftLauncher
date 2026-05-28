@@ -62,7 +62,7 @@ impl<'a> InstanceCard<'a> {
             self.name,
             egui::FontId::proportional(13.0),
             if self.selected {
-                egui::Color32::WHITE
+                theme::Colors::accent_light()
             } else {
                 theme::Colors::text_primary()
             },

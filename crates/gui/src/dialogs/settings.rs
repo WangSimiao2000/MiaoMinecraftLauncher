@@ -494,7 +494,7 @@ impl MiaoApp {
                         let stroke = if sel_t > 0.0 {
                             egui::Stroke::new(1.5, accent.gamma_multiply(sel_t))
                         } else {
-                            egui::Stroke::new(1.0, egui::Color32::from_white_alpha(10))
+                            egui::Stroke::new(1.0, theme::Colors::subtle_border())
                         };
 
                         ui.painter()

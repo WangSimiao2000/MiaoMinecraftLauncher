@@ -42,7 +42,7 @@ impl<'a> CollapsibleCard<'a> {
             .fill(theme::Colors::bg_elevated())
             .corner_radius(egui::CornerRadius::same(8))
             .inner_margin(egui::Margin::same(0))
-            .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(6)));
+            .stroke(egui::Stroke::new(1.0, theme::Colors::subtle_border()));
 
         frame.show(ui, |ui| {
             ui.set_min_width(ui.available_width());

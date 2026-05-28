@@ -198,6 +198,23 @@ impl Colors {
     pub fn text_disabled() -> Color32 {
         with_palette(|p| p.text_disabled)
     }
+    pub fn is_light() -> bool {
+        with_palette(|p| p.bg_main.r() > 180)
+    }
+    pub fn subtle_border() -> Color32 {
+        if Self::is_light() {
+            Color32::from_black_alpha(12)
+        } else {
+            Color32::from_white_alpha(6)
+        }
+    }
+    pub fn subtle_border_strong() -> Color32 {
+        if Self::is_light() {
+            Color32::from_black_alpha(20)
+        } else {
+            Color32::from_white_alpha(15)
+        }
+    }
 }
 
 pub struct Spacing;
@@ -317,7 +334,7 @@ pub fn card_frame() -> egui::Frame {
         .fill(Colors::bg_elevated())
         .corner_radius(CornerRadius::same(8))
         .inner_margin(Margin::same(14))
-        .stroke(Stroke::new(1.0_f32, Color32::from_white_alpha(6)))
+        .stroke(Stroke::new(1.0_f32, Colors::subtle_border()))
 }
 
 #[allow(dead_code)]
@@ -327,7 +344,7 @@ pub fn subtle_separator(ui: &mut egui::Ui) {
     let y = rect.top();
     ui.painter().line_segment(
         [egui::pos2(rect.left(), y), egui::pos2(rect.right(), y)],
-        Stroke::new(0.5_f32, Color32::from_white_alpha(15)),
+        Stroke::new(0.5_f32, Colors::subtle_border_strong()),
     );
     ui.add_space(4.0);
 }
@@ -348,7 +365,7 @@ pub fn top_bar_frame() -> egui::Frame {
             se: 0,
         })
         .inner_margin(Margin::symmetric(12, 6))
-        .stroke(Stroke::new(0.5, Color32::from_white_alpha(10)))
+        .stroke(Stroke::new(0.5, Colors::subtle_border()))
 }
 
 pub fn bottom_bar_frame() -> egui::Frame {
