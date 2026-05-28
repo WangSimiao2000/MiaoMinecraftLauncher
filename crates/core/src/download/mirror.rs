@@ -3,7 +3,9 @@ use crate::config::DownloadMirror;
 const BMCLAPI_BASE: &str = "https://bmclapi2.bangbang93.com";
 const MOJANG_LIBRARIES: &str = "https://libraries.minecraft.net";
 const MOJANG_RESOURCES: &str = "https://resources.download.minecraft.net";
-const MOJANG_LAUNCHER_META: &str = "https://piston-meta.mojang.com";
+const MOJANG_PISTON_META: &str = "https://piston-meta.mojang.com";
+const MOJANG_PISTON_DATA: &str = "https://piston-data.mojang.com";
+const MOJANG_LAUNCHER: &str = "https://launcher.mojang.com";
 
 /// Transform a Mojang URL to use the specified mirror.
 pub fn transform_url(url: &str, mirror: &DownloadMirror) -> String {
@@ -12,11 +14,15 @@ pub fn transform_url(url: &str, mirror: &DownloadMirror) -> String {
         DownloadMirror::Bmclapi => url
             .replace(MOJANG_LIBRARIES, &format!("{}/maven", BMCLAPI_BASE))
             .replace(MOJANG_RESOURCES, &format!("{}/assets", BMCLAPI_BASE))
-            .replace(MOJANG_LAUNCHER_META, BMCLAPI_BASE),
+            .replace(MOJANG_PISTON_META, BMCLAPI_BASE)
+            .replace(MOJANG_PISTON_DATA, BMCLAPI_BASE)
+            .replace(MOJANG_LAUNCHER, BMCLAPI_BASE),
         DownloadMirror::Custom(base) => url
             .replace(MOJANG_LIBRARIES, &format!("{}/maven", base))
             .replace(MOJANG_RESOURCES, &format!("{}/assets", base))
-            .replace(MOJANG_LAUNCHER_META, base),
+            .replace(MOJANG_PISTON_META, base)
+            .replace(MOJANG_PISTON_DATA, base)
+            .replace(MOJANG_LAUNCHER, base),
     }
 }
 

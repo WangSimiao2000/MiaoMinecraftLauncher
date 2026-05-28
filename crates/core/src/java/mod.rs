@@ -1,4 +1,5 @@
-pub mod download;
+pub mod install;
+pub mod mojang;
 
 use std::path::{Path, PathBuf};
 
@@ -19,32 +20,63 @@ impl JavaInstallation {
     }
 }
 
-use std::sync::OnceLock;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-static JAVA_CACHE: OnceLock<(Vec<JavaInstallation>, Instant)> = OnceLock::new();
-const CACHE_DURATION: Duration = Duration::from_secs(30); // 缓存30秒
-
-pub fn detect_system_java() -> Vec<JavaInstallation> {
-    let now = Instant::now();
-
-    // 检查缓存
-    if let Some((installations, cached_at)) = JAVA_CACHE.get()
-        && now.duration_since(*cached_at) < CACHE_DURATION
-    {
-        return installations.clone();
-    }
-
-    // 重新检测
-    let data_dir = crate::config::LauncherConfig::default().data_dir;
-    let installations = detect_java_with_data_dir(&data_dir);
-
-    // 更新缓存
-    let _ = JAVA_CACHE.set((installations.clone(), now));
-
-    installations
+/// Process-wide Java detection cache. Entries expire after [`JAVA_CACHE_TTL`] and are
+/// invalidated whenever the active `data_dir` differs from the cached one. Use
+/// [`invalidate_java_cache`] to force re-detection on the next call.
+struct JavaCache {
+    data_dir: PathBuf,
+    installations: Vec<JavaInstallation>,
+    cached_at: Instant,
 }
 
+static JAVA_CACHE: Mutex<Option<JavaCache>> = Mutex::new(None);
+const JAVA_CACHE_TTL: Duration = Duration::from_secs(60);
+
+/// Returns cached installations if a fresh entry for `data_dir` exists, else `None`.
+/// Never performs IO. UI threads can call this every frame without blocking.
+pub fn cached_javas_for(data_dir: &Path) -> Option<Vec<JavaInstallation>> {
+    let guard = JAVA_CACHE.lock().ok()?;
+    let entry = guard.as_ref()?;
+    if entry.data_dir == data_dir && entry.cached_at.elapsed() < JAVA_CACHE_TTL {
+        Some(entry.installations.clone())
+    } else {
+        None
+    }
+}
+
+/// Drop the current cache entry; the next call to [`detect_java_with_data_dir`] will
+/// run a full scan.
+pub fn invalidate_java_cache() {
+    if let Ok(mut guard) = JAVA_CACHE.lock() {
+        *guard = None;
+    }
+}
+
+fn store_java_cache(data_dir: &Path, installations: &[JavaInstallation]) {
+    if let Ok(mut guard) = JAVA_CACHE.lock() {
+        *guard = Some(JavaCache {
+            data_dir: data_dir.to_path_buf(),
+            installations: installations.to_vec(),
+            cached_at: Instant::now(),
+        });
+    }
+}
+
+/// CLI / non-UI helper: returns cached installations when available, otherwise runs a
+/// blocking scan against the default config's data_dir.
+pub fn detect_system_java() -> Vec<JavaInstallation> {
+    let data_dir = crate::config::LauncherConfig::default().data_dir;
+    if let Some(cached) = cached_javas_for(&data_dir) {
+        return cached;
+    }
+    detect_java_with_data_dir(&data_dir)
+}
+
+/// Performs a fresh blocking scan and updates the shared cache. Blocking — never call
+/// from the UI thread; use the GUI's `RefreshJava` command instead.
 pub fn detect_java_with_data_dir(data_dir: &Path) -> Vec<JavaInstallation> {
     let mut installations = Vec::new();
 
@@ -81,6 +113,7 @@ pub fn detect_java_with_data_dir(data_dir: &Path) -> Vec<JavaInstallation> {
 
     installations.sort_by_key(|j| j.major_version);
     installations.dedup_by(|a, b| a.path == b.path);
+    store_java_cache(data_dir, &installations);
     installations
 }
 

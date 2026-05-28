@@ -1,6 +1,7 @@
 use anyhow::Result;
 use miao_core::java;
 use miao_core::service::LauncherService;
+use miao_core::service::java::JavaInstallPhase;
 
 pub fn cmd_java(service: &LauncherService) {
     let installations = service.detect_java();
@@ -47,26 +48,30 @@ pub async fn cmd_download_java(service: &LauncherService, instance_name: &str) -
     }
 
     println!(
-        "Java {} required but not found. Downloading from Adoptium...",
+        "Java {} required but not found. Downloading Mojang JRE...",
         required
     );
 
     let java_bin = service
         .download_java_for_instance(
             instance_name,
-            Some(|phase| {
-                use miao_core::java::download::DownloadPhase;
-                match phase {
-                    DownloadPhase::Downloading { downloaded, total } => {
-                        eprint!(
-                            "\r  {:.1}/{:.1} MB",
-                            downloaded as f64 / 1_000_000.0,
-                            total as f64 / 1_000_000.0
-                        );
-                    }
-                    DownloadPhase::Extracting => {
-                        eprintln!("\r  Extracting...          ");
-                    }
+            Some(|phase| match phase {
+                JavaInstallPhase::Preparing => {
+                    eprintln!("  Fetching manifest...");
+                }
+                JavaInstallPhase::Downloading {
+                    downloaded_files,
+                    total_files,
+                    downloaded_bytes,
+                    total_bytes,
+                } => {
+                    eprint!(
+                        "\r  {}/{} files, {:.1}/{:.1} MB",
+                        downloaded_files,
+                        total_files,
+                        downloaded_bytes as f64 / 1_000_000.0,
+                        total_bytes as f64 / 1_000_000.0
+                    );
                 }
             }),
         )

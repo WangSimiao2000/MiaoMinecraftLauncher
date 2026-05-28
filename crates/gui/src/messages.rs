@@ -58,8 +58,14 @@ pub enum AppCommand {
     DownloadJava {
         task_id: String,
         required_major: u32,
-        java_dir: PathBuf,
         launch_idx: usize,
+        config: LauncherConfig,
+    },
+    /// Trigger a background Java detection scan. The result is delivered via
+    /// [`AppEvent::JavaDetected`]. If `force` is false, a recent cache may be reused.
+    RefreshJava {
+        data_dir: PathBuf,
+        force: bool,
     },
 
     // ── Versions & Loaders ──
@@ -174,11 +180,14 @@ pub enum AppEvent {
     LoginFailed(String),
 
     // ── Java ──
-    JavaProgress(String),
     JavaInstalled {
         launch_idx: usize,
     },
     JavaFailed(String),
+    /// Result of a background Java detection scan.
+    JavaDetected {
+        installations: Vec<miao_core::java::JavaInstallation>,
+    },
 
     // ── Mods ──
     ModSearchResults {

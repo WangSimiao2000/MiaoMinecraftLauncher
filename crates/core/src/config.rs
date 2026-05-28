@@ -26,6 +26,8 @@ pub struct LauncherConfig {
     pub game_folders: Vec<PathBuf>,
     pub java_paths: Vec<PathBuf>,
     pub download_mirror: DownloadMirror,
+    #[serde(default)]
+    pub java_source: JavaSource,
     pub max_concurrent_downloads: usize,
     pub accounts: Vec<AuthMethod>,
     pub active_account_index: Option<usize>,
@@ -114,6 +116,18 @@ pub enum DownloadMirror {
     Custom(String),
 }
 
+/// Where to fetch Java runtimes from when the user requests a Java install.
+///
+/// New sources should be added here, in [`crate::java::install::JavaSource::all`],
+/// and given a planner in [`crate::java::install::plan`].
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub enum JavaSource {
+    /// Mojang's official JRE manifest (`piston-meta.mojang.com/.../java-runtime/all.json`).
+    /// Best for mainland China users — BMCLAPI mirrors host-for-host.
+    #[default]
+    Mojang,
+}
+
 impl Default for LauncherConfig {
     fn default() -> Self {
         let data_dir = std::env::current_exe()
@@ -135,6 +149,7 @@ impl Default for LauncherConfig {
             game_folders: Vec::new(),
             java_paths: Vec::new(),
             download_mirror: DownloadMirror::default(),
+            java_source: JavaSource::default(),
             max_concurrent_downloads: 64,
             accounts: Vec::new(),
             active_account_index: None,

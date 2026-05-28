@@ -120,8 +120,10 @@ impl MiaoApp {
     }
 
     fn detect_java_for_setup(&mut self) {
-        let javas = miao_core::java::detect_java_with_data_dir(&self.config.data_dir);
-        self.cached_javas = Some(javas);
+        // Run in the background; the wizard will pick up the result via the normal
+        // `JavaDetected` event handler. The UI shows a spinner until then.
+        self.cached_javas = None;
+        self.request_java_detection(false);
     }
 
     fn finish_setup(&mut self) {

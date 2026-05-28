@@ -1,6 +1,6 @@
 mod auth;
 mod instance;
-mod java;
+pub mod java;
 mod loaders;
 mod mods;
 

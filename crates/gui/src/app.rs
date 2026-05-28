@@ -64,6 +64,10 @@ pub struct MiaoApp {
     pub confirm_delete: Option<usize>,
     pub settings_tab: SettingsTab,
     pub cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
+    /// True while a background Java detection task is in flight.
+    pub java_detecting: bool,
+    /// If set, automatically resume launching this instance once Java detection finishes.
+    pub pending_launch_idx: Option<usize>,
     pub refresh_counter: u32,
     pub theme_preset: crate::theme::ThemePreset,
     pub custom_themes: Vec<miao_core::custom_theme::LoadedTheme>,
@@ -169,6 +173,11 @@ impl MiaoApp {
             mirror: config.download_mirror.clone(),
         });
         controller.send(AppCommand::CheckForUpdates);
+        // Warm the Java detection cache up-front so the first launch click is instant.
+        controller.send(AppCommand::RefreshJava {
+            data_dir: config.data_dir.clone(),
+            force: false,
+        });
 
         let data_dir_input = config.data_dir.display().to_string();
         let mirror_custom_url = match &config.download_mirror {
@@ -205,6 +214,8 @@ impl MiaoApp {
             confirm_delete: None,
             settings_tab: SettingsTab::default(),
             cached_javas: None,
+            java_detecting: false,
+            pending_launch_idx: None,
             refresh_counter: 0,
             theme_preset,
             custom_themes,
@@ -297,6 +308,14 @@ impl MiaoApp {
                         self.instances = instance::list_instances(&self.config.instances_dir())
                             .unwrap_or_default();
                         self.cached_javas = None;
+                        miao_core::java::invalidate_java_cache();
+                        // The instance install may have downloaded a new Java; refresh in
+                        // the background so the next launch is instant.
+                        self.controller.send(AppCommand::RefreshJava {
+                            data_dir: self.config.data_dir.clone(),
+                            force: true,
+                        });
+                        self.java_detecting = true;
                         self.selected_instance = Some(self.instances.len().saturating_sub(1));
                         self.active_tab = DetailTab::Mods;
                         if matches!(self.nav_stack.current(), Page::Settings) {
@@ -338,17 +357,29 @@ impl MiaoApp {
                     self.auth.logging_in = false;
                     self.auth.authlib_logging_in = false;
                 }
-                AppEvent::JavaProgress(msg) => {
-                    self.status = msg;
-                }
                 AppEvent::JavaInstalled { launch_idx } => {
+                    // A new Java was installed; cache is stale. Re-detect in the
+                    // background, then resume the launch from the JavaDetected handler.
                     self.cached_javas = None;
+                    miao_core::java::invalidate_java_cache();
+                    self.pending_launch_idx = Some(launch_idx);
+                    self.java_detecting = true;
+                    self.controller.send(AppCommand::RefreshJava {
+                        data_dir: self.config.data_dir.clone(),
+                        force: true,
+                    });
                     self.status = "✓ Java installed — launching game...".to_string();
-                    self.launch_instance(launch_idx);
                 }
                 AppEvent::JavaFailed(msg) => {
                     self.status = format!("✗ {}", msg);
                     self.toasts.error(&msg);
+                }
+                AppEvent::JavaDetected { installations } => {
+                    self.cached_javas = Some(installations);
+                    self.java_detecting = false;
+                    if let Some(idx) = self.pending_launch_idx.take() {
+                        self.launch_instance(idx);
+                    }
                 }
                 AppEvent::ModSearchResults { hits, total_hits } => {
                     if self.mod_search.offset == 0 {
@@ -538,6 +569,7 @@ impl eframe::App for MiaoApp {
             || self.loader.loading
             || self.mod_search.searching
             || self.game_log.running
+            || self.java_detecting
             || self.nav_stack.is_transitioning()
         {
             ctx.request_repaint();
@@ -882,6 +914,19 @@ impl MiaoApp {
 }
 
 impl MiaoApp {
+    /// Request a fresh Java detection scan. Returns immediately; the result arrives via
+    /// [`AppEvent::JavaDetected`]. Set `force` to bypass the cache.
+    pub fn request_java_detection(&mut self, force: bool) {
+        if self.java_detecting && !force {
+            return;
+        }
+        self.java_detecting = true;
+        self.controller.send(AppCommand::RefreshJava {
+            data_dir: self.config.data_dir.clone(),
+            force,
+        });
+    }
+
     pub fn launch_instance(&mut self, idx: usize) {
         if self.config.accounts.is_empty() || self.config.active_account_index.is_none() {
             let lang = self.language.clone();
@@ -889,9 +934,20 @@ impl MiaoApp {
             return;
         }
 
+        // Ensure we have Java info before deciding what to do. If the cache is empty,
+        // kick off a background scan and resume once it returns. UI stays responsive.
+        let java_installations = match self.cached_javas.clone() {
+            Some(list) => list,
+            None => {
+                self.pending_launch_idx = Some(idx);
+                self.status = "Detecting Java installations...".to_string();
+                self.request_java_detection(false);
+                return;
+            }
+        };
+
         let inst = &self.instances[idx];
 
-        let java_installations = java::detect_java_with_data_dir(&self.config.data_dir);
         let meta_path = self
             .config
             .versions_dir()
@@ -970,12 +1026,16 @@ impl MiaoApp {
         };
 
         let required = meta.required_java_major();
-        if java::find_compatible_java(
-            &java::detect_java_with_data_dir(&self.config.data_dir),
-            required,
-        )
-        .is_some()
-        {
+        // Use the cached list when available; if not, the upstream `launch_instance`
+        // flow will have already kicked off a detection. Treat "no cache yet" as
+        // "Java not yet known" and proceed to download regardless — the deduplication
+        // below prevents accidental double-downloads.
+        let already_have_java = self
+            .cached_javas
+            .as_ref()
+            .and_then(|list| java::find_compatible_java(list, required))
+            .is_some();
+        if already_have_java {
             self.status = format!("Java {} already available.", required);
             return;
         }
@@ -991,8 +1051,8 @@ impl MiaoApp {
         self.controller.send(AppCommand::DownloadJava {
             task_id,
             required_major: required,
-            java_dir: self.config.data_dir.join("java"),
             launch_idx: idx,
+            config: self.config.clone(),
         });
     }
 

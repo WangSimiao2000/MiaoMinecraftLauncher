@@ -111,19 +111,22 @@ async fn controller_loop(
             AppCommand::DownloadJava {
                 task_id,
                 required_major,
-                java_dir,
                 launch_idx,
+                config,
             } => {
                 let handle = java::handle_download_java(
                     task_id.clone(),
                     required_major,
-                    java_dir,
                     launch_idx,
+                    config,
                     http.clone(),
                     event_tx.clone(),
                     ctx.clone(),
                 );
                 active_tasks.insert(task_id, handle);
+            }
+            AppCommand::RefreshJava { data_dir, force } => {
+                java::handle_refresh_java(data_dir, force, event_tx.clone(), ctx.clone());
             }
             AppCommand::FetchVersionManifest { mirror } => {
                 versions::handle_fetch_manifest(
