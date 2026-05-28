@@ -5,6 +5,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::AuthMethod;
 
+const LOCALE_EXAMPLE_TEMPLATE: &str = r#"{
+  "_name": "Language Name (native script)",
+  "ready": "Ready",
+  "settings": "Settings",
+  "instances": "Instances",
+  "new": "+ New",
+  "import": "Import",
+  "launch": "▶ Launch",
+  "search_mods": "Search Mods",
+  "welcome": "Welcome to MMCL",
+  "welcome_hint": "Create or select an instance to get started."
+}
+"#;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LauncherConfig {
     pub data_dir: PathBuf,
@@ -196,10 +210,14 @@ impl LauncherConfig {
         for dir in &dirs {
             let _ = std::fs::create_dir_all(dir);
         }
-        let example_path = self.themes_dir().join("_example.toml");
-        if !example_path.exists() {
+        let theme_example = self.themes_dir().join("_example.toml");
+        if !theme_example.exists() {
             let content = crate::custom_theme::generate_example_theme();
-            let _ = std::fs::write(&example_path, content);
+            let _ = std::fs::write(&theme_example, content);
+        }
+        let locale_example = self.locales_dir().join("_example.json");
+        if !locale_example.exists() {
+            let _ = std::fs::write(&locale_example, LOCALE_EXAMPLE_TEMPLATE);
         }
     }
 
