@@ -76,56 +76,53 @@ impl MiaoApp {
                         }
                     });
                 });
-                ui.add_space(theme::Spacing::SMALL_GAP);
+                ui.add_space(12.0);
 
-                ui.horizontal(|ui| {
-                    ui.label(I18n::t(&lang, "instance_name"));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.new_instance.name)
-                            .vertical_align(egui::Align::Center)
-                            .min_size(ui.spacing().interact_size),
-                    );
-                });
+                ui.label(theme::small(I18n::t(&lang, "instance_name")));
+                ui.add_space(3.0);
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.new_instance.name)
+                        .vertical_align(egui::Align::Center)
+                        .desired_width(ui.available_width())
+                        .hint_text(I18n::t(&lang, "instance_name")),
+                );
 
-                ui.horizontal(|ui| {
-                    ui.label(I18n::t(&lang, "mc_version"));
-                    if !self.versions.versions.is_empty() {
-                        let current = self
-                            .versions
-                            .versions
-                            .get(self.new_instance.version_idx)
-                            .map(|v| v.id.as_str())
-                            .unwrap_or("?");
-                        let prev_idx = self.new_instance.version_idx;
-                        egui::ComboBox::from_id_salt("mc_ver")
-                            .selected_text(current)
-                            .show_ui(ui, |ui| {
-                                for (i, ver) in self.versions.versions.iter().enumerate() {
-                                    ui.selectable_value(
-                                        &mut self.new_instance.version_idx,
-                                        i,
-                                        &ver.id,
-                                    );
-                                }
-                            });
-                        if self.new_instance.version_idx != prev_idx {
-                            self.new_instance.loader = 0;
-                            self.new_instance.loader_version_idx = 0;
-                            let mc_ver = self.versions.versions[self.new_instance.version_idx]
-                                .id
-                                .clone();
-                            self.fetch_loader_versions(&mc_ver);
-                        }
-                    } else {
+                ui.add_space(10.0);
+                ui.label(theme::small(I18n::t(&lang, "mc_version")));
+                ui.add_space(3.0);
+                if !self.versions.versions.is_empty() {
+                    let current = self
+                        .versions
+                        .versions
+                        .get(self.new_instance.version_idx)
+                        .map(|v| v.id.as_str())
+                        .unwrap_or("?");
+                    let prev_idx = self.new_instance.version_idx;
+                    egui::ComboBox::from_id_salt("mc_ver")
+                        .selected_text(current)
+                        .width(ui.available_width() - 8.0)
+                        .show_ui(ui, |ui| {
+                            for (i, ver) in self.versions.versions.iter().enumerate() {
+                                ui.selectable_value(&mut self.new_instance.version_idx, i, &ver.id);
+                            }
+                        });
+                    if self.new_instance.version_idx != prev_idx {
+                        self.new_instance.loader = 0;
+                        self.new_instance.loader_version_idx = 0;
+                        let mc_ver = self.versions.versions[self.new_instance.version_idx]
+                            .id
+                            .clone();
+                        self.fetch_loader_versions(&mc_ver);
+                    }
+                } else {
+                    ui.horizontal(|ui| {
                         ui.spinner();
                         ui.label(I18n::t(&lang, "loading"));
-                    }
-                });
+                    });
+                }
 
-                ui.add_space(4.0);
+                ui.add_space(6.0);
                 ui.horizontal(|ui| {
-                    ui.label(theme::small(I18n::t(&lang, "show")));
-                    ui.add_space(4.0);
                     let mut show_snap = self.versions.show_snapshots;
                     let mut show_beta = self.versions.show_old_beta;
                     let mut show_alpha = self.versions.show_old_alpha;
@@ -149,61 +146,63 @@ impl MiaoApp {
                         self.update_version_filter(show_snap, show_beta, show_alpha);
                     }
                 });
-                ui.add_space(4.0);
 
-                ui.horizontal(|ui| {
-                    ui.label(I18n::t(&lang, "mod_loader"));
-                    let loaders = self.get_available_loaders();
-                    let current_name = loaders
-                        .iter()
-                        .find(|(idx, _, _)| *idx == self.new_instance.loader)
-                        .map(|(_, name, _)| *name)
-                        .unwrap_or("None (Vanilla)");
+                ui.add_space(10.0);
+                ui.label(theme::small(I18n::t(&lang, "mod_loader")));
+                ui.add_space(3.0);
+                let loaders = self.get_available_loaders();
+                let current_name = loaders
+                    .iter()
+                    .find(|(idx, _, _)| *idx == self.new_instance.loader)
+                    .map(|(_, name, _)| *name)
+                    .unwrap_or("None (Vanilla)");
 
-                    egui::ComboBox::from_id_salt("loader")
-                        .selected_text(current_name)
-                        .show_ui(ui, |ui| {
-                            for (idx, name, available) in &loaders {
-                                ui.add_enabled_ui(*available, |ui| {
-                                    let label = if *available {
-                                        name.to_string()
-                                    } else {
-                                        format!("{} (N/A)", name)
-                                    };
-                                    ui.selectable_value(&mut self.new_instance.loader, *idx, label);
-                                });
-                            }
-                        });
-                });
+                egui::ComboBox::from_id_salt("loader")
+                    .selected_text(current_name)
+                    .width(ui.available_width() - 8.0)
+                    .show_ui(ui, |ui| {
+                        for (idx, name, available) in &loaders {
+                            ui.add_enabled_ui(*available, |ui| {
+                                let label = if *available {
+                                    name.to_string()
+                                } else {
+                                    format!("{} (N/A)", name)
+                                };
+                                ui.selectable_value(&mut self.new_instance.loader, *idx, label);
+                            });
+                        }
+                    });
 
                 if self.new_instance.loader > 0 {
                     let loader_versions: Vec<_> =
                         self.get_loader_versions().into_iter().cloned().collect();
                     if !loader_versions.is_empty() {
-                        ui.horizontal(|ui| {
-                            ui.label(I18n::t(&lang, "loader_version"));
-                            let current = loader_versions
-                                .get(self.new_instance.loader_version_idx)
-                                .map(|v| v.version.as_str())
-                                .unwrap_or("?");
-                            egui::ComboBox::from_id_salt("loader_ver")
-                                .selected_text(current)
-                                .show_ui(ui, |ui| {
-                                    for (i, v) in loader_versions.iter().enumerate() {
-                                        let label = if v.stable {
-                                            format!("{} (stable)", v.version)
-                                        } else {
-                                            v.version.clone()
-                                        };
-                                        ui.selectable_value(
-                                            &mut self.new_instance.loader_version_idx,
-                                            i,
-                                            label,
-                                        );
-                                    }
-                                });
-                        });
+                        ui.add_space(10.0);
+                        ui.label(theme::small(I18n::t(&lang, "loader_version")));
+                        ui.add_space(3.0);
+                        let current = loader_versions
+                            .get(self.new_instance.loader_version_idx)
+                            .map(|v| v.version.as_str())
+                            .unwrap_or("?");
+                        egui::ComboBox::from_id_salt("loader_ver")
+                            .selected_text(current)
+                            .width(ui.available_width() - 8.0)
+                            .show_ui(ui, |ui| {
+                                for (i, v) in loader_versions.iter().enumerate() {
+                                    let label = if v.stable {
+                                        format!("{} (stable)", v.version)
+                                    } else {
+                                        v.version.clone()
+                                    };
+                                    ui.selectable_value(
+                                        &mut self.new_instance.loader_version_idx,
+                                        i,
+                                        label,
+                                    );
+                                }
+                            });
                     } else if self.loader.loading {
+                        ui.add_space(6.0);
                         ui.horizontal(|ui| {
                             ui.spinner();
                             ui.label(I18n::t(&lang, "loading"));
@@ -211,38 +210,41 @@ impl MiaoApp {
                     }
                 }
 
-                ui.add_space(theme::Spacing::SECTION_GAP);
+                ui.add_space(12.0);
 
                 let can_create = !self.versions.versions.is_empty();
                 ui.add_enabled_ui(can_create, |ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(I18n::t(&self.language, "create")).clicked() {
-                            let ver = self.versions.versions[self.new_instance.version_idx].clone();
-                            let name = if self.new_instance.name.is_empty() {
-                                ver.id.clone()
-                            } else {
-                                self.new_instance.name.clone()
-                            };
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button(I18n::t(&self.language, "create")).clicked() {
+                                let ver =
+                                    self.versions.versions[self.new_instance.version_idx].clone();
+                                let name = if self.new_instance.name.is_empty() {
+                                    ver.id.clone()
+                                } else {
+                                    self.new_instance.name.clone()
+                                };
 
-                            let loader = if self.new_instance.loader > 0 {
-                                let lt = miao_core::modloader::ModLoaderType::from_index(
-                                    self.new_instance.loader - 1,
-                                );
-                                let lv = self
-                                    .get_loader_versions()
-                                    .get(self.new_instance.loader_version_idx)
-                                    .map(|v| v.version.clone());
-                                match (lt, lv) {
-                                    (Some(lt), Some(lv)) => Some((lt.as_str().to_string(), lv)),
-                                    _ => None,
-                                }
-                            } else {
-                                None
-                            };
+                                let loader = if self.new_instance.loader > 0 {
+                                    let lt = miao_core::modloader::ModLoaderType::from_index(
+                                        self.new_instance.loader - 1,
+                                    );
+                                    let lv = self
+                                        .get_loader_versions()
+                                        .get(self.new_instance.loader_version_idx)
+                                        .map(|v| v.version.clone());
+                                    match (lt, lv) {
+                                        (Some(lt), Some(lv)) => Some((lt.as_str().to_string(), lv)),
+                                        _ => None,
+                                    }
+                                } else {
+                                    None
+                                };
 
-                            self.create_instance(ver, name, loader);
-                            self.active_dialog = Dialog::None;
-                        }
+                                self.create_instance(ver, name, loader);
+                                self.active_dialog = Dialog::None;
+                            }
+                        });
                     });
                 });
             });
