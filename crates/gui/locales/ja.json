@@ -25,5 +25,7 @@
   "theme_sakura": "サクラ",
   "theme_light": "ライト",
   "custom_themes": "カスタムテーマ",
-  "custom_themes_hint": "<データフォルダ>/themes/ に .toml ファイルを配置してテーマを追加できます。"
+  "custom_themes_hint": "<データフォルダ>/themes/ に .toml ファイルを配置してテーマを追加できます。",
+  "language_desc": "表示言語を選択してください。",
+  "language_hint": "<データフォルダ>/locales/ に .json ファイルを配置して言語を追加できます。"
 }

@@ -159,5 +159,7 @@
   "theme_sakura": "樱花",
   "theme_light": "浅色",
   "custom_themes": "自定义主题",
-  "custom_themes_hint": "将 .toml 文件放入 <数据目录>/themes/ 即可添加自定义主题。"
+  "custom_themes_hint": "将 .toml 文件放入 <数据目录>/themes/ 即可添加自定义主题。",
+  "language_desc": "选择界面显示语言。",
+  "language_hint": "将 .json 语言文件放入 <数据目录>/locales/ 可添加更多语言。"
 }

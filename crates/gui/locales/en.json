@@ -159,5 +159,7 @@
   "theme_sakura": "Sakura",
   "theme_light": "Light",
   "custom_themes": "Custom Themes",
-  "custom_themes_hint": "Place .toml files in <data-dir>/themes/ to add custom themes."
+  "custom_themes_hint": "Place .toml files in <data-dir>/themes/ to add custom themes.",
+  "language_desc": "Select your preferred display language.",
+  "language_hint": "Place .json locale files in <data-dir>/locales/ for additional languages."
 }
