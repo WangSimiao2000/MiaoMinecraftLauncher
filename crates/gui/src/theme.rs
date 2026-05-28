@@ -117,22 +117,22 @@ impl Palette {
                 text_disabled: Color32::from_rgb(95, 75, 90),
             },
             ThemePreset::Light => Self {
-                bg_dark: Color32::from_rgb(230, 232, 236),
-                bg_panel: Color32::from_rgb(238, 240, 244),
-                bg_main: Color32::from_rgb(245, 247, 250),
-                bg_elevated: Color32::from_rgb(255, 255, 255),
-                bg_widget: Color32::from_rgb(225, 228, 234),
-                bg_widget_hover: Color32::from_rgb(210, 215, 222),
-                bg_widget_active: Color32::from_rgb(60, 120, 200),
-                accent: Color32::from_rgb(60, 120, 200),
-                accent_light: Color32::from_rgb(40, 100, 180),
-                success: Color32::from_rgb(50, 150, 50),
-                danger: Color32::from_rgb(200, 60, 60),
-                warning: Color32::from_rgb(200, 150, 30),
-                text_primary: Color32::from_rgb(30, 33, 40),
-                text_secondary: Color32::from_rgb(80, 85, 95),
-                text_muted: Color32::from_rgb(120, 125, 135),
-                text_disabled: Color32::from_rgb(170, 175, 185),
+                bg_dark: Color32::from_rgb(218, 220, 224),
+                bg_panel: Color32::from_rgb(234, 236, 240),
+                bg_main: Color32::from_rgb(241, 243, 246),
+                bg_elevated: Color32::from_rgb(250, 251, 252),
+                bg_widget: Color32::from_rgb(218, 222, 228),
+                bg_widget_hover: Color32::from_rgb(200, 206, 214),
+                bg_widget_active: Color32::from_rgb(55, 110, 190),
+                accent: Color32::from_rgb(55, 110, 190),
+                accent_light: Color32::from_rgb(35, 90, 165),
+                success: Color32::from_rgb(40, 140, 50),
+                danger: Color32::from_rgb(185, 50, 50),
+                warning: Color32::from_rgb(180, 130, 20),
+                text_primary: Color32::from_rgb(36, 41, 47),
+                text_secondary: Color32::from_rgb(87, 96, 106),
+                text_muted: Color32::from_rgb(110, 119, 129),
+                text_disabled: Color32::from_rgb(160, 168, 176),
             },
         }
     }
@@ -398,9 +398,20 @@ impl ThemeColors for ThemePreset {
 /// Always starts from [`egui::Visuals::dark`] so that platform-default fields
 /// (notably on Windows under a light system theme) cannot bleed into the UI.
 fn build_visuals(pal: &Palette) -> egui::Visuals {
-    let mut visuals = egui::Visuals::dark();
+    let is_light = pal.bg_main.r() > 180;
+    let mut visuals = if is_light {
+        egui::Visuals::light()
+    } else {
+        egui::Visuals::dark()
+    };
 
-    // Per-state widget visuals.
+    let fg_on_accent = Color32::WHITE;
+    let fg_on_hover = if is_light {
+        pal.text_primary
+    } else {
+        Color32::WHITE
+    };
+
     let widgets = &mut visuals.widgets;
 
     widgets.noninteractive.bg_fill = pal.bg_main;
@@ -414,47 +425,48 @@ fn build_visuals(pal: &Palette) -> egui::Visuals {
 
     widgets.hovered.bg_fill = pal.bg_widget_hover;
     widgets.hovered.weak_bg_fill = pal.bg_widget_hover;
-    widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+    widgets.hovered.fg_stroke = Stroke::new(1.0, fg_on_hover);
     widgets.hovered.corner_radius = Radii::WIDGET;
 
     widgets.active.bg_fill = pal.accent;
     widgets.active.weak_bg_fill = pal.accent;
-    widgets.active.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+    widgets.active.fg_stroke = Stroke::new(1.0, fg_on_accent);
     widgets.active.corner_radius = Radii::WIDGET;
 
     widgets.open.bg_fill = pal.bg_widget_hover;
     widgets.open.weak_bg_fill = pal.bg_widget_hover;
     widgets.open.fg_stroke = Stroke::new(1.0, pal.text_primary);
 
-    // Text & links.
     visuals.override_text_color = Some(pal.text_primary);
     visuals.hyperlink_color = pal.accent_light;
     visuals.code_bg_color = pal.bg_dark;
 
-    // Selection.
     visuals.selection.bg_fill = pal.accent;
-    visuals.selection.stroke = Stroke::new(1.0, Color32::WHITE);
+    visuals.selection.stroke = Stroke::new(1.0, fg_on_accent);
 
-    // Surfaces.
     visuals.panel_fill = pal.bg_main;
     visuals.window_fill = pal.bg_elevated;
-    visuals.window_stroke = Stroke::new(1.0, pal.accent.gamma_multiply(0.3));
+    visuals.window_stroke = if is_light {
+        Stroke::new(1.0, Color32::from_black_alpha(30))
+    } else {
+        Stroke::new(1.0, pal.accent.gamma_multiply(0.3))
+    };
     visuals.window_corner_radius = Radii::WINDOW;
     visuals.extreme_bg_color = pal.bg_dark;
     visuals.faint_bg_color = pal.bg_elevated;
 
-    // Shadows.
+    let shadow_alpha = if is_light { 25 } else { 60 };
     visuals.window_shadow = egui::Shadow {
         offset: [0, 4],
         blur: 12,
         spread: 0,
-        color: Color32::from_black_alpha(60),
+        color: Color32::from_black_alpha(shadow_alpha),
     };
     visuals.popup_shadow = egui::Shadow {
         offset: [0, 8],
         blur: 24,
         spread: 2,
-        color: Color32::from_black_alpha(100),
+        color: Color32::from_black_alpha(shadow_alpha + 20),
     };
 
     // Misc.
