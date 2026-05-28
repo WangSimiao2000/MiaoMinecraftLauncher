@@ -1,3 +1,4 @@
+pub mod animation;
 pub mod controller;
 pub mod messages;
 pub mod state;

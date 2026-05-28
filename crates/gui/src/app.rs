@@ -13,6 +13,7 @@ use tokio::runtime::Runtime;
 
 use std::sync::Mutex;
 
+use crate::animation::{PRESET_BOUNCY, Spring};
 use crate::blur::BlurRenderer;
 use crate::controller::AppController;
 pub use crate::dialogs::setup_wizard::SetupStep;
@@ -86,6 +87,11 @@ pub struct MiaoApp {
 
     pub blur_renderer: Arc<Mutex<BlurRenderer>>,
     pub toasts: ToastQueue,
+
+    pub sidebar_indicator_y: Spring,
+    pub tab_indicator_x: Spring,
+    pub tab_indicator_width: Spring,
+    pub settings_nav_indicator_y: Spring,
 
     pub controller: AppController,
     #[allow(dead_code)]
@@ -216,6 +222,10 @@ impl MiaoApp {
 
             blur_renderer,
             toasts: ToastQueue::new(),
+            sidebar_indicator_y: Spring::new(0.0, PRESET_BOUNCY.spring),
+            tab_indicator_x: Spring::new(0.0, PRESET_BOUNCY.spring),
+            tab_indicator_width: Spring::new(60.0, PRESET_BOUNCY.spring),
+            settings_nav_indicator_y: Spring::new(0.0, PRESET_BOUNCY.spring),
             controller,
             rt,
         }
@@ -515,6 +525,19 @@ impl eframe::App for MiaoApp {
 
         let _transition_alpha = self.nav_stack.animate(ctx);
 
+        let dt = ctx.input(|i| i.stable_dt);
+        self.sidebar_indicator_y.tick(dt);
+        self.tab_indicator_x.tick(dt);
+        self.tab_indicator_width.tick(dt);
+        self.settings_nav_indicator_y.tick(dt);
+        if !self.sidebar_indicator_y.is_settled()
+            || !self.tab_indicator_x.is_settled()
+            || !self.tab_indicator_width.is_settled()
+            || !self.settings_nav_indicator_y.is_settled()
+        {
+            ctx.request_repaint();
+        }
+
         // Paint rounded window background; corners remain transparent
         let window_rect = ctx.input(|i| i.screen_rect());
         ctx.layer_painter(egui::LayerId::background()).rect_filled(
@@ -622,7 +645,18 @@ impl eframe::App for MiaoApp {
             )
             .show(ctx, |ui| {
                 ui.set_opacity(content_opacity);
-                if in_settings {
+                let slide_x = self.nav_stack.slide_offset();
+                if slide_x.abs() > 0.1 {
+                    let mut child_rect = ui.available_rect_before_wrap();
+                    child_rect = child_rect.translate(egui::vec2(slide_x, 0.0));
+                    ui.allocate_ui_at_rect(child_rect, |ui| {
+                        if in_settings {
+                            self.render_settings_page(ui);
+                        } else {
+                            self.render_detail(ui);
+                        }
+                    });
+                } else if in_settings {
                     self.render_settings_page(ui);
                 } else {
                     self.render_detail(ui);

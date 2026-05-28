@@ -7,6 +7,7 @@
     windows_subsystem = "windows"
 )]
 
+pub mod animation;
 mod app;
 pub mod blur;
 mod controller;

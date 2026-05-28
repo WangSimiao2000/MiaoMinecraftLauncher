@@ -248,6 +248,7 @@ pub fn status_text(text: &str) -> RichText {
 pub const LIST_ITEM_ROUNDING: CornerRadius = CornerRadius::same(6);
 pub const TAB_UNDERLINE_HEIGHT: f32 = 2.5;
 
+#[allow(dead_code)]
 pub fn list_item_frame(hovered: bool, selected: bool) -> egui::Frame {
     let fill = if selected {
         Colors::bg_widget_active().gamma_multiply(0.3)
@@ -433,7 +434,7 @@ fn apply_layout(style: &mut egui::Style) {
     style.spacing.interact_size = Spacing::INTERACT_SIZE;
     style.spacing.button_padding = Spacing::BUTTON_PADDING;
     style.spacing.window_margin = Spacing::WINDOW_MARGIN;
-    style.animation_time = 0.15;
+    style.animation_time = 0.12;
 }
 
 pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
