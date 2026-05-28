@@ -3,7 +3,7 @@ use miao_core::auth::AuthMethod;
 use miao_core::config::DownloadMirror;
 
 use crate::app::{I18n, MiaoApp, SettingsTab};
-use crate::theme::{self, ThemeColors};
+use crate::theme;
 
 impl MiaoApp {
     pub fn render_settings_page(&mut self, ui: &mut egui::Ui) {
@@ -464,7 +464,7 @@ impl MiaoApp {
                 .show(ui, |ui| {
                     for (i, preset) in theme::ThemePreset::ALL.iter().enumerate() {
                         let selected = current == *preset;
-                        let accent = preset.accent();
+                        let (swatch_bg, swatch_accent) = theme::swatch_colors(*preset);
                         let (rect, response) = ui.allocate_exact_size(
                             egui::vec2(card_width, 56.0),
                             egui::Sense::click(),
@@ -484,7 +484,7 @@ impl MiaoApp {
                         );
 
                         let bg = if sel_t > 0.0 {
-                            accent.gamma_multiply(0.15 * sel_t)
+                            swatch_accent.gamma_multiply(0.15 * sel_t)
                         } else if hover_t > 0.0 {
                             theme::Colors::bg_widget_hover().gamma_multiply(hover_t)
                         } else {
@@ -492,7 +492,7 @@ impl MiaoApp {
                         };
 
                         let stroke = if sel_t > 0.0 {
-                            egui::Stroke::new(1.5, accent.gamma_multiply(sel_t))
+                            egui::Stroke::new(1.5, swatch_accent.gamma_multiply(sel_t))
                         } else {
                             egui::Stroke::new(1.0, theme::Colors::subtle_border())
                         };
@@ -507,11 +507,22 @@ impl MiaoApp {
                         );
 
                         let swatch_rect = egui::Rect::from_min_size(
-                            egui::pos2(rect.center().x - 10.0, rect.top() + 10.0),
-                            egui::vec2(20.0, 20.0),
+                            egui::pos2(rect.center().x - 12.0, rect.top() + 8.0),
+                            egui::vec2(24.0, 24.0),
                         );
-                        ui.painter()
-                            .rect_filled(swatch_rect, egui::CornerRadius::same(4), accent);
+                        ui.painter().rect_filled(
+                            swatch_rect,
+                            egui::CornerRadius::same(5),
+                            swatch_bg,
+                        );
+                        ui.painter().rect_stroke(
+                            swatch_rect,
+                            egui::CornerRadius::same(5),
+                            egui::Stroke::new(1.0, swatch_accent.gamma_multiply(0.6)),
+                            egui::StrokeKind::Inside,
+                        );
+                        let dot_center = swatch_rect.center() + egui::vec2(5.0, 5.0);
+                        ui.painter().circle_filled(dot_center, 4.0, swatch_accent);
 
                         let text_color = if selected {
                             theme::Colors::accent_light()
