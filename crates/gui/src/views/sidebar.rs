@@ -85,7 +85,7 @@ impl MiaoApp {
                     let indicator_opacity = ui.ctx().animate_bool_with_time_and_easing(
                         egui::Id::new("sidebar_indicator_opacity"),
                         has_selection,
-                        0.15,
+                        0.25,
                         eframe::emath::easing::cubic_out,
                     );
 
@@ -126,13 +126,13 @@ impl MiaoApp {
                     let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                         response.id.with("settings_hover"),
                         response.hovered(),
-                        0.12,
+                        0.2,
                         eframe::emath::easing::cubic_out,
                     );
                     let active_t = ui.ctx().animate_bool_with_time_and_easing(
                         response.id.with("settings_active"),
                         is_active,
-                        0.18,
+                        0.3,
                         eframe::emath::easing::cubic_out,
                     );
 

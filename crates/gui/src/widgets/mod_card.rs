@@ -30,7 +30,7 @@ impl<'a> ModCard<'a> {
             let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                 card_id.with("hover"),
                 card_response.hovered(),
-                0.12,
+                0.2,
                 eframe::emath::easing::cubic_out,
             );
             if hover_t > 0.0 {

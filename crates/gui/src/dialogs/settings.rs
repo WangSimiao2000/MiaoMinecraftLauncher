@@ -21,7 +21,7 @@ impl MiaoApp {
                 let content_t = ui.ctx().animate_bool_with_time_and_easing(
                     egui::Id::new("settings_content_fade").with(self.settings_tab as u8),
                     true,
-                    0.18,
+                    0.3,
                     eframe::emath::easing::cubic_out,
                 );
                 ui.set_opacity(content_t);
@@ -69,13 +69,13 @@ impl MiaoApp {
             let sel_t = ui.ctx().animate_bool_with_time_and_easing(
                 tab_id.with("sel"),
                 selected,
-                0.18,
+                0.3,
                 eframe::emath::easing::cubic_out,
             );
             let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                 tab_id.with("hover"),
                 response.hovered() && !selected,
-                0.12,
+                0.2,
                 eframe::emath::easing::cubic_out,
             );
 
@@ -189,7 +189,7 @@ impl MiaoApp {
                 let active_t = ui.ctx().animate_bool_with_time_and_easing(
                     card_id.with("active"),
                     *active,
-                    0.18,
+                    0.3,
                     eframe::emath::easing::cubic_out,
                 );
                 let base = theme::Colors::bg_elevated();
@@ -473,13 +473,13 @@ impl MiaoApp {
                         let sel_t = ui.ctx().animate_bool_with_time_and_easing(
                             egui::Id::new("theme_card").with(i).with("sel"),
                             selected,
-                            0.15,
+                            0.25,
                             eframe::emath::easing::cubic_out,
                         );
                         let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                             egui::Id::new("theme_card").with(i).with("hover"),
                             response.hovered(),
-                            0.12,
+                            0.2,
                             eframe::emath::easing::cubic_out,
                         );
 
@@ -657,13 +657,13 @@ impl MiaoApp {
                         let sel_t = ui.ctx().animate_bool_with_time_and_easing(
                             egui::Id::new("lang_card").with(i).with("sel"),
                             selected,
-                            0.15,
+                            0.25,
                             eframe::emath::easing::cubic_out,
                         );
                         let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                             egui::Id::new("lang_card").with(i).with("hover"),
                             response.hovered(),
-                            0.12,
+                            0.2,
                             eframe::emath::easing::cubic_out,
                         );
 

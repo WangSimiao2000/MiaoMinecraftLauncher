@@ -34,7 +34,7 @@ impl<'a> CollapsibleCard<'a> {
         let openness = ui.ctx().animate_bool_with_time_and_easing(
             self.id.with("collapse"),
             open,
-            0.25,
+            0.35,
             eframe::emath::easing::cubic_out,
         );
 
@@ -54,7 +54,7 @@ impl<'a> CollapsibleCard<'a> {
             let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                 self.id.with("hover"),
                 header_response.hovered(),
-                0.12,
+                0.2,
                 eframe::emath::easing::cubic_out,
             );
 

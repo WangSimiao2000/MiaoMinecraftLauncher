@@ -9,7 +9,7 @@ impl MiaoApp {
         let detail_opacity = ui.ctx().animate_bool_with_time_and_easing(
             egui::Id::new("detail_content_opacity"),
             has_instance,
-            0.18,
+            0.3,
             eframe::emath::easing::cubic_out,
         );
         let welcome_opacity = 1.0 - detail_opacity;
@@ -155,7 +155,7 @@ impl MiaoApp {
                 let sel_t = ui.ctx().animate_bool_with_time_and_easing(
                     egui::Id::new(key).with("tab_sel"),
                     selected,
-                    0.15,
+                    0.25,
                     eframe::emath::easing::cubic_out,
                 );
 

@@ -30,13 +30,13 @@ impl<'a> InstanceCard<'a> {
         let hover_t = ui.ctx().animate_bool_with_time_and_easing(
             response.id.with("hover"),
             response.hovered(),
-            0.12,
+            0.2,
             eframe::emath::easing::cubic_out,
         );
         let selected_t = ui.ctx().animate_bool_with_time_and_easing(
             response.id.with("sel"),
             self.selected,
-            0.15,
+            0.25,
             eframe::emath::easing::cubic_out,
         );
 

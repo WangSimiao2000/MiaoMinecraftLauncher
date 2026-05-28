@@ -17,7 +17,7 @@ impl MiaoApp {
         let t = ctx.animate_bool_with_time_and_easing(
             anim_id,
             true,
-            0.2,
+            0.3,
             eframe::emath::easing::cubic_out,
         );
         let opacity = t;

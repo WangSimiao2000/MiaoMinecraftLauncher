@@ -7,52 +7,52 @@ pub struct AnimPreset {
     pub duration_hint: f32,
 }
 
-/// Hover/press feedback. Critically damped, very fast (~80ms settle).
+/// Hover/press feedback. Critically damped.
 pub const PRESET_SNAPPY: AnimPreset = AnimPreset {
     spring: SpringConfig {
-        stiffness: 800.0,
+        stiffness: 400.0,
         damping_ratio: 1.0,
-        epsilon: 0.5,
-    },
-    duration_hint: 0.12,
-};
-
-/// Tab underline, sidebar indicator. Fast with micro-bounce.
-pub const PRESET_BOUNCY: AnimPreset = AnimPreset {
-    spring: SpringConfig {
-        stiffness: 600.0,
-        damping_ratio: 0.8,
         epsilon: 0.5,
     },
     duration_hint: 0.2,
 };
 
-/// Panel expand/collapse, layout shifts. Relaxed but responsive.
-pub const PRESET_GENTLE: AnimPreset = AnimPreset {
+/// Tab underline, sidebar indicator. Soft bounce.
+pub const PRESET_BOUNCY: AnimPreset = AnimPreset {
     spring: SpringConfig {
-        stiffness: 350.0,
-        damping_ratio: 0.9,
+        stiffness: 280.0,
+        damping_ratio: 0.72,
         epsilon: 0.5,
     },
-    duration_hint: 0.3,
+    duration_hint: 0.35,
+};
+
+/// Panel expand/collapse, layout shifts.
+pub const PRESET_GENTLE: AnimPreset = AnimPreset {
+    spring: SpringConfig {
+        stiffness: 180.0,
+        damping_ratio: 0.85,
+        epsilon: 0.5,
+    },
+    duration_hint: 0.45,
 };
 
 /// Dialog/page transitions. Critically damped, medium speed.
 pub const PRESET_SMOOTH: AnimPreset = AnimPreset {
     spring: SpringConfig {
-        stiffness: 500.0,
+        stiffness: 250.0,
         damping_ratio: 1.0,
         epsilon: 0.5,
     },
-    duration_hint: 0.25,
+    duration_hint: 0.35,
 };
 
 /// Notifications, achievements. Visible overshoot for attention.
 pub const PRESET_PLAYFUL: AnimPreset = AnimPreset {
     spring: SpringConfig {
-        stiffness: 500.0,
-        damping_ratio: 0.6,
+        stiffness: 260.0,
+        damping_ratio: 0.55,
         epsilon: 0.5,
     },
-    duration_hint: 0.35,
+    duration_hint: 0.5,
 };
