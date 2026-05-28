@@ -296,13 +296,13 @@ pub fn parse_major_version(version: &str) -> u32 {
     }
     let parts: Vec<&str> = version.split('.').collect();
     if parts.first() == Some(&"1") {
-        parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(8)
+        parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0)
     } else {
         parts
             .first()
             .and_then(|s| s.split('-').next())
             .and_then(|s| s.parse().ok())
-            .unwrap_or(8)
+            .unwrap_or(0)
     }
 }
 

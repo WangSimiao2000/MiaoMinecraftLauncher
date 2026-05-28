@@ -153,18 +153,20 @@ impl MiaoApp {
                 let loaders = self.get_available_loaders();
                 let current_name = loaders
                     .iter()
-                    .find(|(idx, _, _)| *idx == self.new_instance.loader)
-                    .map(|(_, name, _)| *name)
+                    .find(|(idx, _, _, _)| *idx == self.new_instance.loader)
+                    .map(|(_, name, _, _)| *name)
                     .unwrap_or("None (Vanilla)");
 
                 egui::ComboBox::from_id_salt("loader")
                     .selected_text(current_name)
                     .width(ui.available_width() - 8.0)
                     .show_ui(ui, |ui| {
-                        for (idx, name, available) in &loaders {
+                        for (idx, name, available, fetch_failed) in &loaders {
                             ui.add_enabled_ui(*available, |ui| {
                                 let label = if *available {
                                     name.to_string()
+                                } else if *fetch_failed {
+                                    format!("{} (⚠)", name)
                                 } else {
                                     format!("{} (N/A)", name)
                                 };

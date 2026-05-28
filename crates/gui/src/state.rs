@@ -80,6 +80,7 @@ pub struct AuthUiState {
 pub struct LoaderUiState {
     pub versions: HashMap<ModLoaderType, Vec<ModLoaderVersion>>,
     pub loading: bool,
+    pub failed: Vec<ModLoaderType>,
 }
 
 #[derive(Debug, Clone, Default)]

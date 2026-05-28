@@ -1,14 +1,11 @@
 use crate::error::Result;
 use crate::instance::{Instance, ModLoaderConfig};
-use crate::modloader::{self, ModLoaderType, ModLoaderVersion};
+use crate::modloader::{self, LoaderFetchResult, ModLoaderType};
 
 use super::LauncherService;
 
 impl LauncherService {
-    pub async fn fetch_loader_versions(
-        &self,
-        mc_version: &str,
-    ) -> Result<std::collections::HashMap<ModLoaderType, Vec<ModLoaderVersion>>> {
+    pub async fn fetch_loader_versions(&self, mc_version: &str) -> Result<LoaderFetchResult> {
         modloader::fetch_all_loader_versions(&self.http, mc_version).await
     }
 

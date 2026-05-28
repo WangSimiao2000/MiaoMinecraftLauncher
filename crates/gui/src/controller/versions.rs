@@ -44,8 +44,11 @@ pub fn handle_fetch_loader_versions(
 ) {
     tokio::spawn(async move {
         match miao_core::modloader::fetch_all_loader_versions(&*http, &mc_version).await {
-            Ok(versions) => {
-                let _ = tx.send(AppEvent::LoaderVersionsFetched { versions });
+            Ok(result) => {
+                let _ = tx.send(AppEvent::LoaderVersionsFetched {
+                    versions: result.versions,
+                    failed: result.failed,
+                });
             }
             Err(_) => {
                 let _ = tx.send(AppEvent::LoaderFetchFailed);

@@ -148,6 +148,7 @@ pub enum AppEvent {
     },
     LoaderVersionsFetched {
         versions: HashMap<ModLoaderType, Vec<ModLoaderVersion>>,
+        failed: Vec<ModLoaderType>,
     },
     LoaderFetchFailed,
 

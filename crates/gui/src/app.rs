@@ -256,8 +256,9 @@ impl MiaoApp {
                     self.versions.versions = releases;
                     self.versions.loading = false;
                 }
-                AppEvent::LoaderVersionsFetched { versions } => {
+                AppEvent::LoaderVersionsFetched { versions, failed } => {
                     self.loader.versions = versions;
+                    self.loader.failed = failed;
                     self.loader.loading = false;
                 }
                 AppEvent::LoaderFetchFailed => {
@@ -1070,15 +1071,17 @@ impl MiaoApp {
         });
     }
 
-    pub fn get_available_loaders(&self) -> Vec<(usize, &'static str, bool)> {
-        let mut loaders = vec![(0, "None (Vanilla)", true)];
+    pub fn get_available_loaders(&self) -> Vec<(usize, &'static str, bool, bool)> {
+        let mut loaders = vec![(0, "None (Vanilla)", true, false)];
         for (idx, name, loader_type) in [
             (1, "Fabric", ModLoaderType::Fabric),
             (2, "Quilt", ModLoaderType::Quilt),
             (3, "NeoForge", ModLoaderType::NeoForge),
             (4, "Forge", ModLoaderType::Forge),
         ] {
-            loaders.push((idx, name, self.loader.versions.contains_key(&loader_type)));
+            let available = self.loader.versions.contains_key(&loader_type);
+            let fetch_failed = self.loader.failed.contains(&loader_type);
+            loaders.push((idx, name, available, fetch_failed));
         }
         loaders
     }

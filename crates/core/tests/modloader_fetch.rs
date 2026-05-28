@@ -172,17 +172,18 @@ async fn fetch_all_loader_versions_all_available() {
     mock.mock_response("maven.neoforged.net", NEOFORGE_VERSIONS_JSON);
     mock.mock_response("minecraftforge.net", FORGE_PROMOS_JSON);
 
-    let versions = fetch_all_loader_versions(&mock, "1.20.4").await.unwrap();
+    let result = fetch_all_loader_versions(&mock, "1.20.4").await.unwrap();
 
-    assert!(versions.contains_key(&ModLoaderType::Fabric));
-    assert!(versions.contains_key(&ModLoaderType::Quilt));
-    assert!(versions.contains_key(&ModLoaderType::NeoForge));
-    assert!(versions.contains_key(&ModLoaderType::Forge));
+    assert!(result.versions.contains_key(&ModLoaderType::Fabric));
+    assert!(result.versions.contains_key(&ModLoaderType::Quilt));
+    assert!(result.versions.contains_key(&ModLoaderType::NeoForge));
+    assert!(result.versions.contains_key(&ModLoaderType::Forge));
+    assert!(result.failed.is_empty());
 
-    assert_eq!(versions[&ModLoaderType::Fabric].len(), 3);
-    assert_eq!(versions[&ModLoaderType::Quilt].len(), 2);
-    assert_eq!(versions[&ModLoaderType::NeoForge].len(), 3);
-    assert_eq!(versions[&ModLoaderType::Forge].len(), 1);
+    assert_eq!(result.versions[&ModLoaderType::Fabric].len(), 3);
+    assert_eq!(result.versions[&ModLoaderType::Quilt].len(), 2);
+    assert_eq!(result.versions[&ModLoaderType::NeoForge].len(), 3);
+    assert_eq!(result.versions[&ModLoaderType::Forge].len(), 1);
 }
 
 #[tokio::test]
@@ -190,12 +191,15 @@ async fn fetch_all_loader_versions_partial_failure() {
     let mock = MockHttpClient::new();
     mock.mock_response("meta.fabricmc.net", FABRIC_VERSIONS_JSON);
 
-    let versions = fetch_all_loader_versions(&mock, "1.20.4").await.unwrap();
+    let result = fetch_all_loader_versions(&mock, "1.20.4").await.unwrap();
 
-    assert!(versions.contains_key(&ModLoaderType::Fabric));
-    assert!(!versions.contains_key(&ModLoaderType::Quilt));
-    assert!(!versions.contains_key(&ModLoaderType::NeoForge));
-    assert!(!versions.contains_key(&ModLoaderType::Forge));
+    assert!(result.versions.contains_key(&ModLoaderType::Fabric));
+    assert!(!result.versions.contains_key(&ModLoaderType::Quilt));
+    assert!(!result.versions.contains_key(&ModLoaderType::NeoForge));
+    assert!(!result.versions.contains_key(&ModLoaderType::Forge));
+    assert!(result.failed.contains(&ModLoaderType::Quilt));
+    assert!(result.failed.contains(&ModLoaderType::NeoForge));
+    assert!(result.failed.contains(&ModLoaderType::Forge));
 }
 
 #[tokio::test]
@@ -206,14 +210,14 @@ async fn fetch_all_loader_versions_stable_flag() {
     mock.mock_response("maven.neoforged.net", r#"{"versions": []}"#);
     mock.mock_response("minecraftforge.net", r#"{"promos": {}}"#);
 
-    let versions = fetch_all_loader_versions(&mock, "1.20.4").await.unwrap();
+    let result = fetch_all_loader_versions(&mock, "1.20.4").await.unwrap();
 
-    let fabric = &versions[&ModLoaderType::Fabric];
+    let fabric = &result.versions[&ModLoaderType::Fabric];
     assert!(fabric[0].stable);
     assert!(fabric[1].stable);
     assert!(!fabric[2].stable);
 
-    let quilt = &versions[&ModLoaderType::Quilt];
+    let quilt = &result.versions[&ModLoaderType::Quilt];
     assert!(quilt[0].stable);
 }
 

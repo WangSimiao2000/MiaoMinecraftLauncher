@@ -5,15 +5,15 @@ use miao_core::service::LauncherService;
 pub async fn cmd_loaders(service: &LauncherService, mc_version: &str) -> Result<()> {
     println!("Fetching loader compatibility for {}...", mc_version);
 
-    let versions = service.fetch_loader_versions(mc_version).await?;
+    let result = service.fetch_loader_versions(mc_version).await?;
 
-    if versions.is_empty() {
+    if result.versions.is_empty() && result.failed.is_empty() {
         println!("No mod loaders available for {}.", mc_version);
         return Ok(());
     }
 
     for lt in &ModLoaderType::ALL {
-        if let Some(loader_versions) = versions.get(lt) {
+        if let Some(loader_versions) = result.versions.get(lt) {
             let stable_count = loader_versions.iter().filter(|v| v.stable).count();
             let latest = &loader_versions[0].version;
             println!(
@@ -23,6 +23,8 @@ pub async fn cmd_loaders(service: &LauncherService, mc_version: &str) -> Result<
                 stable_count,
                 latest
             );
+        } else if result.failed.contains(lt) {
+            println!("  {} — fetch failed", lt);
         } else {
             println!("  {} — not available", lt);
         }

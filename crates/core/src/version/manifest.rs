@@ -47,7 +47,7 @@ pub async fn fetch_version_manifest(
                 "snapshot" => VersionType::Snapshot,
                 "old_beta" => VersionType::OldBeta,
                 "old_alpha" => VersionType::OldAlpha,
-                _ => VersionType::Release,
+                _ => VersionType::Snapshot,
             },
             url: v.url,
             release_time: v.release_time,

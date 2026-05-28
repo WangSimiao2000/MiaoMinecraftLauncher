@@ -170,13 +170,17 @@ fn find_platform_asset(assets: &[ReleaseAsset]) -> Option<&ReleaseAsset> {
             let name_lower = a.name.to_lowercase();
             name_lower.contains(target)
                 && name_lower.contains(arch)
-                && name_lower.contains(gui_ext)
+                && name_lower.ends_with(gui_ext)
                 && !name_lower.contains("cli")
         })
         .or_else(|| {
             assets.iter().find(|a| {
                 let name_lower = a.name.to_lowercase();
-                name_lower.contains(target) && name_lower.contains(arch)
+                name_lower.contains(target)
+                    && name_lower.contains(arch)
+                    && !name_lower.ends_with(".sha256")
+                    && !name_lower.ends_with(".sig")
+                    && !name_lower.ends_with(".asc")
             })
         })
 }

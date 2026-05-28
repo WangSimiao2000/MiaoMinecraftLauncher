@@ -96,10 +96,15 @@ pub async fn resolve_loader_profile(
     }
 }
 
+pub struct LoaderFetchResult {
+    pub versions: std::collections::HashMap<ModLoaderType, Vec<ModLoaderVersion>>,
+    pub failed: Vec<ModLoaderType>,
+}
+
 pub async fn fetch_all_loader_versions(
     http: &impl HttpClient,
     minecraft_version: &str,
-) -> Result<std::collections::HashMap<ModLoaderType, Vec<ModLoaderVersion>>> {
+) -> Result<LoaderFetchResult> {
     let (fabric_result, quilt_result, neoforge_result, forge_result) = tokio::join!(
         fabric::fetch_loader_versions(http, minecraft_version),
         quilt::fetch_loader_versions(http, minecraft_version),
@@ -107,64 +112,78 @@ pub async fn fetch_all_loader_versions(
         forge::fetch_recommended_version(http, minecraft_version),
     );
 
-    let mut result = std::collections::HashMap::new();
+    let mut versions = std::collections::HashMap::new();
+    let mut failed = Vec::new();
 
-    if let Ok(fabric_versions) = fabric_result {
-        let versions: Vec<ModLoaderVersion> = fabric_versions
-            .into_iter()
-            .map(|v| ModLoaderVersion {
-                loader_type: ModLoaderType::Fabric,
-                version: v.loader.version,
-                minecraft_version: minecraft_version.to_string(),
-                stable: v.loader.stable,
-            })
-            .collect();
-        if !versions.is_empty() {
-            result.insert(ModLoaderType::Fabric, versions);
+    match fabric_result {
+        Ok(fabric_versions) => {
+            let v: Vec<ModLoaderVersion> = fabric_versions
+                .into_iter()
+                .map(|v| ModLoaderVersion {
+                    loader_type: ModLoaderType::Fabric,
+                    version: v.loader.version,
+                    minecraft_version: minecraft_version.to_string(),
+                    stable: v.loader.stable,
+                })
+                .collect();
+            if !v.is_empty() {
+                versions.insert(ModLoaderType::Fabric, v);
+            }
         }
+        Err(_) => failed.push(ModLoaderType::Fabric),
     }
 
-    if let Ok(quilt_versions) = quilt_result {
-        let versions: Vec<ModLoaderVersion> = quilt_versions
-            .into_iter()
-            .map(|v| ModLoaderVersion {
-                loader_type: ModLoaderType::Quilt,
-                version: v.loader.version,
+    match quilt_result {
+        Ok(quilt_versions) => {
+            let v: Vec<ModLoaderVersion> = quilt_versions
+                .into_iter()
+                .map(|v| ModLoaderVersion {
+                    loader_type: ModLoaderType::Quilt,
+                    version: v.loader.version,
+                    minecraft_version: minecraft_version.to_string(),
+                    stable: true,
+                })
+                .collect();
+            if !v.is_empty() {
+                versions.insert(ModLoaderType::Quilt, v);
+            }
+        }
+        Err(_) => failed.push(ModLoaderType::Quilt),
+    }
+
+    match neoforge_result {
+        Ok(neoforge_versions) => {
+            let v: Vec<ModLoaderVersion> = neoforge_versions
+                .into_iter()
+                .map(|v| ModLoaderVersion {
+                    loader_type: ModLoaderType::NeoForge,
+                    version: v,
+                    minecraft_version: minecraft_version.to_string(),
+                    stable: true,
+                })
+                .collect();
+            if !v.is_empty() {
+                versions.insert(ModLoaderType::NeoForge, v);
+            }
+        }
+        Err(_) => failed.push(ModLoaderType::NeoForge),
+    }
+
+    match forge_result {
+        Ok(Some(forge_version)) => {
+            let v = vec![ModLoaderVersion {
+                loader_type: ModLoaderType::Forge,
+                version: forge_version,
                 minecraft_version: minecraft_version.to_string(),
                 stable: true,
-            })
-            .collect();
-        if !versions.is_empty() {
-            result.insert(ModLoaderType::Quilt, versions);
+            }];
+            versions.insert(ModLoaderType::Forge, v);
         }
+        Ok(None) => {}
+        Err(_) => failed.push(ModLoaderType::Forge),
     }
 
-    if let Ok(neoforge_versions) = neoforge_result {
-        let versions: Vec<ModLoaderVersion> = neoforge_versions
-            .into_iter()
-            .map(|v| ModLoaderVersion {
-                loader_type: ModLoaderType::NeoForge,
-                version: v,
-                minecraft_version: minecraft_version.to_string(),
-                stable: true,
-            })
-            .collect();
-        if !versions.is_empty() {
-            result.insert(ModLoaderType::NeoForge, versions);
-        }
-    }
-
-    if let Ok(Some(forge_version)) = forge_result {
-        let versions = vec![ModLoaderVersion {
-            loader_type: ModLoaderType::Forge,
-            version: forge_version,
-            minecraft_version: minecraft_version.to_string(),
-            stable: true,
-        }];
-        result.insert(ModLoaderType::Forge, versions);
-    }
-
-    Ok(result)
+    Ok(LoaderFetchResult { versions, failed })
 }
 
 pub async fn install_loader(
