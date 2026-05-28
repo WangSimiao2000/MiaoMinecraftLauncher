@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::LauncherConfig;
 use crate::download::DownloadTask;
 use crate::download::manager::DownloadManager;
+use crate::http::HttpClient;
 use crate::instance::Instance;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +47,7 @@ pub struct MrpackEnv {
 }
 
 pub async fn import_mrpack(
+    http: &impl HttpClient,
     mrpack_path: &Path,
     config: &LauncherConfig,
     instance_name: Option<&str>,
@@ -134,42 +136,105 @@ pub async fn import_mrpack(
         }
     }
 
+    install_base_game(http, &mc_version, config).await?;
+
     let mut inst = Instance::new(&name, &mc_version);
 
-    if let Some(fabric_ver) = index.dependencies.get("fabric-loader") {
-        inst.mod_loader = Some(crate::instance::ModLoaderConfig {
-            loader_type: crate::modloader::ModLoaderType::Fabric,
-            version: fabric_ver.clone(),
-            main_class: None,
-            extra_libraries: Vec::new(),
-        });
-    } else if let Some(quilt_ver) = index.dependencies.get("quilt-loader") {
-        inst.mod_loader = Some(crate::instance::ModLoaderConfig {
-            loader_type: crate::modloader::ModLoaderType::Quilt,
-            version: quilt_ver.clone(),
-            main_class: None,
-            extra_libraries: Vec::new(),
-        });
-    } else if let Some(neoforge_ver) = index.dependencies.get("neoforge") {
-        inst.mod_loader = Some(crate::instance::ModLoaderConfig {
-            loader_type: crate::modloader::ModLoaderType::NeoForge,
-            version: neoforge_ver.clone(),
-            main_class: None,
-            extra_libraries: Vec::new(),
-        });
-    } else if let Some(forge_ver) = index.dependencies.get("forge") {
-        inst.mod_loader = Some(crate::instance::ModLoaderConfig {
-            loader_type: crate::modloader::ModLoaderType::Forge,
-            version: forge_ver.clone(),
-            main_class: None,
-            extra_libraries: Vec::new(),
-        });
-    }
+    let loader_config = resolve_mrpack_loader(http, &index.dependencies, &mc_version, config).await;
+    inst.mod_loader = loader_config;
 
     inst.save_to(&instance_dir)?;
     Instance::create_directories(&instance_dir)?;
 
     Ok(inst)
+}
+
+async fn install_base_game(
+    http: &impl HttpClient,
+    mc_version: &str,
+    config: &LauncherConfig,
+) -> Result<()> {
+    use crate::download::mirror::transform_url;
+    use crate::version::{assets, install, manifest};
+
+    let all_versions = manifest::fetch_version_manifest(http, &config.download_mirror).await?;
+    let version_info = all_versions
+        .iter()
+        .find(|v| v.id == mc_version)
+        .ok_or_else(|| {
+            crate::error::MiaoError::Other(format!(
+                "Minecraft version '{}' not found in manifest",
+                mc_version
+            ))
+        })?;
+
+    let version_url = transform_url(&version_info.url, &config.download_mirror);
+    let meta = http.get_json(&version_url).await?;
+    install::save_version_meta(&meta, config)?;
+
+    let mut all_tasks = install::all_download_tasks(&meta, config, &config.download_mirror);
+    let native_tasks = install::collect_native_downloads(&meta, config, &config.download_mirror);
+    all_tasks.extend(native_tasks);
+
+    let dm = DownloadManager::new(
+        config.download_mirror.clone(),
+        config.max_concurrent_downloads,
+    );
+    dm.download_all(all_tasks).await?;
+    install::extract_natives(&meta, config)?;
+
+    let asset_index_task =
+        install::collect_asset_index_download(&meta, config, &config.download_mirror);
+    let asset_index_path = asset_index_task.dest.clone();
+    let dm = DownloadManager::new(
+        config.download_mirror.clone(),
+        config.max_concurrent_downloads,
+    );
+    dm.download_all(vec![asset_index_task]).await?;
+
+    if asset_index_path.exists() {
+        let asset_index = assets::fetch_asset_index(&asset_index_path).await?;
+        let asset_tasks =
+            assets::collect_asset_downloads(&asset_index, config, &config.download_mirror);
+        let dm = DownloadManager::new(
+            config.download_mirror.clone(),
+            config.max_concurrent_downloads,
+        );
+        dm.download_all(asset_tasks).await?;
+    }
+
+    Ok(())
+}
+
+async fn resolve_mrpack_loader(
+    http: &impl HttpClient,
+    dependencies: &std::collections::HashMap<String, String>,
+    mc_version: &str,
+    config: &LauncherConfig,
+) -> Option<crate::instance::ModLoaderConfig> {
+    use crate::modloader::{self, ModLoaderType};
+
+    let (loader_type, loader_version) = if let Some(ver) = dependencies.get("fabric-loader") {
+        (ModLoaderType::Fabric, ver.clone())
+    } else if let Some(ver) = dependencies.get("quilt-loader") {
+        (ModLoaderType::Quilt, ver.clone())
+    } else if let Some(ver) = dependencies.get("neoforge") {
+        (ModLoaderType::NeoForge, ver.clone())
+    } else if let Some(ver) = dependencies.get("forge") {
+        (ModLoaderType::Forge, ver.clone())
+    } else {
+        return None;
+    };
+
+    match modloader::install_loader(http, &loader_type, mc_version, &loader_version, config).await {
+        Ok(loader_config) => Some(loader_config),
+        Err(_) => Some(crate::instance::ModLoaderConfig {
+            loader_type,
+            version: loader_version,
+            main_class: None,
+            extra_libraries: Vec::new(),
+        }),
+    }
 }
 
 pub fn export_mrpack(instance_dir: &Path, inst: &Instance, output_path: &Path) -> Result<PathBuf> {

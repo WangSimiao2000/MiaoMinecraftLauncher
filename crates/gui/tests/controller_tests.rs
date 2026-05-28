@@ -89,7 +89,7 @@ fn loader_versions_fetch_produces_event() {
     assert!(event.is_some(), "Should receive loader event");
 
     match event.unwrap() {
-        AppEvent::LoaderVersionsFetched { versions } => {
+        AppEvent::LoaderVersionsFetched { versions, .. } => {
             assert!(
                 !versions.is_empty(),
                 "Should have at least one loader for 1.21.4"

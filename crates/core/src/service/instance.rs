@@ -138,6 +138,6 @@ impl LauncherService {
         mrpack_path: &std::path::Path,
         name: Option<&str>,
     ) -> Result<Instance> {
-        modrinth::mrpack::import_mrpack(mrpack_path, &self.config, name).await
+        modrinth::mrpack::import_mrpack(&self.http, mrpack_path, &self.config, name).await
     }
 }

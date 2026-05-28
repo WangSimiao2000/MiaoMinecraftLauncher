@@ -144,7 +144,10 @@ pub fn handle_import_mrpack(
             .build()
             .unwrap();
         rt.block_on(async {
-            match miao_core::modrinth::mrpack::import_mrpack(&mrpack_path, &config, None).await {
+            let http = reqwest::Client::new();
+            match miao_core::modrinth::mrpack::import_mrpack(&http, &mrpack_path, &config, None)
+                .await
+            {
                 Ok(inst) => {
                     let loader_info = inst
                         .mod_loader
