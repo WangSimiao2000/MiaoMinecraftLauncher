@@ -5,8 +5,24 @@ use crate::theme;
 
 impl MiaoApp {
     pub fn render_detail(&mut self, ui: &mut egui::Ui) {
-        let Some(idx) = self.selected_instance else {
+        let has_instance = self.selected_instance.is_some();
+        let detail_opacity = ui.ctx().animate_bool_with_time_and_easing(
+            egui::Id::new("detail_content_opacity"),
+            has_instance,
+            0.18,
+            eframe::emath::easing::cubic_out,
+        );
+        let welcome_opacity = 1.0 - detail_opacity;
+
+        if welcome_opacity > 0.0 && !has_instance {
+            ui.set_opacity(welcome_opacity);
             self.render_welcome(ui);
+            if detail_opacity == 0.0 {
+                return;
+            }
+        }
+
+        let Some(idx) = self.selected_instance else {
             return;
         };
 
@@ -14,6 +30,7 @@ impl MiaoApp {
         let instance_dir =
             miao_core::instance::Instance::instance_dir(&self.config.instances_dir(), &inst.name);
 
+        ui.set_opacity(detail_opacity);
         self.render_instance_header(ui, &inst, idx);
         ui.add_space(theme::Spacing::SECTION_GAP);
         self.render_tabs(ui);
