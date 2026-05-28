@@ -53,6 +53,15 @@ pub enum AppCommand {
         email: String,
         password: String,
     },
+    /// Re-fetch and re-cache the avatar/cape for an account by UUID. The launcher
+    /// only auto-fetches skins on first login, so cache loss (e.g. user wiped data
+    /// dir) leaves the GUI rendering placeholder PNGs forever. This command lets us
+    /// rebuild the cache eagerly on startup.
+    RefreshSkin {
+        /// Compact-form UUID (no hyphens) — matches the on-disk cache file name.
+        uuid: String,
+        data_dir: PathBuf,
+    },
 
     // ── Java ──
     DownloadJava {
@@ -178,6 +187,13 @@ pub enum AppEvent {
         account: AuthMethod,
     },
     LoginFailed(String),
+    /// Sent after a [`AppCommand::RefreshSkin`] task completes (whether or not the
+    /// fetch succeeded — the UI just needs to drop any cached image so the new
+    /// PNG on disk gets re-read).
+    SkinRefreshed {
+        /// Compact-form UUID matching the cache file name.
+        uuid: String,
+    },
 
     // ── Java ──
     JavaInstalled {

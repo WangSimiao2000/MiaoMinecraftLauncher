@@ -178,6 +178,18 @@ impl MiaoApp {
             data_dir: config.data_dir.clone(),
             force: false,
         });
+        // Re-fetch avatars/capes for any non-offline accounts. This rebuilds the
+        // skin cache after a data-dir wipe and keeps avatars current if the player
+        // changed their skin between launches.
+        for account in &config.accounts {
+            if account.is_offline() {
+                continue;
+            }
+            controller.send(AppCommand::RefreshSkin {
+                uuid: account.uuid().as_simple().to_string(),
+                data_dir: config.data_dir.clone(),
+            });
+        }
 
         let data_dir_input = config.data_dir.display().to_string();
         let mirror_custom_url = match &config.download_mirror {
@@ -256,7 +268,7 @@ impl MiaoApp {
         self.new_instance.reset();
     }
 
-    fn drain_events(&mut self) {
+    fn drain_events(&mut self, ctx: &egui::Context) {
         while let Some(event) = self.controller.try_recv() {
             match event {
                 AppEvent::VersionsFetched {
@@ -356,6 +368,17 @@ impl MiaoApp {
                     self.auth.device_code = None;
                     self.auth.logging_in = false;
                     self.auth.authlib_logging_in = false;
+                }
+                AppEvent::SkinRefreshed { uuid } => {
+                    // The on-disk PNG was just rewritten. Drop egui's in-memory image
+                    // cache for both file:// URIs so the next render pulls the fresh
+                    // bytes. Without this, a previously rendered placeholder (or a
+                    // stale skin) sticks until the app restarts.
+                    let cache = miao_core::skin::SkinCache::new(&self.config.data_dir);
+                    let avatar_uri = format!("file://{}", cache.avatar_path(&uuid).display());
+                    let cape_uri = format!("file://{}", cache.cape_path(&uuid).display());
+                    ctx.forget_image(&avatar_uri);
+                    ctx.forget_image(&cape_uri);
                 }
                 AppEvent::JavaInstalled { launch_idx } => {
                     // A new Java was installed; cache is stale. Re-detect in the
@@ -540,7 +563,7 @@ impl eframe::App for MiaoApp {
     #[allow(deprecated)]
     fn ui(&mut self, _root_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = _root_ui.ctx();
-        self.drain_events();
+        self.drain_events(ctx);
         if let Some(ref name) = self.active_custom_theme {
             if let Some(loaded) = self.custom_themes.iter().find(|t| &t.file_name == name) {
                 theme::apply_custom_theme(ctx, &loaded.theme.colors);

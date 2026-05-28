@@ -108,6 +108,9 @@ async fn controller_loop(
                     ctx.clone(),
                 );
             }
+            AppCommand::RefreshSkin { uuid, data_dir } => {
+                auth::handle_refresh_skin(uuid, data_dir, event_tx.clone(), ctx.clone());
+            }
             AppCommand::DownloadJava {
                 task_id,
                 required_major,

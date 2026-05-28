@@ -80,6 +80,23 @@ pub fn handle_ms_login(
     });
 }
 
+pub fn handle_refresh_skin(
+    uuid: String,
+    data_dir: std::path::PathBuf,
+    tx: mpsc::UnboundedSender<AppEvent>,
+    ctx: Context,
+) {
+    tokio::spawn(async move {
+        let http = reqwest::Client::new();
+        let cache = miao_core::skin::SkinCache::new(&data_dir);
+        // Best-effort: ignore failures (Mojang outage, no internet, etc.). The UI
+        // already rendered a placeholder; the next refresh will try again.
+        let _ = miao_core::skin::fetch_and_cache_textures(&http, &uuid, &cache).await;
+        let _ = tx.send(AppEvent::SkinRefreshed { uuid });
+        ctx.request_repaint();
+    });
+}
+
 pub fn handle_authlib_login(
     server_url: String,
     email: String,
