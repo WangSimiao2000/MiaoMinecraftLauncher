@@ -433,24 +433,20 @@ impl MiaoApp {
                 if ui.small_button(I18n::t(&lang, "refresh")).clicked() {
                     self.custom_themes =
                         miao_core::custom_theme::load_themes_from_dir(&self.config.themes_dir());
+                    if self.active_custom_theme.is_some()
+                        && !self
+                            .custom_themes
+                            .iter()
+                            .any(|t| Some(&t.file_name) == self.active_custom_theme.as_ref())
+                    {
+                        self.active_custom_theme = None;
+                        self.config.custom_theme_name = None;
+                        let _ = self.config.save();
+                    }
                 }
             });
         });
         ui.add_space(8.0);
-
-        self.custom_themes =
-            miao_core::custom_theme::load_themes_from_dir(&self.config.themes_dir());
-
-        if self.active_custom_theme.is_some()
-            && !self
-                .custom_themes
-                .iter()
-                .any(|t| Some(&t.file_name) == self.active_custom_theme.as_ref())
-        {
-            self.active_custom_theme = None;
-            self.config.custom_theme_name = None;
-            let _ = self.config.save();
-        }
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
