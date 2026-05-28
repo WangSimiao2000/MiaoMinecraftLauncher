@@ -19,6 +19,7 @@ pub struct LaunchOptions {
 
 pub fn build_launch_command(options: &LaunchOptions) -> Result<Command> {
     let mut cmd = Command::new(&options.java_path);
+    crate::process::no_window(&mut cmd);
 
     cmd.arg(format!("-Xmx{}m", options.instance.memory_max_mb));
     cmd.arg(format!("-Xms{}m", options.instance.memory_min_mb));

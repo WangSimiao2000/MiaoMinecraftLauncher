@@ -13,6 +13,7 @@ pub mod launch;
 pub mod modloader;
 pub mod modmanager;
 pub mod modrinth;
+pub mod process;
 pub mod resource;
 pub mod server_list;
 pub mod service;

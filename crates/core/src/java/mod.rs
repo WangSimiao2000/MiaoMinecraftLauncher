@@ -300,9 +300,10 @@ fn detect_java_from_registry() -> Vec<JavaInstallation> {
 }
 
 pub fn probe_java(java_bin: &PathBuf) -> Result<JavaInstallation> {
-    let output = std::process::Command::new(java_bin)
-        .arg("-version")
-        .output()?;
+    let mut cmd = std::process::Command::new(java_bin);
+    cmd.arg("-version");
+    crate::process::no_window(&mut cmd);
+    let output = cmd.output()?;
 
     let version_output = String::from_utf8_lossy(&output.stderr);
     let version = parse_java_version(&version_output).unwrap_or_else(|| "unknown".to_string());
