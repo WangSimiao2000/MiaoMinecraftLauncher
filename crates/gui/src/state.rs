@@ -262,6 +262,11 @@ impl I18n {
             return;
         };
         let mut reg = REGISTRY.write().unwrap();
+
+        let builtin_ids: Vec<String> = ["en", "zh", "ja"].iter().map(|s| s.to_string()).collect();
+        reg.locales.retain(|id, _| builtin_ids.contains(id));
+        reg.order.retain(|e| builtin_ids.contains(&e.id));
+
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().is_some_and(|ext| ext == "json") {
