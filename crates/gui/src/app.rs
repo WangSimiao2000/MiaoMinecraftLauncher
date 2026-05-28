@@ -156,6 +156,7 @@ impl FileScanCache {
 impl MiaoApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let config = LauncherConfig::load().unwrap_or_default();
+        config.ensure_data_dirs();
         let instances = instance::list_instances(&config.instances_dir()).unwrap_or_default();
 
         let gl = cc.gl.as_ref().expect("glow context required");
@@ -177,9 +178,8 @@ impl MiaoApp {
         let max_downloads_input = config.max_concurrent_downloads.to_string();
         let theme_preset = config.theme;
         let language = config.language.clone();
-        I18n::load_external_locales(&config.data_dir.join("locales"));
-        let custom_themes =
-            miao_core::custom_theme::load_themes_from_dir(&config.data_dir.join("themes"));
+        I18n::load_external_locales(&config.locales_dir());
+        let custom_themes = miao_core::custom_theme::load_themes_from_dir(&config.themes_dir());
         let active_custom_theme = config.custom_theme_name.clone();
         let cf_api_key_input = config.curseforge_api_key.clone().unwrap_or_default();
 

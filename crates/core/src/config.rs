@@ -183,6 +183,26 @@ impl LauncherConfig {
         self.data_dir.join("assets")
     }
 
+    pub fn themes_dir(&self) -> PathBuf {
+        self.data_dir.join("themes")
+    }
+
+    pub fn locales_dir(&self) -> PathBuf {
+        self.data_dir.join("locales")
+    }
+
+    pub fn ensure_data_dirs(&self) {
+        let dirs = [self.instances_dir(), self.themes_dir(), self.locales_dir()];
+        for dir in &dirs {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let example_path = self.themes_dir().join("_example.toml");
+        if !example_path.exists() {
+            let content = crate::custom_theme::generate_example_theme();
+            let _ = std::fs::write(&example_path, content);
+        }
+    }
+
     pub fn load_from_path(path: &PathBuf) -> Result<Self> {
         if path.exists() {
             let content = std::fs::read_to_string(path)?;

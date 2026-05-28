@@ -561,7 +561,7 @@ impl MiaoApp {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.small_button(I18n::t(&lang, "refresh")).clicked() {
                         self.custom_themes = miao_core::custom_theme::load_themes_from_dir(
-                            &self.config.data_dir.join("themes"),
+                            &self.config.themes_dir(),
                         );
                     }
                 });
@@ -625,7 +625,7 @@ impl MiaoApp {
             ui.label(theme::subheading(I18n::t(&lang, "language")));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.small_button(I18n::t(&lang, "refresh")).clicked() {
-                    I18n::load_external_locales(&self.config.data_dir.join("locales"));
+                    I18n::load_external_locales(&self.config.locales_dir());
                 }
             });
         });
