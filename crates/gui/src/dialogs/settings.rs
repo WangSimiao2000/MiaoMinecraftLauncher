@@ -18,6 +18,14 @@ impl MiaoApp {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(16, 0)))
             .show_inside(ui, |ui| {
+                let content_t = ui.ctx().animate_bool_with_time_and_easing(
+                    egui::Id::new("settings_content_fade").with(self.settings_tab as u8),
+                    true,
+                    0.18,
+                    eframe::emath::easing::cubic_out,
+                );
+                ui.set_opacity(content_t);
+
                 egui::ScrollArea::vertical()
                     .id_salt("settings_content")
                     .show(ui, |ui| {
@@ -49,51 +57,65 @@ impl MiaoApp {
         ];
 
         let panel_width = ui.available_width();
+        let nav_top = ui.cursor().top();
+
         for (tab, label) in tabs {
             let selected = self.settings_tab == tab;
 
             let (rect, response) =
                 ui.allocate_exact_size(egui::vec2(panel_width, 32.0), egui::Sense::click());
 
-            if selected {
+            let tab_id = egui::Id::new(label).with("settings_nav");
+            let sel_t = ui.ctx().animate_bool_with_time_and_easing(
+                tab_id.with("sel"),
+                selected,
+                0.18,
+                eframe::emath::easing::cubic_out,
+            );
+            let hover_t = ui.ctx().animate_bool_with_time_and_easing(
+                tab_id.with("hover"),
+                response.hovered() && !selected,
+                0.12,
+                eframe::emath::easing::cubic_out,
+            );
+
+            if sel_t > 0.0 {
                 ui.painter().rect_filled(
                     rect,
                     egui::CornerRadius::same(4),
-                    theme::Colors::bg_widget_active().gamma_multiply(0.3),
+                    theme::Colors::bg_widget_active().gamma_multiply(0.3 * sel_t),
                 );
-                ui.painter().rect_filled(
-                    egui::Rect::from_min_max(
-                        egui::pos2(rect.right() - 3.0, rect.top() + 4.0),
-                        egui::pos2(rect.right(), rect.bottom() - 4.0),
-                    ),
-                    egui::CornerRadius::same(2),
-                    theme::Colors::accent(),
-                );
-            } else if response.hovered() {
+            }
+            if hover_t > 0.0 {
                 ui.painter().rect_filled(
                     rect,
                     egui::CornerRadius::same(4),
-                    theme::Colors::bg_widget_hover(),
+                    theme::Colors::bg_widget_hover().gamma_multiply(hover_t),
                 );
             }
 
-            let color = if selected {
-                theme::Colors::accent_light()
-            } else {
-                theme::Colors::text_secondary()
-            };
+            if selected {
+                self.settings_nav_indicator_y
+                    .set_target(rect.center().y - nav_top);
+            }
 
-            let font = if selected {
-                egui::FontId::proportional(theme::Fonts::SUBHEADING)
-            } else {
-                egui::FontId::proportional(theme::Fonts::BODY)
-            };
+            let active_color = theme::Colors::accent_light();
+            let idle_color = theme::Colors::text_secondary();
+            let color = egui::Color32::from_rgba_unmultiplied(
+                (idle_color.r() as f32 + (active_color.r() as f32 - idle_color.r() as f32) * sel_t)
+                    as u8,
+                (idle_color.g() as f32 + (active_color.g() as f32 - idle_color.g() as f32) * sel_t)
+                    as u8,
+                (idle_color.b() as f32 + (active_color.b() as f32 - idle_color.b() as f32) * sel_t)
+                    as u8,
+                255,
+            );
 
             ui.painter().text(
                 rect.center(),
                 egui::Align2::CENTER_CENTER,
                 label,
-                font,
+                egui::FontId::proportional(theme::Fonts::BODY),
                 color,
             );
 
@@ -101,6 +123,17 @@ impl MiaoApp {
                 self.settings_tab = tab;
             }
         }
+
+        let indicator_y = nav_top + self.settings_nav_indicator_y.position();
+        let panel_right = ui.min_rect().right();
+        ui.painter().rect_filled(
+            egui::Rect::from_min_size(
+                egui::pos2(panel_right - 3.0, indicator_y - 12.0),
+                egui::vec2(3.0, 24.0),
+            ),
+            egui::CornerRadius::same(2),
+            theme::Colors::accent(),
+        );
     }
 
     fn render_tab_account(&mut self, ui: &mut egui::Ui) {
@@ -146,12 +179,28 @@ impl MiaoApp {
 
             for (i, (name, kind, avatar_path, cape_path, active)) in account_info.iter().enumerate()
             {
+                let card_id = egui::Id::new("account_card").with(i);
+                let active_t = ui.ctx().animate_bool_with_time_and_easing(
+                    card_id.with("active"),
+                    *active,
+                    0.18,
+                    eframe::emath::easing::cubic_out,
+                );
+                let base = theme::Colors::bg_elevated();
+                let active_color = theme::Colors::bg_widget_hover();
+                let fill = egui::Color32::from_rgba_unmultiplied(
+                    (base.r() as f32 + (active_color.r() as f32 - base.r() as f32) * active_t)
+                        as u8,
+                    (base.g() as f32 + (active_color.g() as f32 - base.g() as f32) * active_t)
+                        as u8,
+                    (base.b() as f32 + (active_color.b() as f32 - base.b() as f32) * active_t)
+                        as u8,
+                    (base.a() as f32 + (active_color.a() as f32 - base.a() as f32) * active_t)
+                        as u8,
+                );
+
                 egui::Frame::NONE
-                    .fill(if *active {
-                        theme::Colors::bg_widget_hover()
-                    } else {
-                        theme::Colors::bg_elevated()
-                    })
+                    .fill(fill)
                     .corner_radius(egui::CornerRadius::same(6))
                     .inner_margin(egui::Margin::symmetric(12, 8))
                     .show(ui, |ui| {

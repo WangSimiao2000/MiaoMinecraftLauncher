@@ -150,5 +150,6 @@
   "mod_loader": "Mod Loader:",
   "loader_version": "Loader Version:",
   "loading": "Loading...",
-  "show": "Show:"
+  "show": "Show:",
+  "click_to_exit_settings": "Click to exit Settings"
 }

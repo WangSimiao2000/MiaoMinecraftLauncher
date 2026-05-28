@@ -150,5 +150,6 @@
   "mod_loader": "模组加载器：",
   "loader_version": "加载器版本：",
   "loading": "加载中...",
-  "show": "筛选："
+  "show": "筛选：",
+  "click_to_exit_settings": "点击退出设置"
 }
