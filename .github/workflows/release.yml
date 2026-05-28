@@ -68,23 +68,17 @@ jobs:
         run: cargo build --release -p miao-gui
         shell: pwsh
 
-      - name: Package binaries
+      - name: Rename binary
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item target\release\miao-gui.exe dist\
-          Copy-Item README.md dist\ -ErrorAction SilentlyContinue
-          Copy-Item LICENSE dist\ -ErrorAction SilentlyContinue
-          $items = @('dist\miao-gui.exe')
-          if (Test-Path 'dist\README.md') { $items += 'dist\README.md' }
-          if (Test-Path 'dist\LICENSE')   { $items += 'dist\LICENSE' }
-          Compress-Archive -Path $items -DestinationPath dist\mmcl-windows-x86_64.zip -Force
+          Copy-Item target\release\miao-gui.exe dist\mmcl-windows-x86_64.exe
 
-      - name: Upload Windows zip
+      - name: Upload Windows exe
         uses: actions/upload-artifact@v4
         with:
           name: mmcl-windows-x86_64
-          path: dist/mmcl-windows-x86_64.zip
+          path: dist/mmcl-windows-x86_64.exe
 
   release:
     needs: [build-linux, build-windows]
@@ -101,7 +95,7 @@ jobs:
       - name: Flatten artifact tree
         run: |
           mkdir -p release-files
-          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.AppImage' \) -exec cp {} release-files/ \;
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.exe' -o -name '*.AppImage' \) -exec cp {} release-files/ \;
           ls -la release-files/
 
       - name: Checkout for CHANGELOG
