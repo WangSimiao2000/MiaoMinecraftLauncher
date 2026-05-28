@@ -255,11 +255,17 @@ pub fn heading(text: &str) -> RichText {
 }
 
 pub fn title(text: &str) -> RichText {
-    RichText::new(text).size(Fonts::TITLE).strong()
+    RichText::new(text)
+        .size(Fonts::TITLE)
+        .strong()
+        .color(Colors::text_primary())
 }
 
 pub fn subheading(text: &str) -> RichText {
-    RichText::new(text).size(Fonts::SUBHEADING).strong()
+    RichText::new(text)
+        .size(Fonts::SUBHEADING)
+        .strong()
+        .color(Colors::text_primary())
 }
 
 pub fn body(text: &str) -> RichText {
