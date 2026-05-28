@@ -1,6 +1,6 @@
 use eframe::egui;
 use miao_core::auth::AuthMethod;
-use miao_core::config::DownloadMirror;
+use miao_core::config::{DownloadMirror, JavaSource};
 
 use crate::app::{I18n, MiaoApp, SettingsTab};
 use crate::theme;
@@ -1158,20 +1158,145 @@ impl MiaoApp {
 
     fn render_tab_java(&mut self, ui: &mut egui::Ui) {
         let lang = self.language.clone();
+
+        // ── Java source ────────────────────────────────────────────────────
+        ui.label(theme::subheading(I18n::t(&lang, "java_source")));
+        ui.add_space(8.0);
+
+        theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+
+            let sources = miao_core::config::JavaSource::all();
+            let current_idx = sources
+                .iter()
+                .position(|s| *s == self.config.java_source)
+                .unwrap_or(0);
+            let mut selected_idx = current_idx;
+
+            let cols = sources.len().clamp(1, 3);
+            let total_width = ui.available_width();
+            let card_width = if cols > 1 {
+                (total_width - 8.0 * (cols - 1) as f32) / cols as f32
+            } else {
+                total_width
+            };
+
+            egui::Grid::new("java_source_grid")
+                .num_columns(cols)
+                .spacing(egui::vec2(8.0, 8.0))
+                .min_col_width(card_width)
+                .max_col_width(card_width)
+                .show(ui, |ui| {
+                    for (i, source) in sources.iter().enumerate() {
+                        let is_selected = i == current_idx;
+                        let (rect, response) = ui.allocate_exact_size(
+                            egui::vec2(card_width, 36.0),
+                            egui::Sense::click(),
+                        );
+
+                        let sel_t = ui.ctx().animate_bool_with_time_and_easing(
+                            egui::Id::new("java_source_card").with(i).with("sel"),
+                            is_selected,
+                            0.25,
+                            crate::animation::ease_linear,
+                        );
+                        let hover_t = ui.ctx().animate_bool_with_time_and_easing(
+                            egui::Id::new("java_source_card").with(i).with("hover"),
+                            response.hovered(),
+                            0.2,
+                            crate::animation::ease_linear,
+                        );
+
+                        let base = theme::Colors::bg_widget();
+                        let bg = if sel_t > 0.0 {
+                            crate::animation::lerp_color(
+                                base,
+                                theme::Colors::accent(),
+                                0.15 * sel_t,
+                            )
+                        } else {
+                            crate::animation::lerp_color(
+                                base,
+                                theme::Colors::bg_widget_hover(),
+                                hover_t,
+                            )
+                        };
+
+                        let stroke = if sel_t > 0.0 {
+                            egui::Stroke::new(1.5, theme::Colors::accent().gamma_multiply(sel_t))
+                        } else {
+                            egui::Stroke::new(1.0, theme::Colors::subtle_border())
+                        };
+
+                        ui.painter()
+                            .rect_filled(rect, egui::CornerRadius::same(6), bg);
+                        ui.painter().rect_stroke(
+                            rect,
+                            egui::CornerRadius::same(6),
+                            stroke,
+                            egui::StrokeKind::Inside,
+                        );
+
+                        let text_color = if is_selected {
+                            theme::Colors::accent_light()
+                        } else {
+                            theme::Colors::text_primary()
+                        };
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            source_display_label(&lang, *source),
+                            egui::FontId::proportional(13.0),
+                            text_color,
+                        );
+
+                        let desc = source_description(&lang, *source);
+                        let response = response.on_hover_text(desc);
+
+                        if response.clicked() && !is_selected {
+                            selected_idx = i;
+                        }
+
+                        if (i + 1) % cols == 0 {
+                            ui.end_row();
+                        }
+                    }
+                });
+
+            if selected_idx != current_idx
+                && let Some(new_source) = sources.get(selected_idx).copied()
+            {
+                self.config.java_source = new_source;
+                if let Err(e) = self.config.save() {
+                    self.status = format!("✗ Save failed: {}", e);
+                } else {
+                    self.status = I18n::t(&lang, "java_source_updated").to_string();
+                }
+            }
+        });
+
+        ui.add_space(16.0);
+
+        // ── Detected installations ────────────────────────────────────────
         ui.horizontal(|ui| {
             ui.label(theme::subheading(I18n::t(&lang, "java_installs")));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(I18n::t(&lang, "refresh")).clicked() {
+                let refresh_btn = ui.add_enabled(
+                    !self.java_detecting,
+                    egui::Button::new(I18n::t(&lang, "refresh")),
+                );
+                if refresh_btn.clicked() {
                     self.cached_javas = None;
+                    self.request_java_detection(true);
                 }
             });
         });
         ui.add_space(8.0);
 
-        if self.cached_javas.is_none() {
-            self.cached_javas = Some(miao_core::java::detect_java_with_data_dir(
-                &self.config.data_dir,
-            ));
+        // Kick off a background scan if we don't yet have any data and one isn't
+        // already in flight. UI keeps rendering with a spinner placeholder.
+        if self.cached_javas.is_none() && !self.java_detecting {
+            self.request_java_detection(false);
         }
 
         theme::section_frame().show(ui, |ui| {
@@ -1202,6 +1327,12 @@ impl MiaoApp {
                         }
                     }
                 }
+            } else {
+                // First-time detection in progress.
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(theme::muted(I18n::t(&lang, "detecting_java")));
+                });
             }
         });
     }
@@ -1509,6 +1640,21 @@ impl MiaoApp {
             }
         });
     }
+}
+
+fn source_display_label(_lang: &str, source: JavaSource) -> &'static str {
+    // Display name comes from the source itself for now. If we ever want localised
+    // aliases, swap this for an i18n key like
+    // `format!("java_source_{}_label", source.id())`.
+    source.display_name()
+}
+
+fn source_description(lang: &str, source: JavaSource) -> &'static str {
+    // Per-source descriptions live in i18n under stable keys.
+    let key: &'static str = match source {
+        JavaSource::Mojang => "java_source_mojang_desc",
+    };
+    I18n::t(lang, key)
 }
 
 fn migrate_data_dir(old: &std::path::Path, new: &std::path::Path) -> std::io::Result<()> {
