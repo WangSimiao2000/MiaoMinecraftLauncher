@@ -63,6 +63,7 @@ impl Instance {
         }
     }
 
+    #[cfg(test)]
     pub fn with_mod_loader(mut self, loader_type: ModLoaderType, version: &str) -> Self {
         self.mod_loader = Some(ModLoaderConfig {
             loader_type,

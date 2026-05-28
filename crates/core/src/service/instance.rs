@@ -98,6 +98,13 @@ impl LauncherService {
         let meta = self.load_version_meta(&inst.minecraft_version)?;
         let required_java = meta.required_java_major();
 
+        let report =
+            crate::integrity::verify_instance_files(&inst.minecraft_version, &self.config)?;
+        if !report.is_healthy() {
+            let repair_tasks = report.repair_tasks();
+            self.download_files(repair_tasks, None).await?;
+        }
+
         let java_path = inst
             .java_path
             .clone()

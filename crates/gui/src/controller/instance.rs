@@ -285,6 +285,42 @@ fn stream_game_process(
 
     let instance_dir = Instance::instance_dir(&config.instances_dir(), &instance.name);
 
+    match miao_core::integrity::verify_instance_files(&instance.minecraft_version, &config) {
+        Ok(report) if !report.is_healthy() => {
+            let repair_tasks = report.repair_tasks();
+            let count = repair_tasks.len();
+            let _ = tx.send(AppEvent::GameLogLine(format!(
+                "[INFO] Repairing {} missing/corrupted file(s)...",
+                count
+            )));
+            ctx.request_repaint();
+
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let dm = miao_core::download::manager::DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            );
+            if let Err(e) = rt.block_on(dm.download_all(repair_tasks)) {
+                let _ = tx.send(AppEvent::Error(format!(
+                    "File repair failed: {}. Launch may fail.",
+                    e
+                )));
+                ctx.request_repaint();
+            }
+        }
+        Err(e) => {
+            let _ = tx.send(AppEvent::GameLogLine(format!(
+                "[WARN] Integrity check skipped: {}",
+                e
+            )));
+            ctx.request_repaint();
+        }
+        _ => {}
+    }
+
     if let Err(e) = miao_core::version::install::extract_natives(&meta, &config) {
         let _ = tx.send(AppEvent::GameLogLine(format!(
             "[WARN] Failed to extract natives: {}",
