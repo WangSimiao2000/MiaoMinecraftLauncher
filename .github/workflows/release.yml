@@ -25,13 +25,11 @@ jobs:
       - name: Build release binaries
         run: cargo build --release --workspace
 
-      - name: Package binaries
+      - name: Prepare artifacts
         run: |
           mkdir -p dist
-          cp target/release/miao-gui dist/
-          cp target/release/miao dist/
-          chmod +x dist/miao-gui dist/miao
-          tar czf dist/mmcl-linux-x86_64.tar.gz -C dist miao-gui miao
+          cp target/release/miao dist/mmcl-cli-linux-x86_64
+          chmod +x dist/mmcl-cli-linux-x86_64
 
       - name: Build AppImage
         run: |
@@ -39,18 +37,18 @@ jobs:
           bash appimage/build-appimage.sh
           cp target/appimage/MMCL-*.AppImage dist/ 2>/dev/null || true
 
-      - name: Upload Linux tarball
-        uses: actions/upload-artifact@v4
-        with:
-          name: mmcl-linux-x86_64
-          path: dist/mmcl-linux-x86_64.tar.gz
-
       - name: Upload AppImage
         uses: actions/upload-artifact@v4
         with:
           name: mmcl-linux-x86_64-appimage
           path: dist/MMCL-*.AppImage
-          if-no-files-found: ignore
+          if-no-files-found: warn
+
+      - name: Upload CLI binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmcl-cli-linux-x86_64
+          path: dist/mmcl-cli-linux-x86_64
 
   build-windows:
     runs-on: windows-latest
@@ -95,7 +93,7 @@ jobs:
       - name: Flatten artifact tree
         run: |
           mkdir -p release-files
-          find artifacts -type f \( -name '*.tar.gz' -o -name '*.exe' -o -name '*.AppImage' \) -exec cp {} release-files/ \;
+          find artifacts -type f \( -name '*.AppImage' -o -name '*.exe' -o -name 'mmcl-cli-*' \) -exec cp {} release-files/ \;
           ls -la release-files/
 
       - name: Checkout for CHANGELOG
