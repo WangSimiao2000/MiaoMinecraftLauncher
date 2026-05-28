@@ -174,6 +174,7 @@ impl MiaoApp {
                         if is_active {
                             self.nav_stack.pop();
                         } else {
+                            self.selected_instance = None;
                             self.nav_stack.push(Page::Settings);
                         }
                     }
