@@ -37,22 +37,28 @@ pub enum ThemePreset {
     Ocean,
     Forest,
     Warm,
+    Sakura,
+    Light,
 }
 
 impl ThemePreset {
-    pub const ALL: [ThemePreset; 4] = [
+    pub const ALL: [ThemePreset; 6] = [
         ThemePreset::Dark,
         ThemePreset::Ocean,
         ThemePreset::Forest,
         ThemePreset::Warm,
+        ThemePreset::Sakura,
+        ThemePreset::Light,
     ];
 
     pub fn name(&self) -> &'static str {
         match self {
-            ThemePreset::Dark => "Dark (Default)",
-            ThemePreset::Ocean => "Ocean Blue",
-            ThemePreset::Forest => "Forest Green",
-            ThemePreset::Warm => "Warm Amber",
+            ThemePreset::Dark => "Dark",
+            ThemePreset::Ocean => "Ocean",
+            ThemePreset::Forest => "Forest",
+            ThemePreset::Warm => "Warm",
+            ThemePreset::Sakura => "Sakura",
+            ThemePreset::Light => "Light",
         }
     }
 }

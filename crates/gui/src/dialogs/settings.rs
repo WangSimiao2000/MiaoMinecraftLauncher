@@ -453,34 +453,91 @@ impl MiaoApp {
             ui.add_space(12.0);
 
             let current = self.theme_preset;
-            for preset in theme::ThemePreset::ALL {
-                let selected = current == preset;
-                let accent = preset.accent();
+            let cols = 3;
+            egui::Grid::new("theme_grid")
+                .num_columns(cols)
+                .spacing(egui::vec2(8.0, 8.0))
+                .show(ui, |ui| {
+                    for (i, preset) in theme::ThemePreset::ALL.iter().enumerate() {
+                        let selected = current == *preset;
+                        let accent = preset.accent();
 
-                ui.horizontal(|ui| {
-                    let (rect, _) =
-                        ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
-                    ui.painter()
-                        .rect_filled(rect, egui::CornerRadius::same(3), accent);
+                        let card_width = (ui.available_width() - 16.0) / cols as f32;
+                        let card_height = 56.0;
+                        let (rect, response) = ui.allocate_exact_size(
+                            egui::vec2(card_width, card_height),
+                            egui::Sense::click(),
+                        );
 
-                    let text = if selected {
-                        egui::RichText::new(preset.name())
-                            .strong()
-                            .color(theme::Colors::accent_light())
-                    } else {
-                        egui::RichText::new(preset.name()).color(theme::Colors::text_primary())
-                    };
+                        let sel_t = ui.ctx().animate_bool_with_time_and_easing(
+                            egui::Id::new("theme_card").with(i).with("sel"),
+                            selected,
+                            0.15,
+                            eframe::emath::easing::cubic_out,
+                        );
+                        let hover_t = ui.ctx().animate_bool_with_time_and_easing(
+                            egui::Id::new("theme_card").with(i).with("hover"),
+                            response.hovered(),
+                            0.12,
+                            eframe::emath::easing::cubic_out,
+                        );
 
-                    if ui.add(egui::Button::new(text).selected(selected)).clicked() && !selected {
-                        self.theme_preset = preset;
-                        self.config.theme = preset;
-                        if let Err(e) = self.config.save() {
-                            self.status = format!("✗ Save failed: {}", e);
+                        let bg = if sel_t > 0.0 {
+                            accent.gamma_multiply(0.15 * sel_t)
+                        } else if hover_t > 0.0 {
+                            theme::Colors::bg_widget_hover().gamma_multiply(hover_t)
+                        } else {
+                            theme::Colors::bg_widget()
+                        };
+
+                        let stroke = if sel_t > 0.0 {
+                            egui::Stroke::new(1.5, accent.gamma_multiply(sel_t))
+                        } else {
+                            egui::Stroke::new(1.0, egui::Color32::from_white_alpha(10))
+                        };
+
+                        ui.painter()
+                            .rect_filled(rect, egui::CornerRadius::same(6), bg);
+                        ui.painter().rect_stroke(
+                            rect,
+                            egui::CornerRadius::same(6),
+                            stroke,
+                            egui::StrokeKind::Inside,
+                        );
+
+                        let swatch_rect = egui::Rect::from_min_size(
+                            egui::pos2(rect.center().x - 10.0, rect.top() + 10.0),
+                            egui::vec2(20.0, 20.0),
+                        );
+                        ui.painter()
+                            .rect_filled(swatch_rect, egui::CornerRadius::same(4), accent);
+
+                        let text_color = if selected {
+                            theme::Colors::accent_light()
+                        } else {
+                            theme::Colors::text_primary()
+                        };
+                        ui.painter().text(
+                            egui::pos2(rect.center().x, rect.bottom() - 10.0),
+                            egui::Align2::CENTER_CENTER,
+                            preset.name(),
+                            egui::FontId::proportional(11.0),
+                            text_color,
+                        );
+
+                        if response.clicked() && !selected {
+                            self.theme_preset = *preset;
+                            self.config.theme = *preset;
+                            if let Err(e) = self.config.save() {
+                                self.status = format!("✗ Save failed: {}", e);
+                            }
+                        }
+
+                        if (i + 1) % cols == 0 {
+                            ui.end_row();
                         }
                     }
                 });
-                ui.add_space(4.0);
-            }
         });
 
         ui.add_space(16.0);
