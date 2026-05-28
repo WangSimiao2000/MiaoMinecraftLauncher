@@ -269,6 +269,9 @@ impl I18n {
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_string();
+                if id.starts_with('_') {
+                    continue;
+                }
                 if let Ok(content) = std::fs::read_to_string(&path) {
                     let leaked: &'static str = Box::leak(content.into_boxed_str());
                     reg.register(&id, leaked);

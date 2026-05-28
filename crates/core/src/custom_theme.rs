@@ -66,6 +66,9 @@ pub fn load_themes_from_dir(dir: &Path) -> Vec<LoadedTheme> {
                 .unwrap_or_default()
                 .to_string_lossy()
                 .to_string();
+            if file_name.starts_with('_') {
+                continue;
+            }
             if let Ok(content) = std::fs::read_to_string(&path) {
                 match toml::from_str::<CustomTheme>(&content) {
                     Ok(theme) => themes.push(LoadedTheme { file_name, theme }),
