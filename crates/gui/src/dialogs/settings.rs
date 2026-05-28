@@ -95,8 +95,14 @@ impl MiaoApp {
             }
 
             if selected {
-                self.settings_nav_indicator_y
-                    .set_target(rect.center().y - nav_top);
+                let target_y = rect.center().y - nav_top;
+                if self.settings_nav_indicator_y.position() == 0.0
+                    && self.settings_nav_indicator_y.velocity() == 0.0
+                {
+                    self.settings_nav_indicator_y.snap(target_y);
+                } else {
+                    self.settings_nav_indicator_y.set_target(target_y);
+                }
             }
 
             let active_color = theme::Colors::accent_light();

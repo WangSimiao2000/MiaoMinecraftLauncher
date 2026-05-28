@@ -81,9 +81,26 @@ impl MiaoApp {
                         },
                     );
 
+                    let has_selection = selected_card_center_y.is_some();
+                    let indicator_opacity = ui.ctx().animate_bool_with_time_and_easing(
+                        egui::Id::new("sidebar_indicator_opacity"),
+                        has_selection,
+                        0.15,
+                        eframe::emath::easing::cubic_out,
+                    );
+
                     if let Some(center_y) = selected_card_center_y {
-                        self.sidebar_indicator_y
-                            .set_target(scroll_area_top + center_y);
+                        let target_y = scroll_area_top + center_y;
+                        if self.sidebar_indicator_y.position() == 0.0
+                            && self.sidebar_indicator_y.velocity() == 0.0
+                        {
+                            self.sidebar_indicator_y.snap(target_y);
+                        } else {
+                            self.sidebar_indicator_y.set_target(target_y);
+                        }
+                    }
+
+                    if indicator_opacity > 0.0 {
                         let y = self.sidebar_indicator_y.position();
                         let panel_left = ui.min_rect().left();
                         let indicator_rect = egui::Rect::from_min_size(
@@ -93,7 +110,7 @@ impl MiaoApp {
                         ui.painter().rect_filled(
                             indicator_rect,
                             egui::CornerRadius::same(2),
-                            theme::Colors::accent_light(),
+                            theme::Colors::accent_light().gamma_multiply(indicator_opacity),
                         );
                     }
                 }

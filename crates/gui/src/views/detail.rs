@@ -151,8 +151,17 @@ impl MiaoApp {
 
                 if selected {
                     let rect = response.rect;
-                    self.tab_indicator_x.set_target(rect.left() + 2.0);
-                    self.tab_indicator_width.set_target(rect.width() - 4.0);
+                    let target_x = rect.left() + 2.0;
+                    let target_w = rect.width() - 4.0;
+                    if self.tab_indicator_x.position() == 0.0
+                        && self.tab_indicator_x.velocity() == 0.0
+                    {
+                        self.tab_indicator_x.snap(target_x);
+                        self.tab_indicator_width.snap(target_w);
+                    } else {
+                        self.tab_indicator_x.set_target(target_x);
+                        self.tab_indicator_width.set_target(target_w);
+                    }
                 }
 
                 if response.clicked() {
