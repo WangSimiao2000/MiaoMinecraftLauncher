@@ -92,6 +92,7 @@ pub struct MiaoApp {
     pub tab_indicator_x: Spring,
     pub tab_indicator_width: Spring,
     pub settings_nav_indicator_y: Spring,
+    pub smoothed_progress: f32,
 
     pub controller: AppController,
     #[allow(dead_code)]
@@ -226,6 +227,7 @@ impl MiaoApp {
             tab_indicator_x: Spring::new(0.0, PRESET_BOUNCY.spring),
             tab_indicator_width: Spring::new(60.0, PRESET_BOUNCY.spring),
             settings_nav_indicator_y: Spring::new(0.0, PRESET_BOUNCY.spring),
+            smoothed_progress: 0.0,
             controller,
             rt,
         }
@@ -280,6 +282,7 @@ impl MiaoApp {
                 } => {
                     self.active_installs.remove(&task_id);
                     self.install_progress.remove(&task_id);
+                    self.smoothed_progress = 0.0;
                     self.status = message.clone();
                     if success {
                         self.toasts.success(&message);
@@ -477,6 +480,7 @@ impl MiaoApp {
                 AppEvent::TaskCancelled { task_id } => {
                     self.active_installs.remove(&task_id);
                     self.install_progress.remove(&task_id);
+                    self.smoothed_progress = 0.0;
                     self.status = "Cancelled.".to_string();
                 }
                 AppEvent::Error(msg) => {
@@ -552,7 +556,14 @@ impl eframe::App for MiaoApp {
                 let active_progress = self.install_progress.values().next();
                 if let Some(progress) = active_progress {
                     if progress.total > 0 {
-                        let fraction = progress.completed as f32 / progress.total.max(1) as f32;
+                        let target = progress.completed as f32 / progress.total.max(1) as f32;
+                        let speed = 8.0;
+                        self.smoothed_progress +=
+                            (target - self.smoothed_progress) * (speed * dt).min(1.0);
+                        if (self.smoothed_progress - target).abs() < 0.001 {
+                            self.smoothed_progress = target;
+                        }
+                        let fraction = self.smoothed_progress;
                         let task_count = self.active_installs.len();
                         let text = if task_count > 1 {
                             format!(

@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use eframe::egui;
 
+use crate::animation::easing::{MD3_EMPHASIZED_DECELERATE, MD3_STANDARD_ACCELERATE};
 use crate::theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,6 +41,9 @@ pub struct Toast {
     pub duration_secs: f32,
 }
 
+const ENTER_DURATION: f32 = 0.25;
+const EXIT_DURATION: f32 = 0.2;
+
 impl Toast {
     pub fn new(message: impl Into<String>, level: ToastLevel) -> Self {
         let duration_secs = match level {
@@ -59,12 +63,22 @@ impl Toast {
         self.created_at.elapsed().as_secs_f32()
     }
 
-    fn progress(&self) -> f32 {
-        (self.elapsed() / self.duration_secs).clamp(0.0, 1.0)
-    }
-
     fn is_expired(&self) -> bool {
         self.elapsed() >= self.duration_secs
+    }
+
+    fn enter_t(&self) -> f32 {
+        let t = (self.elapsed() / ENTER_DURATION).clamp(0.0, 1.0);
+        MD3_EMPHASIZED_DECELERATE.eval(t)
+    }
+
+    fn exit_t(&self) -> f32 {
+        let remaining = self.duration_secs - self.elapsed();
+        if remaining >= EXIT_DURATION {
+            return 0.0;
+        }
+        let t = (1.0 - remaining / EXIT_DURATION).clamp(0.0, 1.0);
+        MD3_STANDARD_ACCELERATE.eval(t)
     }
 }
 
@@ -121,25 +135,15 @@ impl ToastQueue {
         let mut y = screen_rect.top() + 50.0;
 
         for toast in &self.toasts {
-            let progress = toast.progress();
-            let alpha = if progress > 0.8 {
-                ((1.0 - progress) / 0.2 * 255.0) as u8
-            } else if progress < 0.1 {
-                (progress / 0.1 * 255.0) as u8
-            } else {
-                255
-            };
+            let enter = toast.enter_t();
+            let exit = toast.exit_t();
 
-            let slide_in = if progress < 0.1 {
-                let t = progress / 0.1;
-                let ease = t * t * (3.0 - 2.0 * t);
-                (1.0 - ease) * 40.0
-            } else {
-                0.0
-            };
+            let alpha = ((enter * (1.0 - exit)) * 255.0) as u8;
+            let slide_in = (1.0 - enter) * 40.0;
+            let slide_out = exit * 20.0;
 
             let area = egui::Area::new(egui::Id::new(&toast.message).with(toast.created_at))
-                .fixed_pos(egui::pos2(base_x + slide_in, y))
+                .fixed_pos(egui::pos2(base_x + slide_in + slide_out, y))
                 .interactable(false)
                 .order(egui::Order::Foreground);
 
