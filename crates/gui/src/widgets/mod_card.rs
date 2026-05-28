@@ -37,7 +37,11 @@ impl<'a> ModCard<'a> {
                 ui.painter().rect_filled(
                     card_rect,
                     egui::CornerRadius::same(6),
-                    theme::Colors::bg_widget_hover().gamma_multiply(hover_t * 0.5),
+                    crate::animation::lerp_color(
+                        theme::Colors::bg_elevated(),
+                        theme::Colors::bg_widget_hover(),
+                        hover_t * 0.5,
+                    ),
                 );
             }
 

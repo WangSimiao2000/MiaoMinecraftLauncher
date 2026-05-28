@@ -67,7 +67,11 @@ impl<'a> CollapsibleCard<'a> {
                         sw: if open { 0 } else { 8 },
                         se: if open { 0 } else { 8 },
                     },
-                    theme::Colors::bg_widget_hover().gamma_multiply(hover_t),
+                    crate::animation::lerp_color(
+                        theme::Colors::bg_elevated(),
+                        theme::Colors::bg_widget_hover(),
+                        hover_t,
+                    ),
                 );
             }
 

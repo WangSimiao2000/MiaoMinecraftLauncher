@@ -80,17 +80,21 @@ impl MiaoApp {
             );
 
             if sel_t > 0.0 {
+                let c = theme::Colors::bg_widget_active();
+                let alpha = (0.3 * sel_t * 255.0) as u8;
                 ui.painter().rect_filled(
                     rect,
                     egui::CornerRadius::same(4),
-                    theme::Colors::bg_widget_active().gamma_multiply(0.3 * sel_t),
+                    egui::Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha),
                 );
             }
             if hover_t > 0.0 {
+                let c = theme::Colors::bg_widget_hover();
+                let alpha = (hover_t * 255.0) as u8;
                 ui.painter().rect_filled(
                     rect,
                     egui::CornerRadius::same(4),
-                    theme::Colors::bg_widget_hover().gamma_multiply(hover_t),
+                    egui::Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha),
                 );
             }
 
@@ -501,12 +505,15 @@ impl MiaoApp {
                             crate::animation::ease_linear,
                         );
 
+                        let base = theme::Colors::bg_widget();
                         let bg = if sel_t > 0.0 {
-                            swatch_accent.gamma_multiply(0.15 * sel_t)
-                        } else if hover_t > 0.0 {
-                            theme::Colors::bg_widget_hover().gamma_multiply(hover_t)
+                            crate::animation::lerp_color(base, swatch_accent, 0.15 * sel_t)
                         } else {
-                            theme::Colors::bg_widget()
+                            crate::animation::lerp_color(
+                                base,
+                                theme::Colors::bg_widget_hover(),
+                                hover_t,
+                            )
                         };
 
                         let stroke = if sel_t > 0.0 {
@@ -628,12 +635,19 @@ impl MiaoApp {
                             crate::animation::ease_linear,
                         );
 
+                        let base = theme::Colors::bg_widget();
                         let bg = if sel_t > 0.0 {
-                            theme::Colors::accent().gamma_multiply(0.15 * sel_t)
-                        } else if hover_t > 0.0 {
-                            theme::Colors::bg_widget_hover().gamma_multiply(hover_t)
+                            crate::animation::lerp_color(
+                                base,
+                                theme::Colors::accent(),
+                                0.15 * sel_t,
+                            )
                         } else {
-                            theme::Colors::bg_widget()
+                            crate::animation::lerp_color(
+                                base,
+                                theme::Colors::bg_widget_hover(),
+                                hover_t,
+                            )
                         };
 
                         let stroke = if sel_t > 0.0 {

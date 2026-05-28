@@ -47,10 +47,8 @@ impl<'a> InstanceCard<'a> {
 
         let fill = if selected_t > 0.0 {
             lerp_color(base_color, selected_color, selected_t)
-        } else if hover_t > 0.0 {
-            hover_color.gamma_multiply(hover_t)
         } else {
-            egui::Color32::TRANSPARENT
+            lerp_color(egui::Color32::TRANSPARENT, hover_color, hover_t)
         };
 
         let painter = ui.painter_at(rect);

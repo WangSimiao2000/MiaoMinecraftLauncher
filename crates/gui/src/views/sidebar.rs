@@ -139,13 +139,19 @@ impl MiaoApp {
 
                     let base_alpha = 0.3 * active_t;
                     let hover_boost = if is_active { 0.15 * hover_t } else { hover_t };
-                    let bg_color = if base_alpha + hover_boost > 0.0 {
-                        if active_t > 0.0 {
+                    let opacity = base_alpha + hover_boost;
+                    let bg_color = if opacity > 0.0 {
+                        let c = if active_t > 0.0 {
                             theme::Colors::bg_widget_active()
-                                .gamma_multiply(base_alpha + hover_boost)
                         } else {
-                            theme::Colors::bg_widget_hover().gamma_multiply(hover_boost)
-                        }
+                            theme::Colors::bg_widget_hover()
+                        };
+                        egui::Color32::from_rgba_unmultiplied(
+                            c.r(),
+                            c.g(),
+                            c.b(),
+                            (opacity * 255.0).min(255.0) as u8,
+                        )
                     } else {
                         egui::Color32::TRANSPARENT
                     };
