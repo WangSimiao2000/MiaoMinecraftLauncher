@@ -31,6 +31,13 @@ impl<'a> CollapsibleCard<'a> {
             .ctx()
             .data_mut(|d| *d.get_persisted_mut_or(self.id, self.default_open));
 
+        let openness = ui.ctx().animate_bool_with_time_and_easing(
+            self.id.with("collapse"),
+            open,
+            0.25,
+            eframe::emath::easing::cubic_out,
+        );
+
         let frame = egui::Frame::NONE
             .fill(theme::Colors::bg_elevated())
             .corner_radius(egui::CornerRadius::same(8))
@@ -44,7 +51,14 @@ impl<'a> CollapsibleCard<'a> {
                 egui::Rect::from_min_size(ui.cursor().min, egui::vec2(ui.available_width(), 36.0));
             let header_response = ui.allocate_rect(header_rect, egui::Sense::click());
 
-            if header_response.hovered() {
+            let hover_t = ui.ctx().animate_bool_with_time_and_easing(
+                self.id.with("hover"),
+                header_response.hovered(),
+                0.12,
+                eframe::emath::easing::cubic_out,
+            );
+
+            if hover_t > 0.0 {
                 ui.painter().rect_filled(
                     header_rect,
                     egui::CornerRadius {
@@ -53,26 +67,28 @@ impl<'a> CollapsibleCard<'a> {
                         sw: if open { 0 } else { 8 },
                         se: if open { 0 } else { 8 },
                     },
-                    theme::Colors::bg_widget_hover(),
+                    theme::Colors::bg_widget_hover().gamma_multiply(hover_t),
                 );
             }
 
-            let arrow = if open {
-                crate::icons::ICON_CHEVRON_DOWN
-            } else {
-                crate::icons::ICON_CHEVRON_RIGHT
-            };
-
-            let text_pos = header_rect.left_center() + egui::vec2(14.0, 0.0);
-            ui.painter().text(
-                text_pos,
-                egui::Align2::LEFT_CENTER,
-                arrow,
+            let arrow_rotation = openness * std::f32::consts::FRAC_PI_2;
+            let arrow_center = header_rect.left_center() + egui::vec2(19.0, 0.0);
+            let arrow_galley = ui.painter().layout_no_wrap(
+                crate::icons::ICON_CHEVRON_RIGHT.to_string(),
                 egui::FontId::proportional(10.0),
                 theme::Colors::text_muted(),
             );
+            ui.painter().add(egui::Shape::Text(egui::epaint::TextShape {
+                pos: arrow_center - arrow_galley.rect.center().to_vec2(),
+                galley: arrow_galley,
+                underline: egui::Stroke::NONE,
+                fallback_color: theme::Colors::text_muted(),
+                override_text_color: None,
+                opacity_factor: 1.0,
+                angle: arrow_rotation,
+            }));
 
-            let title_pos = text_pos + egui::vec2(18.0, 0.0);
+            let title_pos = header_rect.left_center() + egui::vec2(32.0, 0.0);
             ui.painter().text(
                 title_pos,
                 egui::Align2::LEFT_CENTER,
@@ -86,12 +102,14 @@ impl<'a> CollapsibleCard<'a> {
                 ui.ctx().data_mut(|d| d.insert_persisted(self.id, open));
             }
 
-            if open {
+            if openness > 0.0 {
                 let inner_margin = egui::Margin::symmetric(14, 0);
                 egui::Frame::NONE.inner_margin(inner_margin).show(ui, |ui| {
+                    ui.set_opacity(openness);
+                    ui.set_max_height(ui.available_height().max(500.0) * openness);
                     add_body(ui);
                 });
-                ui.add_space(14.0);
+                ui.add_space(14.0 * openness);
             }
         })
     }

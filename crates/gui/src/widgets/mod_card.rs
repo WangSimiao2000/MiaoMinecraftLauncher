@@ -20,9 +20,27 @@ impl<'a> ModCard<'a> {
 
     pub fn show(self, ui: &mut egui::Ui) -> ModCardAction {
         let mut action = ModCardAction::None;
+        let card_id = egui::Id::new(self.name).with("mod_card");
 
         theme::list_item_card().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
+
+            let card_rect = ui.min_rect();
+            let card_response = ui.interact(card_rect, card_id, egui::Sense::hover());
+            let hover_t = ui.ctx().animate_bool_with_time_and_easing(
+                card_id.with("hover"),
+                card_response.hovered(),
+                0.12,
+                eframe::emath::easing::cubic_out,
+            );
+            if hover_t > 0.0 {
+                ui.painter().rect_filled(
+                    card_rect,
+                    egui::CornerRadius::same(6),
+                    theme::Colors::bg_widget_hover().gamma_multiply(hover_t * 0.5),
+                );
+            }
+
             ui.horizontal(|ui| {
                 if self.enabled {
                     let btn = egui::Button::new(

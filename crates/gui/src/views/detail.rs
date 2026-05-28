@@ -134,27 +134,25 @@ impl MiaoApp {
             ] {
                 let label = I18n::t(&lang, key);
                 let selected = self.active_tab == tab;
-                let text = if selected {
-                    egui::RichText::new(label)
-                        .strong()
-                        .color(theme::Colors::accent_light())
-                } else {
-                    egui::RichText::new(label).color(theme::Colors::text_secondary())
-                };
 
+                let sel_t = ui.ctx().animate_bool_with_time_and_easing(
+                    egui::Id::new(key).with("tab_sel"),
+                    selected,
+                    0.15,
+                    eframe::emath::easing::cubic_out,
+                );
+
+                let active_color = theme::Colors::accent_light();
+                let idle_color = theme::Colors::text_secondary();
+                let text_color = lerp_color(idle_color, active_color, sel_t);
+
+                let text = egui::RichText::new(label).color(text_color);
                 let response = ui.selectable_label(false, text);
 
                 if selected {
                     let rect = response.rect;
-                    let bottom = rect.bottom();
-                    ui.painter().rect_filled(
-                        egui::Rect::from_min_max(
-                            egui::pos2(rect.left() + 2.0, bottom - theme::TAB_UNDERLINE_HEIGHT),
-                            egui::pos2(rect.right() - 2.0, bottom),
-                        ),
-                        egui::CornerRadius::same(2),
-                        theme::Colors::accent(),
-                    );
+                    self.tab_indicator_x.set_target(rect.left() + 2.0);
+                    self.tab_indicator_width.set_target(rect.width() - 4.0);
                 }
 
                 if response.clicked() {
@@ -167,6 +165,28 @@ impl MiaoApp {
                     self.active_tab = tab;
                 }
             }
+
+            let indicator_x = self.tab_indicator_x.position();
+            let indicator_w = self.tab_indicator_width.position();
+            let row_rect = ui.min_rect();
+            let bottom = row_rect.bottom();
+            ui.painter().rect_filled(
+                egui::Rect::from_min_size(
+                    egui::pos2(indicator_x, bottom - theme::TAB_UNDERLINE_HEIGHT),
+                    egui::vec2(indicator_w, theme::TAB_UNDERLINE_HEIGHT),
+                ),
+                egui::CornerRadius::same(2),
+                theme::Colors::accent(),
+            );
         });
     }
+}
+
+fn lerp_color(a: egui::Color32, b: egui::Color32, t: f32) -> egui::Color32 {
+    egui::Color32::from_rgba_unmultiplied(
+        (a.r() as f32 + (b.r() as f32 - a.r() as f32) * t) as u8,
+        (a.g() as f32 + (b.g() as f32 - a.g() as f32) * t) as u8,
+        (a.b() as f32 + (b.b() as f32 - a.b() as f32) * t) as u8,
+        255,
+    )
 }

@@ -19,8 +19,14 @@ impl MiaoApp {
         let mut open = true;
 
         let anim_id = egui::Id::new("new_instance_dialog_anim");
-        let t = ctx.animate_bool_with_time(anim_id, true, 0.15);
+        let t = ctx.animate_bool_with_time_and_easing(
+            anim_id,
+            true,
+            0.2,
+            eframe::emath::easing::cubic_out,
+        );
         let opacity = t;
+        let scale_offset = (1.0 - t) * 8.0;
 
         let frame = egui::Frame::window(&ctx.global_style())
             .fill(theme::Colors::bg_elevated())
@@ -37,7 +43,7 @@ impl MiaoApp {
             .default_width(420.0)
             .max_width(420.0)
             .collapsible(false)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, scale_offset])
             .order(egui::Order::Foreground)
             .frame(frame)
             .show(ctx, |ui| {
