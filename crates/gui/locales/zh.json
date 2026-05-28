@@ -157,5 +157,7 @@
   "theme_forest": "森林",
   "theme_warm": "暖阳",
   "theme_sakura": "樱花",
-  "theme_light": "浅色"
+  "theme_light": "浅色",
+  "custom_themes": "自定义主题",
+  "custom_themes_hint": "将 .toml 文件放入 <数据目录>/themes/ 即可添加自定义主题。"
 }

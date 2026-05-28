@@ -2,6 +2,7 @@ use std::cell::RefCell;
 
 use egui::{Color32, CornerRadius, Margin, RichText, Stroke, Vec2};
 pub use miao_core::config::ThemePreset;
+use miao_core::custom_theme::ThemeColors as CustomColors;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Palette {
@@ -134,6 +135,47 @@ impl Palette {
                 text_muted: Color32::from_rgb(115, 122, 132),
                 text_disabled: Color32::from_rgb(158, 164, 172),
             },
+        }
+    }
+
+    pub fn from_custom(c: &CustomColors) -> Self {
+        Self {
+            bg_dark: Color32::from_rgb(c.bg_dark[0], c.bg_dark[1], c.bg_dark[2]),
+            bg_panel: Color32::from_rgb(c.bg_panel[0], c.bg_panel[1], c.bg_panel[2]),
+            bg_main: Color32::from_rgb(c.bg_main[0], c.bg_main[1], c.bg_main[2]),
+            bg_elevated: Color32::from_rgb(c.bg_elevated[0], c.bg_elevated[1], c.bg_elevated[2]),
+            bg_widget: Color32::from_rgb(c.bg_widget[0], c.bg_widget[1], c.bg_widget[2]),
+            bg_widget_hover: Color32::from_rgb(
+                c.bg_widget_hover[0],
+                c.bg_widget_hover[1],
+                c.bg_widget_hover[2],
+            ),
+            bg_widget_active: Color32::from_rgb(c.accent[0], c.accent[1], c.accent[2]),
+            accent: Color32::from_rgb(c.accent[0], c.accent[1], c.accent[2]),
+            accent_light: Color32::from_rgb(
+                c.accent_light[0],
+                c.accent_light[1],
+                c.accent_light[2],
+            ),
+            success: Color32::from_rgb(c.success[0], c.success[1], c.success[2]),
+            danger: Color32::from_rgb(c.danger[0], c.danger[1], c.danger[2]),
+            warning: Color32::from_rgb(c.warning[0], c.warning[1], c.warning[2]),
+            text_primary: Color32::from_rgb(
+                c.text_primary[0],
+                c.text_primary[1],
+                c.text_primary[2],
+            ),
+            text_secondary: Color32::from_rgb(
+                c.text_secondary[0],
+                c.text_secondary[1],
+                c.text_secondary[2],
+            ),
+            text_muted: Color32::from_rgb(c.text_muted[0], c.text_muted[1], c.text_muted[2]),
+            text_disabled: Color32::from_rgb(
+                c.text_disabled[0],
+                c.text_disabled[1],
+                c.text_disabled[2],
+            ),
         }
     }
 }
@@ -520,4 +562,20 @@ pub fn apply_theme(ctx: &egui::Context, preset: ThemePreset) {
 
     ctx.set_visuals(build_visuals(&pal));
     ctx.global_style_mut(apply_layout);
+}
+
+pub fn apply_custom_theme(ctx: &egui::Context, colors: &CustomColors) {
+    let pal = Palette::from_custom(colors);
+
+    ACTIVE_PALETTE.with(|p| *p.borrow_mut() = pal);
+
+    ctx.set_visuals(build_visuals(&pal));
+    ctx.global_style_mut(apply_layout);
+}
+
+pub fn custom_swatch_colors(colors: &CustomColors) -> (Color32, Color32) {
+    (
+        Color32::from_rgb(colors.bg_main[0], colors.bg_main[1], colors.bg_main[2]),
+        Color32::from_rgb(colors.accent[0], colors.accent[1], colors.accent[2]),
+    )
 }

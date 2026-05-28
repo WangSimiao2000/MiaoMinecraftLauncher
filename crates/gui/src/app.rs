@@ -66,6 +66,8 @@ pub struct MiaoApp {
     pub cached_javas: Option<Vec<miao_core::java::JavaInstallation>>,
     pub refresh_counter: u32,
     pub theme_preset: crate::theme::ThemePreset,
+    pub custom_themes: Vec<miao_core::custom_theme::LoadedTheme>,
+    pub active_custom_theme: Option<String>,
 
     pub instance_settings_edit: InstanceSettingsEdit,
     pub language: String,
@@ -176,6 +178,9 @@ impl MiaoApp {
         let theme_preset = config.theme;
         let language = config.language.clone();
         I18n::load_external_locales(&config.data_dir.join("locales"));
+        let custom_themes =
+            miao_core::custom_theme::load_themes_from_dir(&config.data_dir.join("themes"));
+        let active_custom_theme = config.custom_theme_name.clone();
         let cf_api_key_input = config.curseforge_api_key.clone().unwrap_or_default();
 
         Self {
@@ -202,6 +207,8 @@ impl MiaoApp {
             cached_javas: None,
             refresh_counter: 0,
             theme_preset,
+            custom_themes,
+            active_custom_theme,
             instance_settings_edit: InstanceSettingsEdit::default(),
             language,
             mirror_custom_url,
@@ -502,7 +509,15 @@ impl eframe::App for MiaoApp {
     fn ui(&mut self, _root_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = _root_ui.ctx();
         self.drain_events();
-        theme::apply_theme(ctx, self.theme_preset);
+        if let Some(ref name) = self.active_custom_theme {
+            if let Some(loaded) = self.custom_themes.iter().find(|t| &t.file_name == name) {
+                theme::apply_custom_theme(ctx, &loaded.theme.colors);
+            } else {
+                theme::apply_theme(ctx, self.theme_preset);
+            }
+        } else {
+            theme::apply_theme(ctx, self.theme_preset);
+        }
 
         self.refresh_counter += 1;
         if self.refresh_counter.is_multiple_of(60) {

@@ -539,7 +539,9 @@ impl MiaoApp {
 
                         if response.clicked() && !selected {
                             self.theme_preset = *preset;
+                            self.active_custom_theme = None;
                             self.config.theme = *preset;
+                            self.config.custom_theme_name = None;
                             if let Err(e) = self.config.save() {
                                 self.status = format!("✗ Save failed: {}", e);
                             }
@@ -551,6 +553,72 @@ impl MiaoApp {
                     }
                 });
         });
+
+        if !self.custom_themes.is_empty() {
+            ui.add_space(12.0);
+            ui.horizontal(|ui| {
+                ui.label(theme::subheading(I18n::t(&lang, "custom_themes")));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.small_button(I18n::t(&lang, "refresh")).clicked() {
+                        self.custom_themes = miao_core::custom_theme::load_themes_from_dir(
+                            &self.config.data_dir.join("themes"),
+                        );
+                    }
+                });
+            });
+            ui.add_space(8.0);
+
+            theme::section_frame().show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                for loaded in &self.custom_themes.clone() {
+                    let is_active = self.active_custom_theme.as_deref() == Some(&loaded.file_name);
+                    let (swatch_bg, swatch_accent) =
+                        theme::custom_swatch_colors(&loaded.theme.colors);
+
+                    ui.horizontal(|ui| {
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+                        ui.painter()
+                            .rect_filled(rect, egui::CornerRadius::same(3), swatch_bg);
+                        ui.painter().circle_filled(
+                            rect.center() + egui::vec2(3.0, 3.0),
+                            3.0,
+                            swatch_accent,
+                        );
+
+                        let label = if let Some(ref author) = loaded.theme.author {
+                            format!("{} ({})", loaded.theme.name, author)
+                        } else {
+                            loaded.theme.name.clone()
+                        };
+
+                        let text = if is_active {
+                            egui::RichText::new(&label)
+                                .strong()
+                                .color(theme::Colors::accent_light())
+                        } else {
+                            egui::RichText::new(&label).color(theme::Colors::text_primary())
+                        };
+
+                        if ui
+                            .add(egui::Button::new(text).selected(is_active))
+                            .clicked()
+                            && !is_active
+                        {
+                            self.active_custom_theme = Some(loaded.file_name.clone());
+                            self.config.custom_theme_name = Some(loaded.file_name.clone());
+                            if let Err(e) = self.config.save() {
+                                self.status = format!("✗ Save failed: {}", e);
+                            }
+                        }
+                    });
+                    ui.add_space(4.0);
+                }
+            });
+        }
+
+        ui.add_space(8.0);
+        ui.label(theme::muted(I18n::t(&lang, "custom_themes_hint")));
 
         ui.add_space(16.0);
         ui.horizontal(|ui| {

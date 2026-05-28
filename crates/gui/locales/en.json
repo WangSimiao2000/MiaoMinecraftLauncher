@@ -157,5 +157,7 @@
   "theme_forest": "Forest",
   "theme_warm": "Warm",
   "theme_sakura": "Sakura",
-  "theme_light": "Light"
+  "theme_light": "Light",
+  "custom_themes": "Custom Themes",
+  "custom_themes_hint": "Place .toml files in <data-dir>/themes/ to add custom themes."
 }

@@ -19,6 +19,8 @@ pub struct LauncherConfig {
     pub curseforge_api_key: Option<String>,
     #[serde(default)]
     pub theme: ThemePreset,
+    #[serde(default)]
+    pub custom_theme_name: Option<String>,
     #[serde(
         default = "default_language",
         deserialize_with = "deserialize_language"
@@ -124,6 +126,7 @@ impl Default for LauncherConfig {
             active_account_index: None,
             curseforge_api_key: None,
             theme: ThemePreset::default(),
+            custom_theme_name: None,
             language: default_language(),
             setup_complete: false,
             config_file_override: None,

@@ -23,5 +23,7 @@
   "theme_forest": "フォレスト",
   "theme_warm": "ウォーム",
   "theme_sakura": "サクラ",
-  "theme_light": "ライト"
+  "theme_light": "ライト",
+  "custom_themes": "カスタムテーマ",
+  "custom_themes_hint": "<データフォルダ>/themes/ に .toml ファイルを配置してテーマを追加できます。"
 }

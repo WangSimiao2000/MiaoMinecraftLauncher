@@ -2,6 +2,7 @@ pub mod auth;
 pub mod config;
 pub mod crash;
 pub mod curseforge;
+pub mod custom_theme;
 pub mod download;
 pub mod error;
 pub mod http;
