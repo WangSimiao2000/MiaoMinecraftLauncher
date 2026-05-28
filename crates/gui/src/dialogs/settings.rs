@@ -144,7 +144,10 @@ impl MiaoApp {
         ui.add_space(8.0);
 
         if self.config.accounts.is_empty() {
-            ui.label(theme::muted(I18n::t(&lang, "no_accounts")));
+            theme::section_frame().show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.label(theme::muted(I18n::t(&lang, "no_accounts")));
+            });
         } else {
             let data_dir = self.config.data_dir.clone();
             let account_info: Vec<(
@@ -288,72 +291,152 @@ impl MiaoApp {
         ui.label(theme::subheading(I18n::t(&lang, "add_account")));
         ui.add_space(8.0);
 
+        // ── Offline Account ─────────────────────────────────────────────
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.label(theme::body(I18n::t(&lang, "offline_account")));
-            ui.add_space(6.0);
+            ui.add_space(8.0);
+
+            ui.label(theme::small(I18n::t(&lang, "username")));
+            ui.add_space(3.0);
+            ui.add(
+                egui::TextEdit::singleline(&mut self.offline_username_input)
+                    .vertical_align(egui::Align::Center)
+                    .desired_width(ui.available_width())
+                    .hint_text(I18n::t(&lang, "username")),
+            );
+
+            ui.add_space(8.0);
+            ui.label(theme::small(I18n::t(&lang, "skin_model")));
+            ui.add_space(3.0);
+
+            let cols = 2;
+            let total_width = ui.available_width();
+            let card_width = (total_width - 8.0 * (cols - 1) as f32) / cols as f32;
+            let skin_labels = ["Classic (Steve)", "Slim (Alex)"];
+            let is_classic = self.offline_skin_model == miao_core::auth::SkinModel::Classic;
+            let skin_selected = [is_classic, !is_classic];
+
+            egui::Grid::new("skin_model_grid")
+                .num_columns(cols)
+                .spacing(egui::vec2(8.0, 0.0))
+                .min_col_width(card_width)
+                .max_col_width(card_width)
+                .show(ui, |ui| {
+                    for (i, label) in skin_labels.iter().enumerate() {
+                        let selected = skin_selected[i];
+                        let (rect, response) = ui.allocate_exact_size(
+                            egui::vec2(card_width, 32.0),
+                            egui::Sense::click(),
+                        );
+
+                        let sel_t = ui.ctx().animate_bool_with_time_and_easing(
+                            egui::Id::new("skin_card").with(i).with("sel"),
+                            selected,
+                            0.25,
+                            crate::animation::ease_linear,
+                        );
+                        let hover_t = ui.ctx().animate_bool_with_time_and_easing(
+                            egui::Id::new("skin_card").with(i).with("hover"),
+                            response.hovered(),
+                            0.2,
+                            crate::animation::ease_linear,
+                        );
+
+                        let base = theme::Colors::bg_widget();
+                        let bg = if sel_t > 0.0 {
+                            crate::animation::lerp_color(
+                                base,
+                                theme::Colors::accent(),
+                                0.15 * sel_t,
+                            )
+                        } else {
+                            crate::animation::lerp_color(
+                                base,
+                                theme::Colors::bg_widget_hover(),
+                                hover_t,
+                            )
+                        };
+
+                        let stroke = if sel_t > 0.0 {
+                            egui::Stroke::new(1.5, theme::Colors::accent().gamma_multiply(sel_t))
+                        } else {
+                            egui::Stroke::new(1.0, theme::Colors::subtle_border())
+                        };
+
+                        ui.painter()
+                            .rect_filled(rect, egui::CornerRadius::same(6), bg);
+                        ui.painter().rect_stroke(
+                            rect,
+                            egui::CornerRadius::same(6),
+                            stroke,
+                            egui::StrokeKind::Inside,
+                        );
+
+                        let text_color = if selected {
+                            theme::Colors::accent_light()
+                        } else {
+                            theme::Colors::text_primary()
+                        };
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            *label,
+                            egui::FontId::proportional(13.0),
+                            text_color,
+                        );
+
+                        if response.clicked() && !selected {
+                            self.offline_skin_model = if i == 0 {
+                                miao_core::auth::SkinModel::Classic
+                            } else {
+                                miao_core::auth::SkinModel::Slim
+                            };
+                        }
+                    }
+                });
+
+            ui.add_space(8.0);
             ui.horizontal(|ui| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.offline_username_input)
-                        .vertical_align(egui::Align::Center)
-                        .min_size(ui.spacing().interact_size)
-                        .hint_text(I18n::t(&lang, "username")),
-                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(I18n::t(&lang, "add")).clicked()
+                        && !self.offline_username_input.is_empty()
+                    {
+                        let account = miao_core::auth::offline::create_offline_account_with_model(
+                            &self.offline_username_input,
+                            self.offline_skin_model,
+                        );
+                        self.config.accounts.push(AuthMethod::Offline(account));
+                        if self.config.active_account_index.is_none() {
+                            self.config.active_account_index = Some(0);
+                        }
+                        if let Err(e) = self.config.save() {
+                            self.status = format!("✗ Save failed: {}", e);
+                        } else {
+                            self.offline_username_input.clear();
+                            self.status = I18n::t(&lang, "account_added").to_string();
+                        }
+                    }
+                });
             });
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.label(theme::small(I18n::t(&lang, "skin_model")));
-                ui.add_space(4.0);
-                let is_classic = self.offline_skin_model == miao_core::auth::SkinModel::Classic;
-                if ui
-                    .add(egui::Button::new("Classic (Steve)").selected(is_classic))
-                    .clicked()
-                {
-                    self.offline_skin_model = miao_core::auth::SkinModel::Classic;
-                }
-                if ui
-                    .add(egui::Button::new("Slim (Alex)").selected(!is_classic))
-                    .clicked()
-                {
-                    self.offline_skin_model = miao_core::auth::SkinModel::Slim;
-                }
-            });
-            ui.add_space(6.0);
-            if ui.button(I18n::t(&lang, "add")).clicked() && !self.offline_username_input.is_empty()
-            {
-                let account = miao_core::auth::offline::create_offline_account_with_model(
-                    &self.offline_username_input,
-                    self.offline_skin_model,
-                );
-                self.config.accounts.push(AuthMethod::Offline(account));
-                if self.config.active_account_index.is_none() {
-                    self.config.active_account_index = Some(0);
-                }
-                if let Err(e) = self.config.save() {
-                    self.status = format!("✗ Save failed: {}", e);
-                } else {
-                    self.offline_username_input.clear();
-                    self.status = I18n::t(&lang, "account_added").to_string();
-                }
-            }
         });
 
         ui.add_space(12.0);
 
+        // ── Microsoft Account ───────────────────────────────────────────
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.label(theme::body(I18n::t(&lang, "ms_account")));
-            ui.add_space(6.0);
+            ui.add_space(8.0);
             if self.auth.logging_in {
                 if let Some(ref dc) = self.auth.device_code {
                     ui.label(theme::muted(I18n::t(&lang, "ms_login_hint")));
-                    ui.add_space(4.0);
-                    ui.horizontal(|ui| {
-                        ui.hyperlink_to(&dc.verification_uri, &dc.verification_uri);
-                    });
-                    ui.add_space(4.0);
+                    ui.add_space(8.0);
+                    ui.hyperlink_to(&dc.verification_uri, &dc.verification_uri);
+                    ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         ui.label(theme::body(I18n::t(&lang, "ms_code")));
+                        ui.add_space(4.0);
                         ui.label(
                             egui::RichText::new(&dc.user_code)
                                 .strong()
@@ -361,69 +444,90 @@ impl MiaoApp {
                                 .color(theme::Colors::accent_light()),
                         );
                     });
-                    ui.add_space(4.0);
+                    ui.add_space(8.0);
                     ui.spinner();
                 } else {
                     ui.label(theme::muted(I18n::t(&lang, "ms_initializing")));
+                    ui.add_space(4.0);
                     ui.spinner();
                 }
             } else {
                 ui.label(theme::muted(I18n::t(&lang, "ms_signin_desc")));
-                ui.add_space(4.0);
-                if ui.button(I18n::t(&lang, "sign_in")).clicked() {
-                    self.start_ms_login();
-                }
+                ui.add_space(10.0);
+                ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(I18n::t(&lang, "sign_in")).clicked() {
+                            self.start_ms_login();
+                        }
+                    });
+                });
             }
         });
 
         ui.add_space(12.0);
 
+        // ── Authlib-Injector Account ────────────────────────────────────
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.label(theme::body(I18n::t(&lang, "authlib_account")));
             ui.add_space(4.0);
             ui.label(theme::muted(I18n::t(&lang, "authlib_desc")));
-            ui.add_space(6.0);
+            ui.add_space(12.0);
+
+            ui.label(theme::small("Server URL"));
+            ui.add_space(4.0);
             ui.add(
                 egui::TextEdit::singleline(&mut self.auth.authlib_server_url)
                     .vertical_align(egui::Align::Center)
-                    .min_size(ui.spacing().interact_size)
+                    .desired_width(ui.available_width())
                     .hint_text("https://littleskin.cn/api/yggdrasil"),
             );
+
+            ui.add_space(10.0);
+            ui.label(theme::small(I18n::t(&lang, "email")));
             ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.auth.authlib_email)
-                        .vertical_align(egui::Align::Center)
-                        .min_size(ui.spacing().interact_size)
-                        .hint_text(I18n::t(&lang, "email")),
-                );
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.auth.authlib_password)
-                        .vertical_align(egui::Align::Center)
-                        .min_size(ui.spacing().interact_size)
-                        .hint_text(I18n::t(&lang, "password"))
-                        .password(true),
-                );
-            });
-            ui.add_space(6.0);
+            ui.add(
+                egui::TextEdit::singleline(&mut self.auth.authlib_email)
+                    .vertical_align(egui::Align::Center)
+                    .desired_width(ui.available_width())
+                    .hint_text(I18n::t(&lang, "email")),
+            );
+
+            ui.add_space(10.0);
+            ui.label(theme::small(I18n::t(&lang, "password")));
+            ui.add_space(4.0);
+            ui.add(
+                egui::TextEdit::singleline(&mut self.auth.authlib_password)
+                    .vertical_align(egui::Align::Center)
+                    .desired_width(ui.available_width())
+                    .hint_text(I18n::t(&lang, "password"))
+                    .password(true),
+            );
+
+            ui.add_space(12.0);
             if self.auth.authlib_logging_in {
                 ui.horizontal(|ui| {
                     ui.spinner();
                     ui.label(theme::muted(I18n::t(&lang, "logging_in")));
                 });
-            } else if ui.button(I18n::t(&lang, "sign_in")).clicked()
-                && !self.auth.authlib_server_url.is_empty()
-                && !self.auth.authlib_email.is_empty()
-                && !self.auth.authlib_password.is_empty()
-            {
-                self.auth.authlib_logging_in = true;
-                self.controller
-                    .send(crate::messages::AppCommand::StartAuthlibLogin {
-                        server_url: self.auth.authlib_server_url.clone(),
-                        email: self.auth.authlib_email.clone(),
-                        password: self.auth.authlib_password.clone(),
+            } else {
+                ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(I18n::t(&lang, "sign_in")).clicked()
+                            && !self.auth.authlib_server_url.is_empty()
+                            && !self.auth.authlib_email.is_empty()
+                            && !self.auth.authlib_password.is_empty()
+                        {
+                            self.auth.authlib_logging_in = true;
+                            self.controller
+                                .send(crate::messages::AppCommand::StartAuthlibLogin {
+                                    server_url: self.auth.authlib_server_url.clone(),
+                                    email: self.auth.authlib_email.clone(),
+                                    password: self.auth.authlib_password.clone(),
+                                });
+                        }
                     });
+                });
             }
         });
     }
@@ -700,6 +804,7 @@ impl MiaoApp {
     fn render_tab_data(&mut self, ui: &mut egui::Ui) {
         let lang = self.language.clone();
 
+        // ── Data Directory ──────────────────────────────────────────────
         ui.label(theme::subheading(I18n::t(&lang, "data_dir")));
         ui.add_space(8.0);
 
@@ -707,10 +812,16 @@ impl MiaoApp {
             ui.set_min_width(ui.available_width());
             ui.label(theme::muted(I18n::t(&lang, "data_dir_desc")));
             ui.add_space(8.0);
+
+            let total_w = ui.available_width();
+            let btn_width = 60.0;
+            let input_width = total_w - btn_width - 8.0;
+
             ui.horizontal(|ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.data_dir_input)
                         .vertical_align(egui::Align::Center)
+                        .desired_width(input_width)
                         .min_size(ui.spacing().interact_size),
                 );
                 if ui.button(I18n::t(&lang, "browse")).clicked()
@@ -723,59 +834,63 @@ impl MiaoApp {
             });
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button(I18n::t(&lang, "apply")).clicked() {
-                    let new_path = std::path::PathBuf::from(&self.data_dir_input);
-                    if let Err(e) = std::fs::create_dir_all(&new_path) {
-                        self.status = format!("✗ Failed to create directory: {}", e);
-                    } else {
-                        self.config.data_dir = new_path;
-                        if let Err(e) = self.config.save() {
-                            self.status = format!("✗ Failed to save config: {}", e);
-                        } else {
-                            self.instances =
-                                miao_core::instance::list_instances(&self.config.instances_dir())
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(I18n::t(&lang, "apply_migrate")).clicked() {
+                        let new_path = std::path::PathBuf::from(&self.data_dir_input);
+                        let old_path = self.config.data_dir.clone();
+                        if new_path != old_path {
+                            if let Err(e) = std::fs::create_dir_all(&new_path) {
+                                self.status = format!("✗ Failed to create directory: {}", e);
+                            } else {
+                                let migration_ok = if old_path.exists() {
+                                    migrate_data_dir(&old_path, &new_path).is_ok()
+                                } else {
+                                    true
+                                };
+                                self.config.data_dir = new_path;
+                                if let Err(e) = self.config.save() {
+                                    self.status = format!("✗ Failed to save config: {}", e);
+                                } else if migration_ok {
+                                    self.instances = miao_core::instance::list_instances(
+                                        &self.config.instances_dir(),
+                                    )
                                     .unwrap_or_default();
-                            self.selected_instance = None;
-                            self.status = I18n::t(&lang, "data_dir_updated").to_string();
-                        }
-                    }
-                }
-                if ui.button(I18n::t(&lang, "apply_migrate")).clicked() {
-                    let new_path = std::path::PathBuf::from(&self.data_dir_input);
-                    let old_path = self.config.data_dir.clone();
-                    if new_path != old_path {
-                        if let Err(e) = std::fs::create_dir_all(&new_path) {
-                            self.status = format!("✗ Failed to create directory: {}", e);
-                        } else {
-                            let migration_ok = if old_path.exists() {
-                                migrate_data_dir(&old_path, &new_path).is_ok()
-                            } else {
-                                true
-                            };
-                            self.config.data_dir = new_path;
-                            if let Err(e) = self.config.save() {
-                                self.status = format!("✗ Failed to save config: {}", e);
-                            } else if migration_ok {
-                                self.instances = miao_core::instance::list_instances(
-                                    &self.config.instances_dir(),
-                                )
-                                .unwrap_or_default();
-                                self.selected_instance = None;
-                                self.status = I18n::t(&lang, "data_dir_migrated").to_string();
-                            } else {
-                                self.instances = miao_core::instance::list_instances(
-                                    &self.config.instances_dir(),
-                                )
-                                .unwrap_or_default();
-                                self.selected_instance = None;
-                                self.status = I18n::t(&lang, "data_dir_partial").to_string();
+                                    self.selected_instance = None;
+                                    self.status = I18n::t(&lang, "data_dir_migrated").to_string();
+                                } else {
+                                    self.instances = miao_core::instance::list_instances(
+                                        &self.config.instances_dir(),
+                                    )
+                                    .unwrap_or_default();
+                                    self.selected_instance = None;
+                                    self.status = I18n::t(&lang, "data_dir_partial").to_string();
+                                }
                             }
                         }
                     }
-                }
+                    if ui.button(I18n::t(&lang, "apply")).clicked() {
+                        let new_path = std::path::PathBuf::from(&self.data_dir_input);
+                        if let Err(e) = std::fs::create_dir_all(&new_path) {
+                            self.status = format!("✗ Failed to create directory: {}", e);
+                        } else {
+                            self.config.data_dir = new_path;
+                            if let Err(e) = self.config.save() {
+                                self.status = format!("✗ Failed to save config: {}", e);
+                            } else {
+                                self.instances = miao_core::instance::list_instances(
+                                    &self.config.instances_dir(),
+                                )
+                                .unwrap_or_default();
+                                self.selected_instance = None;
+                                self.status = I18n::t(&lang, "data_dir_updated").to_string();
+                            }
+                        }
+                    }
+                });
             });
         });
 
+        // ── Game Folders ────────────────────────────────────────────────
         ui.add_space(16.0);
         ui.label(theme::subheading(I18n::t(&lang, "game_folders")));
         ui.add_space(8.0);
@@ -783,7 +898,7 @@ impl MiaoApp {
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.label(theme::muted(I18n::t(&lang, "game_folders_desc")));
-            ui.add_space(8.0);
+            ui.add_space(10.0);
 
             let active = self.config.data_dir.display().to_string();
             let mut switch_to: Option<std::path::PathBuf> = None;
@@ -793,37 +908,54 @@ impl MiaoApp {
                 let is_active = *folder == self.config.data_dir;
                 ui.horizontal(|ui| {
                     if is_active {
-                        ui.label(theme::body(&format!("▶ {}", folder.display())));
+                        ui.label(
+                            egui::RichText::new(crate::icons::ICON_CIRCLE_FILL)
+                                .size(8.0)
+                                .color(theme::Colors::success()),
+                        );
+                        ui.label(theme::body(&folder.display().to_string()));
                     } else {
                         ui.label(theme::muted(&folder.display().to_string()));
-                        if ui.small_button(I18n::t(&lang, "switch")).clicked() {
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if !is_active && ui.small_button("✕").clicked() {
+                            remove_idx = Some(i);
+                        }
+                        if !is_active && ui.small_button(I18n::t(&lang, "switch")).clicked() {
                             switch_to = Some(folder.clone());
                         }
-                    }
-                    if !is_active && ui.small_button("✕").clicked() {
-                        remove_idx = Some(i);
-                    }
+                    });
                 });
+                ui.add_space(4.0);
             }
 
             if self.config.game_folders.is_empty()
                 || !self.config.game_folders.contains(&self.config.data_dir)
             {
                 ui.horizontal(|ui| {
-                    ui.label(theme::body(&format!("▶ {}", active)));
+                    ui.label(
+                        egui::RichText::new(crate::icons::ICON_CIRCLE_FILL)
+                            .size(8.0)
+                            .color(theme::Colors::success()),
+                    );
+                    ui.label(theme::body(&active));
                 });
             }
 
-            ui.add_space(8.0);
-            if ui.button(I18n::t(&lang, "add_folder")).clicked()
-                && let Some(folder) = rfd::FileDialog::new()
-                    .set_title("Select game folder")
-                    .pick_folder()
-                && !self.config.game_folders.contains(&folder)
-            {
-                self.config.game_folders.push(folder);
-                let _ = self.config.save();
-            }
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(I18n::t(&lang, "add_folder")).clicked()
+                        && let Some(folder) = rfd::FileDialog::new()
+                            .set_title("Select game folder")
+                            .pick_folder()
+                        && !self.config.game_folders.contains(&folder)
+                    {
+                        self.config.game_folders.push(folder);
+                        let _ = self.config.save();
+                    }
+                });
+            });
 
             if let Some(idx) = remove_idx {
                 self.config.game_folders.remove(idx);
@@ -842,6 +974,7 @@ impl MiaoApp {
             }
         });
 
+        // ── Download Settings ───────────────────────────────────────────
         ui.add_space(16.0);
         ui.label(theme::subheading(I18n::t(&lang, "mirror")));
         ui.add_space(8.0);
@@ -856,23 +989,105 @@ impl MiaoApp {
             };
             let mut selected = current_mirror;
 
-            ui.horizontal(|ui| {
-                ui.radio_value(&mut selected, 0, I18n::t(&lang, "mirror_official"));
-                ui.radio_value(&mut selected, 1, I18n::t(&lang, "mirror_bmclapi"));
-                ui.radio_value(&mut selected, 2, I18n::t(&lang, "mirror_custom"));
-            });
+            let mirror_labels = [
+                I18n::t(&lang, "mirror_official").to_string(),
+                I18n::t(&lang, "mirror_bmclapi").to_string(),
+                I18n::t(&lang, "mirror_custom").to_string(),
+            ];
+
+            let cols = 3;
+            let total_width = ui.available_width();
+            let card_width = (total_width - 8.0 * (cols - 1) as f32) / cols as f32;
+
+            egui::Grid::new("mirror_grid")
+                .num_columns(cols)
+                .spacing(egui::vec2(8.0, 8.0))
+                .min_col_width(card_width)
+                .max_col_width(card_width)
+                .show(ui, |ui| {
+                    for (i, label) in mirror_labels.iter().enumerate() {
+                        let is_selected = i == current_mirror;
+                        let (rect, response) = ui.allocate_exact_size(
+                            egui::vec2(card_width, 36.0),
+                            egui::Sense::click(),
+                        );
+
+                        let sel_t = ui.ctx().animate_bool_with_time_and_easing(
+                            egui::Id::new("mirror_card").with(i).with("sel"),
+                            is_selected,
+                            0.25,
+                            crate::animation::ease_linear,
+                        );
+                        let hover_t = ui.ctx().animate_bool_with_time_and_easing(
+                            egui::Id::new("mirror_card").with(i).with("hover"),
+                            response.hovered(),
+                            0.2,
+                            crate::animation::ease_linear,
+                        );
+
+                        let base = theme::Colors::bg_widget();
+                        let bg = if sel_t > 0.0 {
+                            crate::animation::lerp_color(
+                                base,
+                                theme::Colors::accent(),
+                                0.15 * sel_t,
+                            )
+                        } else {
+                            crate::animation::lerp_color(
+                                base,
+                                theme::Colors::bg_widget_hover(),
+                                hover_t,
+                            )
+                        };
+
+                        let stroke = if sel_t > 0.0 {
+                            egui::Stroke::new(1.5, theme::Colors::accent().gamma_multiply(sel_t))
+                        } else {
+                            egui::Stroke::new(1.0, theme::Colors::subtle_border())
+                        };
+
+                        ui.painter()
+                            .rect_filled(rect, egui::CornerRadius::same(6), bg);
+                        ui.painter().rect_stroke(
+                            rect,
+                            egui::CornerRadius::same(6),
+                            stroke,
+                            egui::StrokeKind::Inside,
+                        );
+
+                        let text_color = if is_selected {
+                            theme::Colors::accent_light()
+                        } else {
+                            theme::Colors::text_primary()
+                        };
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            label,
+                            egui::FontId::proportional(13.0),
+                            text_color,
+                        );
+
+                        if response.clicked() && !is_selected {
+                            selected = i;
+                        }
+
+                        if (i + 1) % cols == 0 {
+                            ui.end_row();
+                        }
+                    }
+                });
 
             if selected == 2 {
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    ui.label("URL:");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.mirror_custom_url)
-                            .vertical_align(egui::Align::Center)
-                            .min_size(ui.spacing().interact_size)
-                            .hint_text("https://my-mirror.example.com"),
-                    );
-                });
+                ui.add_space(10.0);
+                ui.label(theme::small("URL"));
+                ui.add_space(4.0);
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.mirror_custom_url)
+                        .vertical_align(egui::Align::Center)
+                        .desired_width(ui.available_width())
+                        .hint_text("https://my-mirror.example.com"),
+                );
             }
 
             if selected != current_mirror {
@@ -889,31 +1104,27 @@ impl MiaoApp {
                 }
             }
 
-            ui.add_space(12.0);
-            ui.separator();
-            ui.add_space(8.0);
-
-            ui.horizontal(|ui| {
-                ui.label(theme::body(I18n::t(&lang, "max_concurrent")));
-                ui.add_space(8.0);
-                let resp = ui.add(
-                    egui::TextEdit::singleline(&mut self.max_downloads_input)
-                        .desired_width(60.0)
-                        .vertical_align(egui::Align::Center),
-                );
-                if resp.lost_focus() {
-                    if let Ok(v) = self.max_downloads_input.parse::<usize>() {
-                        let v = v.clamp(1, 256);
-                        self.config.max_concurrent_downloads = v;
-                        self.max_downloads_input = v.to_string();
-                        if let Err(e) = self.config.save() {
-                            self.status = format!("✗ Save failed: {}", e);
-                        }
-                    } else {
-                        self.max_downloads_input = self.config.max_concurrent_downloads.to_string();
+            // ── Max concurrent downloads ────────────────────────────────
+            ui.add_space(16.0);
+            ui.label(theme::small(I18n::t(&lang, "max_concurrent")));
+            ui.add_space(4.0);
+            let resp = ui.add(
+                egui::TextEdit::singleline(&mut self.max_downloads_input)
+                    .desired_width(80.0)
+                    .vertical_align(egui::Align::Center),
+            );
+            if resp.lost_focus() {
+                if let Ok(v) = self.max_downloads_input.parse::<usize>() {
+                    let v = v.clamp(1, 256);
+                    self.config.max_concurrent_downloads = v;
+                    self.max_downloads_input = v.to_string();
+                    if let Err(e) = self.config.save() {
+                        self.status = format!("✗ Save failed: {}", e);
                     }
+                } else {
+                    self.max_downloads_input = self.config.max_concurrent_downloads.to_string();
                 }
-            });
+            }
         });
 
         ui.add_space(16.0);
@@ -924,26 +1135,24 @@ impl MiaoApp {
             ui.set_min_width(ui.available_width());
             ui.label(theme::muted(I18n::t(&lang, "cf_api_key_desc")));
             ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                let resp = ui.add(
-                    egui::TextEdit::singleline(&mut self.cf_api_key_input)
-                        .password(true)
-                        .vertical_align(egui::Align::Center)
-                        .min_size(ui.spacing().interact_size)
-                        .hint_text("$2a$10$..."),
-                );
-                if resp.lost_focus() {
-                    let key = if self.cf_api_key_input.trim().is_empty() {
-                        None
-                    } else {
-                        Some(self.cf_api_key_input.trim().to_string())
-                    };
-                    self.config.curseforge_api_key = key;
-                    if let Err(e) = self.config.save() {
-                        self.status = format!("✗ Save failed: {}", e);
-                    }
+            let resp = ui.add(
+                egui::TextEdit::singleline(&mut self.cf_api_key_input)
+                    .password(true)
+                    .vertical_align(egui::Align::Center)
+                    .desired_width(ui.available_width())
+                    .hint_text("$2a$10$..."),
+            );
+            if resp.lost_focus() {
+                let key = if self.cf_api_key_input.trim().is_empty() {
+                    None
+                } else {
+                    Some(self.cf_api_key_input.trim().to_string())
+                };
+                self.config.curseforge_api_key = key;
+                if let Err(e) = self.config.save() {
+                    self.status = format!("✗ Save failed: {}", e);
                 }
-            });
+            }
         });
     }
 
@@ -965,20 +1174,18 @@ impl MiaoApp {
             ));
         }
 
-        if let Some(ref javas) = self.cached_javas {
-            if javas.is_empty() {
-                theme::section_frame().show(ui, |ui| {
-                    ui.set_min_width(ui.available_width());
+        theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+
+            if let Some(ref javas) = self.cached_javas {
+                if javas.is_empty() {
                     ui.label(theme::muted("No Java installations detected."));
                     ui.add_space(4.0);
                     ui.label(theme::small(
                         "Install Java or use 'Download Java' from an instance.",
                     ));
-                });
-            } else {
-                for j in javas {
-                    theme::list_item_card().show(ui, |ui| {
-                        ui.set_min_width(ui.available_width());
+                } else {
+                    for (i, j) in javas.iter().enumerate() {
                         ui.horizontal(|ui| {
                             ui.label(
                                 egui::RichText::new(format!("Java {}", j.major_version))
@@ -988,11 +1195,15 @@ impl MiaoApp {
                             ui.label(theme::muted(&format!("({})", j.version)));
                         });
                         ui.label(theme::small(&j.path.display().to_string()));
-                    });
-                    ui.add_space(4.0);
+                        if i < javas.len() - 1 {
+                            ui.add_space(6.0);
+                            ui.separator();
+                            ui.add_space(6.0);
+                        }
+                    }
                 }
             }
-        }
+        });
     }
 
     fn render_tab_help(&mut self, ui: &mut egui::Ui) {
@@ -1073,14 +1284,19 @@ impl MiaoApp {
             ]
         };
 
-        for (question, answer) in faqs {
-            crate::widgets::CollapsibleCard::new(question, question)
-                .default_open(false)
-                .show(ui, |ui| {
-                    ui.label(theme::body(answer));
-                });
-            ui.add_space(4.0);
-        }
+        theme::section_frame().show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            for (i, (question, answer)) in faqs.iter().enumerate() {
+                crate::widgets::CollapsibleCard::new(question, question)
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        ui.label(theme::body(answer));
+                    });
+                if i < faqs.len() - 1 {
+                    ui.add_space(6.0);
+                }
+            }
+        });
     }
 
     fn render_tab_about(&mut self, ui: &mut egui::Ui) {
@@ -1096,14 +1312,17 @@ impl MiaoApp {
                     .strong()
                     .color(theme::Colors::accent_light()),
             );
+            ui.add_space(2.0);
             ui.label(theme::muted(&format!(
                 "MiaoMinecraftLauncher v{}",
                 env!("CARGO_PKG_VERSION")
             )));
-            ui.add_space(4.0);
+            ui.add_space(6.0);
             ui.label(theme::body(
                 "A feature-rich cross-platform Minecraft launcher.",
             ));
+            ui.add_space(4.0);
+            ui.label(theme::muted("License: GPL-3.0-or-later"));
         });
 
         if let Some(ref version) = self.update_available.clone() {
@@ -1146,19 +1365,85 @@ impl MiaoApp {
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::body("MickeyMiao"));
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                ui.label(theme::muted("GitHub:"));
-                ui.hyperlink_to(
-                    "WangSimiao2000/MiaoMinecraftLauncher",
-                    "https://github.com/WangSimiao2000/MiaoMinecraftLauncher",
-                );
-            });
-            ui.horizontal(|ui| {
-                ui.label(theme::muted("Bilibili:"));
-                ui.hyperlink_to("鄙人米奇喵", "https://space.bilibili.com/36913332");
-            });
+            ui.label(
+                egui::RichText::new("MickeyMiao")
+                    .strong()
+                    .color(theme::Colors::text_primary()),
+            );
+            ui.add_space(10.0);
+
+            let cols = 2;
+            let total_width = ui.available_width();
+            let card_width = (total_width - 8.0) / cols as f32;
+
+            egui::Grid::new("author_links_grid")
+                .num_columns(cols)
+                .spacing(egui::vec2(8.0, 8.0))
+                .min_col_width(card_width)
+                .max_col_width(card_width)
+                .show(ui, |ui| {
+                    let links: [(&str, &str, &str); 2] = [
+                        (
+                            "GitHub",
+                            "WangSimiao2000",
+                            "https://github.com/WangSimiao2000/MiaoMinecraftLauncher",
+                        ),
+                        (
+                            "Bilibili",
+                            "鄙人米奇喵",
+                            "https://space.bilibili.com/36913332",
+                        ),
+                    ];
+
+                    for (platform, name, url) in links {
+                        let (rect, response) = ui.allocate_exact_size(
+                            egui::vec2(card_width, 40.0),
+                            egui::Sense::click(),
+                        );
+
+                        let hover_t = ui.ctx().animate_bool_with_time_and_easing(
+                            egui::Id::new("author_link").with(platform).with("hover"),
+                            response.hovered(),
+                            0.2,
+                            crate::animation::ease_linear,
+                        );
+
+                        let base = theme::Colors::bg_widget();
+                        let bg = crate::animation::lerp_color(
+                            base,
+                            theme::Colors::bg_widget_hover(),
+                            hover_t,
+                        );
+
+                        ui.painter()
+                            .rect_filled(rect, egui::CornerRadius::same(6), bg);
+                        ui.painter().rect_stroke(
+                            rect,
+                            egui::CornerRadius::same(6),
+                            egui::Stroke::new(1.0, theme::Colors::subtle_border()),
+                            egui::StrokeKind::Inside,
+                        );
+
+                        ui.painter().text(
+                            egui::pos2(rect.center().x, rect.center().y - 7.0),
+                            egui::Align2::CENTER_CENTER,
+                            platform,
+                            egui::FontId::proportional(11.0),
+                            theme::Colors::text_secondary(),
+                        );
+                        ui.painter().text(
+                            egui::pos2(rect.center().x, rect.center().y + 7.0),
+                            egui::Align2::CENTER_CENTER,
+                            name,
+                            egui::FontId::proportional(12.0),
+                            theme::Colors::accent_light(),
+                        );
+
+                        if response.clicked() {
+                            let _ = open::that(url);
+                        }
+                    }
+                });
         });
 
         ui.add_space(16.0);
@@ -1167,25 +1452,26 @@ impl MiaoApp {
 
         theme::section_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(theme::muted("License: GPL-3.0-or-later"));
-            ui.add_space(8.0);
-            ui.label(theme::muted("Fonts:"));
+
+            ui.label(theme::small("Fonts"));
+            ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(theme::muted("  ·"));
+                ui.label(theme::muted("·"));
                 ui.hyperlink_to(
                     "MiSans — Xiaomi (SIL OFL 1.1)",
                     "https://hyperos.mi.com/font/en",
                 );
             });
             ui.horizontal(|ui| {
-                ui.label(theme::muted("  ·"));
+                ui.label(theme::muted("·"));
                 ui.hyperlink_to(
                     "Bootstrap Icons — The Bootstrap Authors (MIT)",
                     "https://icons.getbootstrap.com/",
                 );
             });
-            ui.add_space(8.0);
-            ui.label(theme::muted("Core Libraries:"));
+            ui.add_space(12.0);
+            ui.label(theme::small("Core Libraries"));
+            ui.add_space(4.0);
             for (name, url) in [
                 (
                     "egui / eframe — emilk (MIT OR Apache-2.0)",
@@ -1217,7 +1503,7 @@ impl MiaoApp {
                 ),
             ] {
                 ui.horizontal(|ui| {
-                    ui.label(theme::muted("  ·"));
+                    ui.label(theme::muted("·"));
                     ui.hyperlink_to(name, url);
                 });
             }

@@ -168,3 +168,41 @@ Single-direction spacing: always use spacing BELOW elements, never above.
 - Tab indicator: accent-colored underline (2.5px height)
 - Search toggle: accent-filled button when active
 - Settings: left sidebar tabs with `SidePanel::show_inside`
+
+## Layout Pitfalls
+
+### `with_layout(right_to_left)` Height Explosion
+
+**Problem**: Using `ui.with_layout(Layout::right_to_left(Align::Center), ...)` directly inside a vertical parent (e.g. `section_frame`) causes the child UI to consume **all remaining vertical space**. egui needs the full height to center-align vertically, so the enclosing card stretches far beyond its content.
+
+**Fix**: Always wrap in `ui.horizontal(...)` first. The horizontal constrains the height to one row, then right-to-left alignment works within that single row.
+
+```rust
+// ✗ WRONG — card height explodes
+theme::section_frame().show(ui, |ui| {
+    ui.label("some content");
+    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        ui.button("Save");
+    });
+});
+
+// ✓ CORRECT — button stays in a single row
+theme::section_frame().show(ui, |ui| {
+    ui.label("some content");
+    ui.horizontal(|ui| {
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.button("Save");
+        });
+    });
+});
+```
+
+### Settings Page Card Layout Conventions
+
+| Element | Pattern |
+|---------|---------|
+| Multi-option selection | Grid cards (equal-width columns), like theme/language pickers |
+| Input fields | Full-width, vertical stack, each with a label above |
+| Action buttons | Right-aligned via `horizontal` + `with_layout(right_to_left)` |
+| Section separation | Separate `section_frame` cards, NOT `separator()` within one card |
+| Related settings group | Single `section_frame` with sub-labels (`theme::small`) dividing groups |
