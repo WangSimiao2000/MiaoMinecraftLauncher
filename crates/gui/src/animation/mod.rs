@@ -50,10 +50,7 @@ pub use preset::{
 pub use spring::{Spring, SpringConfig};
 
 pub use eframe::emath::easing::cubic_out as ease_out;
-
-pub fn ease_linear(t: f32) -> f32 {
-    t
-}
+pub use eframe::emath::easing::linear as ease_linear;
 
 pub const DURATION_HOVER: f32 = 0.2;
 pub const DURATION_SELECT: f32 = 0.25;
