@@ -87,7 +87,7 @@ impl MiaoApp {
                         egui::Id::new("sidebar_indicator_opacity"),
                         has_selection,
                         0.25,
-                        crate::animation::ease_out,
+                        crate::animation::ease_linear,
                     );
 
                     if let Some(center_y) = selected_card_center_y {
@@ -128,13 +128,13 @@ impl MiaoApp {
                         response.id.with("settings_hover"),
                         response.hovered(),
                         0.2,
-                        crate::animation::ease_out,
+                        crate::animation::ease_linear,
                     );
                     let active_t = ui.ctx().animate_bool_with_time_and_easing(
                         response.id.with("settings_active"),
                         is_active,
                         0.3,
-                        crate::animation::ease_out,
+                        crate::animation::ease_linear,
                     );
 
                     let base_alpha = 0.3 * active_t;

@@ -31,7 +31,7 @@ impl<'a> ModCard<'a> {
                 card_id.with("hover"),
                 card_response.hovered(),
                 0.2,
-                crate::animation::ease_out,
+                crate::animation::ease_linear,
             );
             if hover_t > 0.0 {
                 ui.painter().rect_filled(

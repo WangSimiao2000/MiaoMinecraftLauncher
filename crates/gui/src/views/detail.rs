@@ -11,7 +11,7 @@ impl MiaoApp {
             egui::Id::new("detail_content_opacity"),
             has_instance,
             0.3,
-            crate::animation::ease_out,
+            crate::animation::ease_linear,
         );
         let welcome_opacity = 1.0 - detail_opacity;
 
@@ -157,7 +157,7 @@ impl MiaoApp {
                     egui::Id::new(key).with("tab_sel"),
                     selected,
                     0.25,
-                    crate::animation::ease_out,
+                    crate::animation::ease_linear,
                 );
 
                 let active_color = theme::Colors::accent_light();

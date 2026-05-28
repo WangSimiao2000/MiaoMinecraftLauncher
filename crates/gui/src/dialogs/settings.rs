@@ -22,7 +22,7 @@ impl MiaoApp {
                     egui::Id::new("settings_content_fade").with(self.settings_tab as u8),
                     true,
                     0.3,
-                    crate::animation::ease_out,
+                    crate::animation::ease_linear,
                 );
                 ui.set_opacity(content_t);
 
@@ -70,13 +70,13 @@ impl MiaoApp {
                 tab_id.with("sel"),
                 selected,
                 0.3,
-                crate::animation::ease_out,
+                crate::animation::ease_linear,
             );
             let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                 tab_id.with("hover"),
                 response.hovered() && !selected,
                 0.2,
-                crate::animation::ease_out,
+                crate::animation::ease_linear,
             );
 
             if sel_t > 0.0 {
@@ -182,7 +182,7 @@ impl MiaoApp {
                     card_id.with("active"),
                     *active,
                     0.3,
-                    crate::animation::ease_out,
+                    crate::animation::ease_linear,
                 );
                 let base = theme::Colors::bg_elevated();
                 let active_color = theme::Colors::bg_widget_hover();
@@ -492,13 +492,13 @@ impl MiaoApp {
                             egui::Id::new("theme_card").with(idx).with("sel"),
                             selected,
                             crate::animation::DURATION_SELECT,
-                            crate::animation::ease_out,
+                            crate::animation::ease_linear,
                         );
                         let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                             egui::Id::new("theme_card").with(idx).with("hover"),
                             response.hovered(),
                             crate::animation::DURATION_HOVER,
-                            crate::animation::ease_out,
+                            crate::animation::ease_linear,
                         );
 
                         let bg = if sel_t > 0.0 {
@@ -619,13 +619,13 @@ impl MiaoApp {
                             egui::Id::new("lang_card").with(i).with("sel"),
                             selected,
                             0.25,
-                            crate::animation::ease_out,
+                            crate::animation::ease_linear,
                         );
                         let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                             egui::Id::new("lang_card").with(i).with("hover"),
                             response.hovered(),
                             0.2,
-                            crate::animation::ease_out,
+                            crate::animation::ease_linear,
                         );
 
                         let bg = if sel_t > 0.0 {

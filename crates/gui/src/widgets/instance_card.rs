@@ -32,13 +32,13 @@ impl<'a> InstanceCard<'a> {
             response.id.with("hover"),
             response.hovered(),
             0.2,
-            crate::animation::ease_out,
+            crate::animation::ease_linear,
         );
         let selected_t = ui.ctx().animate_bool_with_time_and_easing(
             response.id.with("sel"),
             self.selected,
             0.25,
-            crate::animation::ease_out,
+            crate::animation::ease_linear,
         );
 
         let base_color = theme::Colors::bg_elevated();

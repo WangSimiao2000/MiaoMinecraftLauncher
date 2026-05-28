@@ -55,7 +55,7 @@ impl<'a> CollapsibleCard<'a> {
                 self.id.with("hover"),
                 header_response.hovered(),
                 0.2,
-                crate::animation::ease_out,
+                crate::animation::ease_linear,
             );
 
             if hover_t > 0.0 {
