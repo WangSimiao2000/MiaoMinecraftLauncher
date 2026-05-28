@@ -75,7 +75,7 @@ fn main() -> Result<()> {
                 .or_default()
                 .push("misans".to_owned());
 
-            if let Some(cjk_fallback) = find_system_cjk_font() {
+            if let Some(cjk_fallback) = find_system_fallback_font() {
                 fonts.font_data.insert(
                     "cjk-fallback".to_owned(),
                     std::sync::Arc::new(egui::FontData::from_owned(cjk_fallback)),
@@ -105,30 +105,35 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn find_system_cjk_font() -> Option<Vec<u8>> {
-    let candidates = if cfg!(target_os = "linux") {
-        vec![
+fn find_system_fallback_font() -> Option<Vec<u8>> {
+    let candidates: &[&str] = if cfg!(target_os = "linux") {
+        &[
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/noto/NotoSansKR-Regular.ttf",
             "/usr/share/fonts/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/OTF/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+            "/usr/share/fonts/noto/NotoSans-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         ]
     } else if cfg!(target_os = "windows") {
-        vec![
-            "C:\\Windows\\Fonts\\malgun.ttf",
-            "C:\\Windows\\Fonts\\meiryo.ttc",
+        &[
             "C:\\Windows\\Fonts\\msyh.ttc",
+            "C:\\Windows\\Fonts\\malgun.ttf",
+            "C:\\Windows\\Fonts\\yugothic.ttf",
+            "C:\\Windows\\Fonts\\meiryo.ttc",
+            "C:\\Windows\\Fonts\\simsun.ttc",
         ]
     } else if cfg!(target_os = "macos") {
-        vec![
-            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+        &[
             "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
             "/Library/Fonts/Arial Unicode.ttf",
         ]
     } else {
-        vec![]
+        &[]
     };
 
     for path in candidates {
