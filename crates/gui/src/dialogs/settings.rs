@@ -454,18 +454,19 @@ impl MiaoApp {
 
             let current = self.theme_preset;
             let cols = 3;
+            let total_width = ui.available_width();
+            let card_width = (total_width - 8.0 * (cols - 1) as f32) / cols as f32;
             egui::Grid::new("theme_grid")
                 .num_columns(cols)
                 .spacing(egui::vec2(8.0, 8.0))
+                .min_col_width(card_width)
+                .max_col_width(card_width)
                 .show(ui, |ui| {
                     for (i, preset) in theme::ThemePreset::ALL.iter().enumerate() {
                         let selected = current == *preset;
                         let accent = preset.accent();
-
-                        let card_width = (ui.available_width() - 16.0) / cols as f32;
-                        let card_height = 56.0;
                         let (rect, response) = ui.allocate_exact_size(
-                            egui::vec2(card_width, card_height),
+                            egui::vec2(card_width, 56.0),
                             egui::Sense::click(),
                         );
 
