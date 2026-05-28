@@ -51,14 +51,14 @@ impl ThemePreset {
         ThemePreset::Light,
     ];
 
-    pub fn name(&self) -> &'static str {
+    pub fn i18n_key(&self) -> &'static str {
         match self {
-            ThemePreset::Dark => "Dark",
-            ThemePreset::Ocean => "Ocean",
-            ThemePreset::Forest => "Forest",
-            ThemePreset::Warm => "Warm",
-            ThemePreset::Sakura => "Sakura",
-            ThemePreset::Light => "Light",
+            ThemePreset::Dark => "theme_dark",
+            ThemePreset::Ocean => "theme_ocean",
+            ThemePreset::Forest => "theme_forest",
+            ThemePreset::Warm => "theme_warm",
+            ThemePreset::Sakura => "theme_sakura",
+            ThemePreset::Light => "theme_light",
         }
     }
 }

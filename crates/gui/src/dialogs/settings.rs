@@ -520,7 +520,7 @@ impl MiaoApp {
                         ui.painter().text(
                             egui::pos2(rect.center().x, rect.bottom() - 10.0),
                             egui::Align2::CENTER_CENTER,
-                            preset.name(),
+                            I18n::t(&lang, preset.i18n_key()),
                             egui::FontId::proportional(11.0),
                             text_color,
                         );

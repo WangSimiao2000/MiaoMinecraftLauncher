@@ -17,5 +17,11 @@
   "select_language": "言語を選択",
   "next": "次へ",
   "finish": "完了",
-  "click_to_exit_settings": "クリックして設定を閉じる"
+  "click_to_exit_settings": "クリックして設定を閉じる",
+  "theme_dark": "ダーク",
+  "theme_ocean": "オーシャン",
+  "theme_forest": "フォレスト",
+  "theme_warm": "ウォーム",
+  "theme_sakura": "サクラ",
+  "theme_light": "ライト"
 }

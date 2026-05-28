@@ -151,5 +151,11 @@
   "loader_version": "加载器版本：",
   "loading": "加载中...",
   "show": "筛选：",
-  "click_to_exit_settings": "点击退出设置"
+  "click_to_exit_settings": "点击退出设置",
+  "theme_dark": "深色",
+  "theme_ocean": "海洋",
+  "theme_forest": "森林",
+  "theme_warm": "暖阳",
+  "theme_sakura": "樱花",
+  "theme_light": "浅色"
 }

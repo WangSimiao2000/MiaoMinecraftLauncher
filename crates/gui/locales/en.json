@@ -151,5 +151,11 @@
   "loader_version": "Loader Version:",
   "loading": "Loading...",
   "show": "Show:",
-  "click_to_exit_settings": "Click to exit Settings"
+  "click_to_exit_settings": "Click to exit Settings",
+  "theme_dark": "Dark",
+  "theme_ocean": "Ocean",
+  "theme_forest": "Forest",
+  "theme_warm": "Warm",
+  "theme_sakura": "Sakura",
+  "theme_light": "Light"
 }
