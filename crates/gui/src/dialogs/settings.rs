@@ -1000,6 +1000,43 @@ impl MiaoApp {
                     "https://icons.getbootstrap.com/",
                 );
             });
+            ui.add_space(8.0);
+            ui.label(theme::muted("Core Libraries:"));
+            for (name, url) in [
+                (
+                    "egui / eframe — emilk (MIT OR Apache-2.0)",
+                    "https://github.com/emilk/egui",
+                ),
+                (
+                    "tokio — Tokio Contributors (MIT)",
+                    "https://github.com/tokio-rs/tokio",
+                ),
+                (
+                    "reqwest — seanmonstar (MIT OR Apache-2.0)",
+                    "https://github.com/seanmonstar/reqwest",
+                ),
+                (
+                    "serde — David Tolnay (MIT OR Apache-2.0)",
+                    "https://github.com/serde-rs/serde",
+                ),
+                (
+                    "clap — Kevin K. (MIT OR Apache-2.0)",
+                    "https://github.com/clap-rs/clap",
+                ),
+                (
+                    "self_update — jaemk (MIT)",
+                    "https://github.com/jaemk/self_update",
+                ),
+                (
+                    "egui_animation — lucasmerlin (MIT)",
+                    "https://github.com/lucasmerlin/hello_egui",
+                ),
+            ] {
+                ui.horizontal(|ui| {
+                    ui.label(theme::muted("  ·"));
+                    ui.hyperlink_to(name, url);
+                });
+            }
         });
     }
 }
