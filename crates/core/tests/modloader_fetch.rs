@@ -116,6 +116,21 @@ async fn fetch_neoforge_versions_no_match() {
 }
 
 #[tokio::test]
+async fn fetch_neoforge_versions_old_mc_no_false_match() {
+    let mock = MockHttpClient::new();
+    mock.mock_response("maven.neoforged.net", NEOFORGE_VERSIONS_JSON);
+
+    let versions = neoforge::fetch_versions(&mock, "1.2").await.unwrap();
+    assert!(versions.is_empty(), "MC 1.2 should not match NeoForge 20.x");
+
+    let mock = MockHttpClient::new();
+    mock.mock_response("maven.neoforged.net", NEOFORGE_VERSIONS_JSON);
+
+    let versions = neoforge::fetch_versions(&mock, "1.0").await.unwrap();
+    assert!(versions.is_empty(), "MC 1.0 should not match any NeoForge");
+}
+
+#[tokio::test]
 async fn fetch_forge_recommended() {
     let mock = MockHttpClient::new();
     mock.mock_response("minecraftforge.net", FORGE_PROMOS_JSON);

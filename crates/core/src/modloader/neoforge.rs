@@ -47,14 +47,15 @@ pub async fn fetch_versions(
 ) -> Result<Vec<String>> {
     let list: NeoForgeVersionList = http.get_json(NEOFORGE_META_URL).await?;
 
-    let mc_prefix = minecraft_version
+    let mc_suffix = minecraft_version
         .strip_prefix("1.")
         .unwrap_or(minecraft_version);
+    let filter_prefix = format!("{}.", mc_suffix);
 
     let matching: Vec<String> = list
         .versions
         .into_iter()
-        .filter(|v| v.starts_with(mc_prefix))
+        .filter(|v| v.starts_with(&filter_prefix))
         .rev()
         .collect();
 
