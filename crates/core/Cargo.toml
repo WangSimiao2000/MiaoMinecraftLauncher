@@ -32,6 +32,7 @@ tokio-util.workspace = true
 image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = "0.22"
 winreg = { version = "0.52", optional = true }
+self_update = { version = "0.42", features = ["rustls"] }
 
 [features]
 default = []

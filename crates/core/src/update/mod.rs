@@ -5,6 +5,8 @@ use serde::Deserialize;
 
 const GITHUB_API_URL: &str =
     "https://api.github.com/repos/WangSimiao2000/MiaoMinecraftLauncher/releases/latest";
+const GITHUB_REPO_OWNER: &str = "WangSimiao2000";
+const GITHUB_REPO_NAME: &str = "MiaoMinecraftLauncher";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReleaseInfo {
@@ -100,17 +102,11 @@ pub async fn download_update(
 
 pub fn apply_update(downloaded_path: &std::path::Path) -> Result<()> {
     let current_exe = std::env::current_exe()?;
-    let backup_path = current_exe.with_extension("bak");
-
-    std::fs::rename(&current_exe, &backup_path)?;
-
-    if let Err(e) = std::fs::copy(downloaded_path, &current_exe) {
-        std::fs::rename(&backup_path, &current_exe)?;
-        return Err(crate::error::MiaoError::Other(format!(
-            "Failed to apply update: {}. Rolled back.",
-            e
-        )));
-    }
+    let tmp = current_exe.with_extension("tmp");
+    self_update::Move::from_source(downloaded_path)
+        .replace_using_temp(&tmp)
+        .to_dest(&current_exe)
+        .map_err(|e| crate::error::MiaoError::Other(format!("Failed to apply update: {}", e)))?;
 
     #[cfg(unix)]
     {
@@ -119,8 +115,25 @@ pub fn apply_update(downloaded_path: &std::path::Path) -> Result<()> {
         let _ = std::fs::set_permissions(&current_exe, perms);
     }
 
-    let _ = std::fs::remove_file(&backup_path);
     Ok(())
+}
+
+pub fn perform_self_update() -> std::result::Result<self_update::Status, crate::error::MiaoError> {
+    let status = self_update::backends::github::Update::configure()
+        .repo_owner(GITHUB_REPO_OWNER)
+        .repo_name(GITHUB_REPO_NAME)
+        .bin_name(if cfg!(target_os = "windows") {
+            "miao-gui.exe"
+        } else {
+            "miao-gui"
+        })
+        .current_version(self_update::cargo_crate_version!())
+        .no_confirm(true)
+        .build()
+        .map_err(|e| crate::error::MiaoError::Other(format!("Update config error: {}", e)))?
+        .update()
+        .map_err(|e| crate::error::MiaoError::Other(format!("Update failed: {}", e)))?;
+    Ok(status)
 }
 
 fn find_platform_asset(assets: &[ReleaseAsset]) -> Option<&ReleaseAsset> {
