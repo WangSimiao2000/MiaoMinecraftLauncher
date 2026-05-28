@@ -194,6 +194,7 @@ impl LocaleRegistry {
         };
         reg.register("en", include_str!("../locales/en.json"));
         reg.register("zh", include_str!("../locales/zh.json"));
+        reg.register("ja", include_str!("../locales/ja.json"));
         reg
     }
 

@@ -75,6 +75,23 @@ fn main() -> Result<()> {
                 .or_default()
                 .push("misans".to_owned());
 
+            if let Some(cjk_fallback) = find_system_cjk_font() {
+                fonts.font_data.insert(
+                    "cjk-fallback".to_owned(),
+                    std::sync::Arc::new(egui::FontData::from_owned(cjk_fallback)),
+                );
+                fonts
+                    .families
+                    .entry(egui::FontFamily::Proportional)
+                    .or_default()
+                    .push("cjk-fallback".to_owned());
+                fonts
+                    .families
+                    .entry(egui::FontFamily::Monospace)
+                    .or_default()
+                    .push("cjk-fallback".to_owned());
+            }
+
             cc.egui_ctx.set_fonts(fonts);
 
             egui_extras::install_image_loaders(&cc.egui_ctx);
@@ -86,6 +103,40 @@ fn main() -> Result<()> {
     .map_err(|e| anyhow::anyhow!("eframe error: {}", e))?;
 
     Ok(())
+}
+
+fn find_system_cjk_font() -> Option<Vec<u8>> {
+    let candidates = if cfg!(target_os = "linux") {
+        vec![
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/noto/NotoSansKR-Regular.ttf",
+            "/usr/share/fonts/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/OTF/NotoSansCJK-Regular.ttc",
+        ]
+    } else if cfg!(target_os = "windows") {
+        vec![
+            "C:\\Windows\\Fonts\\malgun.ttf",
+            "C:\\Windows\\Fonts\\meiryo.ttc",
+            "C:\\Windows\\Fonts\\msyh.ttc",
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec![
+            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+            "/System/Library/Fonts/PingFang.ttc",
+            "/Library/Fonts/Arial Unicode.ttf",
+        ]
+    } else {
+        vec![]
+    };
+
+    for path in candidates {
+        if let Ok(data) = std::fs::read(path) {
+            return Some(data);
+        }
+    }
+    None
 }
 
 #[cfg(target_os = "windows")]
