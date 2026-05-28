@@ -35,7 +35,7 @@ Located alongside source code in each module:
 |------|-------|-------------|
 | `mock_http.rs` | — | Shared `MockHttpClient` helper |
 | `version_manifest.rs` | 4 | Manifest fetching with mirrors |
-| `version_install.rs` | 3 | Version meta fetching |
+| `version_meta_fetch.rs` | 3 | Version meta fetching |
 | `modloader_fetch.rs` | 19 | All modloader version fetching + install |
 
 ## Mocking Pattern
