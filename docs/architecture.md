@@ -20,7 +20,7 @@
 |-------|------|
 | `miao-core` | Core library: auth, version management, downloads, instance management, Java detection, mod loader support, Modrinth/CurseForge integration, crash analysis, self-update |
 | `miao-cli` | CLI entry point with subcommands |
-| `miao-gui` | Graphical UI using egui/eframe |
+| `miao-gui` | Graphical UI using egui/eframe, with custom animation system (spring physics + MD3 easing) |
 
 ## Core Modules
 
@@ -97,8 +97,8 @@
 
 - Check GitHub Releases for new versions
 - Platform-specific asset selection (OS × arch)
-- Download and apply with atomic backup → replace → chmod
-- Automatic rollback on failure
+- Atomic binary replacement via `self_update` crate (handles Windows file-locking)
+- One-shot `perform_self_update()` for blocking update flow
 
 ### Mod Management (`modmanager`)
 
@@ -185,10 +185,12 @@ Config and data directories are determined by `dirs::config_dir()` / `dirs::data
 | Async | tokio | De facto standard for async Rust |
 | HTTP | reqwest | Feature-rich, tokio-native |
 | GUI | egui/eframe | Pure Rust, immediate mode, lightweight |
+| Animation | egui_animation + custom Spring | MD3 easing curves, physics-based spring indicators |
 | CLI | clap | Derive-based, best Rust CLI framework |
 | Serialization | serde + toml/json | Standard Rust serialization |
 | Hashing | sha1/sha2 | Download integrity verification |
 | Zip | zip | Mrpack modpack handling |
+| Self-Update | self_update | Atomic binary replacement with rollback |
 
 ## Build-time API Keys
 

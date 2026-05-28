@@ -106,8 +106,10 @@ See [`docs/architecture.md`](docs/architecture.md) for detailed module documenta
 | Async | tokio |
 | HTTP | reqwest |
 | GUI | egui 0.34 / eframe |
+| Animation | egui_animation + custom Spring physics |
 | CLI | clap (derive) |
 | Serialization | serde + toml / json |
+| Self-Update | self_update (GitHub Releases) |
 | Font | MiSans Medium (bundled) |
 | Icons | Bootstrap Icons (bundled TTF) |
 
@@ -142,8 +144,15 @@ Users can also hot-reload new translations at runtime via Settings > Appearance 
 
 ## Credits
 
-| Asset | License | Source |
-|-------|---------|--------|
+| Dependency | License | Source |
+|------------|---------|--------|
+| [egui / eframe](https://github.com/emilk/egui) | MIT OR Apache-2.0 | emilk |
+| [tokio](https://github.com/tokio-rs/tokio) | MIT | Tokio Contributors |
+| [reqwest](https://github.com/seanmonstar/reqwest) | MIT OR Apache-2.0 | seanmonstar |
+| [serde](https://github.com/serde-rs/serde) | MIT OR Apache-2.0 | David Tolnay |
+| [clap](https://github.com/clap-rs/clap) | MIT OR Apache-2.0 | Kevin K. |
+| [self_update](https://github.com/jaemk/self_update) | MIT | jaemk |
+| [egui_animation](https://github.com/lucasmerlin/hello_egui) | MIT | lucasmerlin |
 | [MiSans](https://hyperos.mi.com/font/en) | SIL OFL 1.1 | Xiaomi |
 | [Bootstrap Icons](https://icons.getbootstrap.com/) | MIT | The Bootstrap Authors |
 

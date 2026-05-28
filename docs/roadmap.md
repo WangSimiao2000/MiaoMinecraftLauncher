@@ -235,7 +235,10 @@ main.rs (入口)
 | CI 跨平台矩阵 | ⬜ | 加 macOS 构建到 CI |
 | CLI 集成测试 | ⬜ | 用 assert_cmd 测试命令行 |
 | 去除 async-trait/async-recursion | ✅ | nightly 原生 async fn in trait |
-| Dead code 清理 (theme.rs) | ⬜ | 启用或删除 unused 项 |
+| Dead code 清理 (theme.rs) | ✅ | 已清理 |
 | MS_CLIENT_ID 环境变量化 | ⬜ | 安全性改善 |
 | 日志系统 (tracing) | ⬜ | GUI 目前无结构化日志 |
 | 升级 eframe 0.30 → 0.34+ | ✅ | 已升级到 egui 0.34 |
+| 动画系统 | ✅ | Spring 物理 + MD3 easing + egui_animation |
+| self_update 集成 | ✅ | 替代手写二进制替换逻辑 |
+| 全局动效覆盖 | ✅ | 所有交互组件 hover/select/transition 有动效 |

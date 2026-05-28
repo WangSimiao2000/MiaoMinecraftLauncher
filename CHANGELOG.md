@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-beta.3] - 2026-05-28
+
+### Added
+
+- Custom animation system with spring physics (damped spring, velocity
+  preservation on interruption) and CSS cubic-bezier easing (Newton-Raphson).
+- Material Design 3 easing curves: standard, emphasized, decelerate, accelerate.
+- Named spring presets calibrated from industry data (snappy, bouncy, gentle,
+  smooth, playful).
+- Spring-driven indicators: sidebar selection, detail tab underline, settings
+  nav vertical bar — all smoothly follow the active item.
+- Eased hover/select transitions on InstanceCard, CollapsibleCard, ModCard.
+- Page slide transition with direction sense (push → right, pop → left).
+- Dialog popup Y-offset + opacity easing (cubic_out 0.2s).
+- Toast animations upgraded to MD3 emphasized-decelerate (enter) and
+  standard-accelerate (exit) curves.
+- Smooth progress bar with exponential lerp interpolation.
+- Crossfade between detail view and welcome screen on instance deselect.
+- `self_update` crate integration for atomic binary replacement.
+- `perform_self_update()` one-shot function via GitHub Releases backend.
+- Core library credits listed in Settings > About page.
+
+### Changed
+
+- Global `animation_time` reduced from 0.15s to 0.12s (desktop-optimized).
+- CollapsibleCard: animated expand/collapse (0.25s) with rotating chevron.
+- Settings nav: spring-driven indicator replaces per-item fade.
+- Settings content area fades in on tab switch (0.18s).
+- Account cards: animated active state fill transition.
+- Instance selection and Settings are now mutually exclusive.
+- Clicking a selected instance deselects it (returns to welcome).
+- Settings button shows hover feedback when active + tooltip hint.
+
+### Fixed
+
+- Sidebar indicator no longer slides in from top on first selection (snap).
+- Tab/settings indicators snap on first render, spring on subsequent changes.
+- Sidebar indicator fades out on deselect instead of disappearing instantly.
+- Detail panel crossfades on deselect instead of hard-cutting to welcome.
+
+[0.2.0-beta.3]: https://github.com/WangSimiao2000/MiaoMinecraftLauncher/compare/v0.2.0-beta.2...v0.2.0-beta.3
+
 ## [0.2.0-beta.2] - 2026-05-27
 
 ### Added
