@@ -119,14 +119,17 @@ pub fn apply_update(downloaded_path: &std::path::Path) -> Result<()> {
 }
 
 pub fn perform_self_update() -> std::result::Result<self_update::Status, crate::error::MiaoError> {
+    let bin_name = if cfg!(target_os = "windows") {
+        "mmcl-windows-x86_64.exe"
+    } else {
+        "mmcl-linux-x86_64.AppImage"
+    };
+
     let status = self_update::backends::github::Update::configure()
         .repo_owner(GITHUB_REPO_OWNER)
         .repo_name(GITHUB_REPO_NAME)
-        .bin_name(if cfg!(target_os = "windows") {
-            "miao-gui.exe"
-        } else {
-            "miao-gui"
-        })
+        .bin_name(bin_name)
+        .target("")
         .current_version(self_update::cargo_crate_version!())
         .no_confirm(true)
         .build()
@@ -155,16 +158,26 @@ fn find_platform_asset(assets: &[ReleaseAsset]) -> Option<&ReleaseAsset> {
         "x86_64"
     };
 
+    let gui_ext = if cfg!(target_os = "windows") {
+        ".exe"
+    } else {
+        ".appimage"
+    };
+
     assets
         .iter()
         .find(|a| {
             let name_lower = a.name.to_lowercase();
-            name_lower.contains(target) && name_lower.contains(arch)
+            name_lower.contains(target)
+                && name_lower.contains(arch)
+                && name_lower.contains(gui_ext)
+                && !name_lower.contains("cli")
         })
         .or_else(|| {
-            assets
-                .iter()
-                .find(|a| a.name.to_lowercase().contains(target))
+            assets.iter().find(|a| {
+                let name_lower = a.name.to_lowercase();
+                name_lower.contains(target) && name_lower.contains(arch)
+            })
         })
 }
 
@@ -202,9 +215,15 @@ mod tests {
                 content_type: "application/octet-stream".to_string(),
             },
             ReleaseAsset {
-                name: "mmcl-linux-x86_64".to_string(),
-                browser_download_url: "https://example.com/linux".to_string(),
+                name: "mmcl-cli-linux-x86_64".to_string(),
+                browser_download_url: "https://example.com/cli".to_string(),
                 size: 2000,
+                content_type: "application/octet-stream".to_string(),
+            },
+            ReleaseAsset {
+                name: "mmcl-linux-x86_64.AppImage".to_string(),
+                browser_download_url: "https://example.com/appimage".to_string(),
+                size: 5000,
                 content_type: "application/octet-stream".to_string(),
             },
         ];
@@ -212,7 +231,9 @@ mod tests {
         let found = find_platform_asset(&assets);
         assert!(found.is_some());
         #[cfg(target_os = "linux")]
-        assert!(found.unwrap().name.contains("linux"));
+        assert!(found.unwrap().name.contains(".AppImage"));
+        #[cfg(target_os = "windows")]
+        assert!(found.unwrap().name.contains(".exe"));
     }
 
     #[test]

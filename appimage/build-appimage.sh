@@ -45,6 +45,6 @@ if [ ! -f "$APPIMAGETOOL" ]; then
 fi
 
 echo "Building AppImage..."
-ARCH=$(uname -m) "$APPIMAGETOOL" "$APP_DIR" "$BUILD_DIR/MMCL-$ARCH.AppImage"
+ARCH=$(uname -m) "$APPIMAGETOOL" "$APP_DIR" "$BUILD_DIR/mmcl-linux-$ARCH.AppImage"
 
-echo "Done: $BUILD_DIR/MMCL-$ARCH.AppImage"
+echo "Done: $BUILD_DIR/mmcl-linux-$ARCH.AppImage"
