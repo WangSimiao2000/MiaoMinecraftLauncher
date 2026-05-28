@@ -78,8 +78,11 @@ impl NavigationStack {
 
     pub fn animate(&mut self, ctx: &egui::Context) -> f32 {
         if self.transitioning {
-            self.transition_progress =
-                ctx.animate_value_with_time(egui::Id::new("nav_transition"), 1.0, 0.35);
+            self.transition_progress = ctx.animate_value_with_time(
+                egui::Id::new("nav_transition"),
+                1.0,
+                crate::animation::DURATION_PAGE,
+            );
             let eased = eframe::emath::easing::cubic_out(self.transition_progress);
             if self.transition_progress >= 0.99 {
                 self.transition_progress = 1.0;

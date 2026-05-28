@@ -1,5 +1,6 @@
 use eframe::egui;
 
+use crate::animation::lerp_color;
 use crate::app::{DetailTab, I18n, MiaoApp};
 use crate::theme;
 
@@ -10,7 +11,7 @@ impl MiaoApp {
             egui::Id::new("detail_content_opacity"),
             has_instance,
             0.3,
-            eframe::emath::easing::cubic_out,
+            crate::animation::ease_out,
         );
         let welcome_opacity = 1.0 - detail_opacity;
 
@@ -156,7 +157,7 @@ impl MiaoApp {
                     egui::Id::new(key).with("tab_sel"),
                     selected,
                     0.25,
-                    eframe::emath::easing::cubic_out,
+                    crate::animation::ease_out,
                 );
 
                 let active_color = theme::Colors::accent_light();
@@ -206,13 +207,4 @@ impl MiaoApp {
             );
         });
     }
-}
-
-fn lerp_color(a: egui::Color32, b: egui::Color32, t: f32) -> egui::Color32 {
-    egui::Color32::from_rgba_unmultiplied(
-        (a.r() as f32 + (b.r() as f32 - a.r() as f32) * t) as u8,
-        (a.g() as f32 + (b.g() as f32 - a.g() as f32) * t) as u8,
-        (a.b() as f32 + (b.b() as f32 - a.b() as f32) * t) as u8,
-        255,
-    )
 }

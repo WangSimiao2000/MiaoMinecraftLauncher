@@ -1,5 +1,6 @@
 use eframe::egui;
 
+use crate::animation::lerp_color;
 use crate::app::{DetailTab, I18n, MiaoApp};
 use crate::navigation::Page;
 use crate::theme;
@@ -86,7 +87,7 @@ impl MiaoApp {
                         egui::Id::new("sidebar_indicator_opacity"),
                         has_selection,
                         0.25,
-                        eframe::emath::easing::cubic_out,
+                        crate::animation::ease_out,
                     );
 
                     if let Some(center_y) = selected_card_center_y {
@@ -127,13 +128,13 @@ impl MiaoApp {
                         response.id.with("settings_hover"),
                         response.hovered(),
                         0.2,
-                        eframe::emath::easing::cubic_out,
+                        crate::animation::ease_out,
                     );
                     let active_t = ui.ctx().animate_bool_with_time_and_easing(
                         response.id.with("settings_active"),
                         is_active,
                         0.3,
-                        eframe::emath::easing::cubic_out,
+                        crate::animation::ease_out,
                     );
 
                     let base_alpha = 0.3 * active_t;
@@ -201,13 +202,4 @@ impl MiaoApp {
                 });
             });
     }
-}
-
-fn lerp_color(a: egui::Color32, b: egui::Color32, t: f32) -> egui::Color32 {
-    egui::Color32::from_rgba_unmultiplied(
-        (a.r() as f32 + (b.r() as f32 - a.r() as f32) * t) as u8,
-        (a.g() as f32 + (b.g() as f32 - a.g() as f32) * t) as u8,
-        (a.b() as f32 + (b.b() as f32 - a.b() as f32) * t) as u8,
-        255,
-    )
 }

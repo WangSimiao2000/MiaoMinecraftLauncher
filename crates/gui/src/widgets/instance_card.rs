@@ -1,5 +1,6 @@
 use eframe::egui;
 
+use crate::animation::lerp_color;
 use crate::theme;
 
 pub struct InstanceCard<'a> {
@@ -31,13 +32,13 @@ impl<'a> InstanceCard<'a> {
             response.id.with("hover"),
             response.hovered(),
             0.2,
-            eframe::emath::easing::cubic_out,
+            crate::animation::ease_out,
         );
         let selected_t = ui.ctx().animate_bool_with_time_and_easing(
             response.id.with("sel"),
             self.selected,
             0.25,
-            eframe::emath::easing::cubic_out,
+            crate::animation::ease_out,
         );
 
         let base_color = theme::Colors::bg_elevated();
@@ -81,13 +82,4 @@ impl<'a> InstanceCard<'a> {
 
         response
     }
-}
-
-fn lerp_color(a: egui::Color32, b: egui::Color32, t: f32) -> egui::Color32 {
-    egui::Color32::from_rgba_unmultiplied(
-        (a.r() as f32 + (b.r() as f32 - a.r() as f32) * t) as u8,
-        (a.g() as f32 + (b.g() as f32 - a.g() as f32) * t) as u8,
-        (a.b() as f32 + (b.b() as f32 - a.b() as f32) * t) as u8,
-        (a.a() as f32 + (b.a() as f32 - a.a() as f32) * t) as u8,
-    )
 }

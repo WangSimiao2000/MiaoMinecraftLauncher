@@ -22,7 +22,7 @@ impl MiaoApp {
                     egui::Id::new("settings_content_fade").with(self.settings_tab as u8),
                     true,
                     0.3,
-                    eframe::emath::easing::cubic_out,
+                    crate::animation::ease_out,
                 );
                 ui.set_opacity(content_t);
 
@@ -70,13 +70,13 @@ impl MiaoApp {
                 tab_id.with("sel"),
                 selected,
                 0.3,
-                eframe::emath::easing::cubic_out,
+                crate::animation::ease_out,
             );
             let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                 tab_id.with("hover"),
                 response.hovered() && !selected,
                 0.2,
-                eframe::emath::easing::cubic_out,
+                crate::animation::ease_out,
             );
 
             if sel_t > 0.0 {
@@ -107,15 +107,7 @@ impl MiaoApp {
 
             let active_color = theme::Colors::accent_light();
             let idle_color = theme::Colors::text_secondary();
-            let color = egui::Color32::from_rgba_unmultiplied(
-                (idle_color.r() as f32 + (active_color.r() as f32 - idle_color.r() as f32) * sel_t)
-                    as u8,
-                (idle_color.g() as f32 + (active_color.g() as f32 - idle_color.g() as f32) * sel_t)
-                    as u8,
-                (idle_color.b() as f32 + (active_color.b() as f32 - idle_color.b() as f32) * sel_t)
-                    as u8,
-                255,
-            );
+            let color = crate::animation::lerp_color(idle_color, active_color, sel_t);
 
             ui.painter().text(
                 rect.center(),
@@ -190,20 +182,11 @@ impl MiaoApp {
                     card_id.with("active"),
                     *active,
                     0.3,
-                    eframe::emath::easing::cubic_out,
+                    crate::animation::ease_out,
                 );
                 let base = theme::Colors::bg_elevated();
                 let active_color = theme::Colors::bg_widget_hover();
-                let fill = egui::Color32::from_rgba_unmultiplied(
-                    (base.r() as f32 + (active_color.r() as f32 - base.r() as f32) * active_t)
-                        as u8,
-                    (base.g() as f32 + (active_color.g() as f32 - base.g() as f32) * active_t)
-                        as u8,
-                    (base.b() as f32 + (active_color.b() as f32 - base.b() as f32) * active_t)
-                        as u8,
-                    (base.a() as f32 + (active_color.a() as f32 - base.a() as f32) * active_t)
-                        as u8,
-                );
+                let fill = crate::animation::lerp_color(base, active_color, active_t);
 
                 egui::Frame::NONE
                     .fill(fill)
@@ -474,13 +457,13 @@ impl MiaoApp {
                             egui::Id::new("theme_card").with(i).with("sel"),
                             selected,
                             0.25,
-                            eframe::emath::easing::cubic_out,
+                            crate::animation::ease_out,
                         );
                         let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                             egui::Id::new("theme_card").with(i).with("hover"),
                             response.hovered(),
                             0.2,
-                            eframe::emath::easing::cubic_out,
+                            crate::animation::ease_out,
                         );
 
                         let bg = if sel_t > 0.0 {
@@ -658,13 +641,13 @@ impl MiaoApp {
                             egui::Id::new("lang_card").with(i).with("sel"),
                             selected,
                             0.25,
-                            eframe::emath::easing::cubic_out,
+                            crate::animation::ease_out,
                         );
                         let hover_t = ui.ctx().animate_bool_with_time_and_easing(
                             egui::Id::new("lang_card").with(i).with("hover"),
                             response.hovered(),
                             0.2,
-                            eframe::emath::easing::cubic_out,
+                            crate::animation::ease_out,
                         );
 
                         let bg = if sel_t > 0.0 {

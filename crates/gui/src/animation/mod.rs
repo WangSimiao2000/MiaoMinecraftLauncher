@@ -48,3 +48,23 @@ pub use preset::{
     AnimPreset, PRESET_BOUNCY, PRESET_GENTLE, PRESET_PLAYFUL, PRESET_SMOOTH, PRESET_SNAPPY,
 };
 pub use spring::{Spring, SpringConfig};
+
+pub use eframe::emath::easing::cubic_out as ease_out;
+
+pub const DURATION_HOVER: f32 = 0.2;
+pub const DURATION_SELECT: f32 = 0.25;
+pub const DURATION_FADE: f32 = 0.3;
+pub const DURATION_DIALOG: f32 = 0.3;
+pub const DURATION_EXPAND: f32 = 0.35;
+pub const DURATION_PAGE: f32 = 0.35;
+
+pub fn lerp_color(a: egui::Color32, b: egui::Color32, t: f32) -> egui::Color32 {
+    egui::Color32::from_rgba_unmultiplied(
+        (a.r() as f32 + (b.r() as f32 - a.r() as f32) * t) as u8,
+        (a.g() as f32 + (b.g() as f32 - a.g() as f32) * t) as u8,
+        (a.b() as f32 + (b.b() as f32 - a.b() as f32) * t) as u8,
+        (a.a() as f32 + (b.a() as f32 - a.a() as f32) * t) as u8,
+    )
+}
+
+use eframe::egui;

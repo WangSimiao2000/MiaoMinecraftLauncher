@@ -14,12 +14,8 @@ impl MiaoApp {
         let mut open = true;
 
         let anim_id = egui::Id::new("java_confirm_dialog_anim");
-        let t = ctx.animate_bool_with_time_and_easing(
-            anim_id,
-            true,
-            0.3,
-            eframe::emath::easing::cubic_out,
-        );
+        let t =
+            ctx.animate_bool_with_time_and_easing(anim_id, true, 0.3, crate::animation::ease_out);
         let opacity = t;
         let scale_offset = (1.0 - t) * 8.0;
 

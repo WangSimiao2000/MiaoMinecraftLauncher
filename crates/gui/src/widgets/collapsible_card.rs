@@ -35,7 +35,7 @@ impl<'a> CollapsibleCard<'a> {
             self.id.with("collapse"),
             open,
             0.35,
-            eframe::emath::easing::cubic_out,
+            crate::animation::ease_out,
         );
 
         let frame = egui::Frame::NONE
@@ -55,7 +55,7 @@ impl<'a> CollapsibleCard<'a> {
                 self.id.with("hover"),
                 header_response.hovered(),
                 0.2,
-                eframe::emath::easing::cubic_out,
+                crate::animation::ease_out,
             );
 
             if hover_t > 0.0 {
