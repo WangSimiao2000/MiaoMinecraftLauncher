@@ -218,6 +218,7 @@ pub async fn plan_install(
                     url: downloads.raw.url,
                     dest: dest.clone(),
                     sha1: Some(downloads.raw.sha1),
+                    sha256: None,
                     size: Some(downloads.raw.size),
                 });
                 total_size += downloads.raw.size;
@@ -245,6 +246,7 @@ pub async fn plan_install(
         file_count,
         install_dir,
         tasks,
+        archives: Vec::new(),
         links,
         #[cfg(unix)]
         executables,

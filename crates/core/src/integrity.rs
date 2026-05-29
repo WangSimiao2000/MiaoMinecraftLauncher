@@ -63,6 +63,7 @@ pub fn verify_instance_files(mc_version: &str, config: &LauncherConfig) -> Resul
                     url: client.url.clone(),
                     dest: jar_path,
                     sha1: Some(client.sha1.clone()),
+                    sha256: None,
                     size: Some(client.size),
                 });
             }
@@ -71,6 +72,7 @@ pub fn verify_instance_files(mc_version: &str, config: &LauncherConfig) -> Resul
                     url: client.url.clone(),
                     dest: jar_path,
                     sha1: Some(client.sha1.clone()),
+                    sha256: None,
                     size: Some(client.size),
                 });
             }
@@ -89,6 +91,7 @@ pub fn verify_instance_files(mc_version: &str, config: &LauncherConfig) -> Resul
                         url: artifact.url.clone(),
                         dest: lib_path,
                         sha1: Some(artifact.sha1.clone()),
+                        sha256: None,
                         size: Some(artifact.size),
                     });
                 }
@@ -97,6 +100,7 @@ pub fn verify_instance_files(mc_version: &str, config: &LauncherConfig) -> Resul
                         url: artifact.url.clone(),
                         dest: lib_path,
                         sha1: Some(artifact.sha1.clone()),
+                        sha256: None,
                         size: Some(artifact.size),
                     });
                 }
@@ -129,6 +133,7 @@ pub fn verify_instance_files(mc_version: &str, config: &LauncherConfig) -> Resul
                         url,
                         dest: asset_path,
                         sha1: Some(obj.hash.clone()),
+                        sha256: None,
                         size: Some(obj.size),
                     });
                 }
@@ -141,6 +146,7 @@ pub fn verify_instance_files(mc_version: &str, config: &LauncherConfig) -> Resul
                         url,
                         dest: asset_path,
                         sha1: Some(obj.hash.clone()),
+                        sha256: None,
                         size: Some(obj.size),
                     });
                 }

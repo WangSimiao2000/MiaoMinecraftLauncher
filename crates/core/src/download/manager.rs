@@ -77,10 +77,7 @@ impl DownloadManager {
             tokio::fs::create_dir_all(parent).await?;
         }
 
-        if task.dest.exists()
-            && let Some(expected_sha1) = &task.sha1
-            && verify_sha1(&task.dest, expected_sha1).await?
-        {
+        if task.dest.exists() && file_matches_checksums(&task).await? {
             let mut progress = self.progress.lock().await;
             progress.completed_files += 1;
             return Ok(());
@@ -107,6 +104,15 @@ impl DownloadManager {
                 "SHA1 mismatch for {}: expected {}",
                 task.dest.display(),
                 expected_sha1
+            )));
+        }
+        if let Some(expected_sha256) = &task.sha256
+            && !verify_sha256(&task.dest, expected_sha256).await?
+        {
+            return Err(crate::error::MiaoError::Other(format!(
+                "SHA256 mismatch for {}: expected {}",
+                task.dest.display(),
+                expected_sha256
             )));
         }
 
@@ -208,6 +214,29 @@ pub async fn verify_sha1(path: &Path, expected: &str) -> Result<bool> {
     Ok(hex == expected)
 }
 
+pub async fn verify_sha256(path: &Path, expected: &str) -> Result<bool> {
+    use sha2::{Digest, Sha256};
+
+    let data = tokio::fs::read(path).await?;
+    let hash = Sha256::digest(&data);
+    let hex = format!("{:x}", hash);
+    Ok(hex.eq_ignore_ascii_case(expected))
+}
+
+async fn file_matches_checksums(task: &DownloadTask) -> Result<bool> {
+    if let Some(expected) = &task.sha1
+        && !verify_sha1(&task.dest, expected).await?
+    {
+        return Ok(false);
+    }
+    if let Some(expected) = &task.sha256
+        && !verify_sha256(&task.dest, expected).await?
+    {
+        return Ok(false);
+    }
+    Ok(task.sha1.is_some() || task.sha256.is_some())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -257,6 +286,7 @@ mod tests {
             url: "https://httpbin.org/status/404".to_string(),
             dest: file_path,
             sha1: Some("2aae6c35c94fcfb415dbe95f408b9ce91ee846ed".to_string()),
+            sha256: None,
             size: Some(11),
         }];
 

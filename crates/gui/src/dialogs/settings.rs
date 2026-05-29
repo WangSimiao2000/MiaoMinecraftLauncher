@@ -1650,9 +1650,11 @@ fn source_display_label(_lang: &str, source: JavaSource) -> &'static str {
 }
 
 fn source_description(lang: &str, source: JavaSource) -> &'static str {
-    // Per-source descriptions live in i18n under stable keys.
     let key: &'static str = match source {
         JavaSource::Mojang => "java_source_mojang_desc",
+        JavaSource::Bmclapi => "java_source_bmclapi_desc",
+        JavaSource::Adoptium => "java_source_adoptium_desc",
+        JavaSource::Microsoft => "java_source_microsoft_desc",
     };
     I18n::t(lang, key)
 }

@@ -1,4 +1,8 @@
+pub mod adoptium;
+pub mod bmclapi;
+pub mod extract;
 pub mod install;
+pub mod microsoft;
 pub mod mojang;
 
 use std::path::{Path, PathBuf};

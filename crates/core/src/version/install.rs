@@ -48,6 +48,7 @@ pub fn collect_library_downloads_for_os(
                 url: transform_url(&artifact.url, mirror),
                 dest,
                 sha1: Some(artifact.sha1.clone()),
+                sha256: None,
                 size: Some(artifact.size),
             });
         }
@@ -70,6 +71,7 @@ pub fn collect_client_download(
         url: transform_url(&meta.downloads.client.url, mirror),
         dest,
         sha1: Some(meta.downloads.client.sha1.clone()),
+        sha256: None,
         size: Some(meta.downloads.client.size),
     }
 }
@@ -88,6 +90,7 @@ pub fn collect_asset_index_download(
         url: transform_url(&meta.asset_index.url, mirror),
         dest,
         sha1: Some(meta.asset_index.sha1.clone()),
+        sha256: None,
         size: Some(meta.asset_index.size),
     }
 }
@@ -158,6 +161,7 @@ pub fn collect_native_downloads(
                 url: transform_url(&artifact.url, mirror),
                 dest,
                 sha1: Some(artifact.sha1.clone()),
+                sha256: None,
                 size: Some(artifact.size),
             });
         }

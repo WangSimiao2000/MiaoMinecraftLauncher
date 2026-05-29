@@ -16,36 +16,34 @@ use crate::download::DownloadTask;
 use crate::download::manager::DownloadManager;
 use crate::error::{MiaoError, Result};
 
-/// Source-neutral plan for installing a Java runtime. Describes every download and
-/// post-processing step required without revealing which upstream produced it.
+use super::extract::ArchiveFormat;
+
+/// One archive download + post-extract step. After the archive lands at `archive_dest`
+/// it is extracted into [`JavaInstallPlan::install_dir`] with the top
+/// `strip_components` path components removed.
+#[derive(Debug, Clone)]
+pub struct ArchiveTask {
+    pub task: DownloadTask,
+    pub archive_dest: PathBuf,
+    pub format: ArchiveFormat,
+    pub strip_components: usize,
+}
+
+/// Source-neutral plan for installing a Java runtime. A plan can mix per-file Mojang
+/// downloads with archive-based sources (Adoptium, Microsoft) — the executor handles
+/// `tasks` first, then `archives`, then `links`/executables.
 #[derive(Debug, Clone)]
 pub struct JavaInstallPlan {
-    /// Internal identifier for this build (e.g. Mojang component name like
-    /// `java-runtime-gamma`, or Adoptium release name).
     pub variant: String,
-    /// Reported version string, e.g. "17.0.8".
     pub version: String,
-    /// Major version that will actually be installed. May exceed the originally
-    /// requested major when an exact match isn't published.
     pub major: u32,
-    /// Display name of the source (e.g. "Mojang", "Adoptium Temurin").
     pub source_name: &'static str,
-    /// Total uncompressed size in bytes.
     pub total_size: u64,
-    /// Number of files in the JRE.
     pub file_count: usize,
-    /// Where the JRE will be installed. The launcher binary will be at
-    /// [`java_binary_path`]`(install_dir)`.
     pub install_dir: PathBuf,
-    /// Files to download. Relative paths inside [`install_dir`] are encoded as the
-    /// task `dest`.
     pub tasks: Vec<DownloadTask>,
-    /// Symbolic links to recreate after files finish downloading. Each entry is
-    /// `(link_path, target)`. Mojang's manifest format expresses these as a separate
-    /// node type; on platforms where symlinks are restricted (Windows without dev
-    /// mode) the executor falls back to copying.
+    pub archives: Vec<ArchiveTask>,
     pub links: Vec<(PathBuf, String)>,
-    /// Files that should have the executable bit set on Unix.
     #[cfg(unix)]
     pub executables: Vec<PathBuf>,
 }
@@ -59,17 +57,19 @@ pub async fn plan(
 ) -> Result<JavaInstallPlan> {
     match config.java_source {
         JavaSource::Mojang => super::mojang::plan_install(http, config, required_major).await,
+        JavaSource::Bmclapi => super::bmclapi::plan_install(http, config, required_major).await,
+        JavaSource::Adoptium => super::adoptium::plan_install(http, config, required_major).await,
+        JavaSource::Microsoft => super::microsoft::plan_install(http, config, required_major).await,
     }
 }
 
-/// Execute a plan: download all files, recreate symlinks, set executable bits, and
-/// return the resulting `java`/`java.exe` path.
+/// Execute a plan: download all files (per-file + archives), extract archives, recreate
+/// symlinks, set executable bits, and return the resulting `java`/`java.exe` path.
 pub async fn execute(
     plan: JavaInstallPlan,
     config: &LauncherConfig,
     progress_cb: Option<crate::download::manager::ProgressCallback>,
 ) -> Result<PathBuf> {
-    // Wipe any partial install — required because variant layouts can differ.
     if plan.install_dir.exists() {
         std::fs::remove_dir_all(&plan.install_dir)?;
     }
@@ -83,7 +83,19 @@ pub async fn execute(
         dm = dm.with_progress_callback(cb);
     }
 
-    dm.download_all(plan.tasks).await?;
+    let mut all_tasks = plan.tasks;
+    all_tasks.extend(plan.archives.iter().map(|a| a.task.clone()));
+    dm.download_all(all_tasks).await?;
+
+    for archive in &plan.archives {
+        super::extract::extract(
+            &archive.archive_dest,
+            &plan.install_dir,
+            archive.format,
+            archive.strip_components,
+        )?;
+        std::fs::remove_file(&archive.archive_dest).ok();
+    }
 
     apply_links(&plan.links)?;
 
@@ -159,20 +171,29 @@ pub fn java_binary_path(install_dir: &Path) -> PathBuf {
 impl JavaSource {
     /// All sources, in display order. Used by the settings UI to enumerate options.
     pub fn all() -> &'static [JavaSource] {
-        &[JavaSource::Mojang]
+        &[
+            JavaSource::Mojang,
+            JavaSource::Bmclapi,
+            JavaSource::Adoptium,
+            JavaSource::Microsoft,
+        ]
     }
 
-    /// Stable identifier suitable for i18n keys, config files, etc.
     pub fn id(&self) -> &'static str {
         match self {
             JavaSource::Mojang => "mojang",
+            JavaSource::Bmclapi => "bmclapi",
+            JavaSource::Adoptium => "adoptium",
+            JavaSource::Microsoft => "microsoft",
         }
     }
 
-    /// Human-readable name for status text and logging.
     pub fn display_name(&self) -> &'static str {
         match self {
             JavaSource::Mojang => "Mojang",
+            JavaSource::Bmclapi => "BMCLAPI",
+            JavaSource::Adoptium => "Adoptium Temurin",
+            JavaSource::Microsoft => "Microsoft",
         }
     }
 }

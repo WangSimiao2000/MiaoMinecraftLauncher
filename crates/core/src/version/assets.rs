@@ -46,6 +46,7 @@ pub fn collect_asset_downloads(
             url: transform_url(&url, mirror),
             dest,
             sha1: Some(obj.hash.clone()),
+            sha256: None,
             size: Some(obj.size),
         });
     }

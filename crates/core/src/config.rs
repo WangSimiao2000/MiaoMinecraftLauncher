@@ -122,10 +122,11 @@ pub enum DownloadMirror {
 /// and given a planner in [`crate::java::install::plan`].
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub enum JavaSource {
-    /// Mojang's official JRE manifest (`piston-meta.mojang.com/.../java-runtime/all.json`).
-    /// Best for mainland China users — BMCLAPI mirrors host-for-host.
     #[default]
     Mojang,
+    Bmclapi,
+    Adoptium,
+    Microsoft,
 }
 
 impl Default for LauncherConfig {

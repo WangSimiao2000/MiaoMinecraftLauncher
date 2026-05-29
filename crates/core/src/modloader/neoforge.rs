@@ -105,6 +105,7 @@ pub fn collect_library_downloads(
                 url: artifact.url.clone(),
                 dest,
                 sha1: artifact.sha1.clone(),
+                sha256: None,
                 size: artifact.size,
             });
         } else {
@@ -117,6 +118,7 @@ pub fn collect_library_downloads(
                 url,
                 dest,
                 sha1: None,
+                sha256: None,
                 size: None,
             });
         }

@@ -81,6 +81,7 @@ pub fn collect_library_downloads(
             url,
             dest,
             sha1: None,
+            sha256: None,
             size: None,
         });
     }

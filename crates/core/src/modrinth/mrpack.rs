@@ -94,6 +94,7 @@ pub async fn import_mrpack(
                 url: url.clone(),
                 dest,
                 sha1: Some(f.hashes.sha1.clone()),
+                sha256: None,
                 size: Some(f.file_size),
             });
         }
