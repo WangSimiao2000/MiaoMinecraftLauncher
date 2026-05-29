@@ -62,6 +62,7 @@ pub fn handle_download_java(
         let plan = match miao_core::java::install::plan(&http, &config, required_major).await {
             Ok(plan) => plan,
             Err(e) => {
+                tracing::warn!(target: "miao_gui::java", required_major, error = %e, "Java install plan failed");
                 emit_failure(&tx, task_id, format!("{}", e));
                 ctx.request_repaint();
                 return;
@@ -140,7 +141,10 @@ pub fn handle_download_java(
                     message: format!("{} installed", label_prefix),
                 });
             }
-            Err(e) => emit_failure(&tx, task_id, format!("{}", e)),
+            Err(e) => {
+                tracing::error!(target: "miao_gui::java", required_major, error = %e, "Java install failed");
+                emit_failure(&tx, task_id, format!("{}", e));
+            }
         }
         ctx.request_repaint();
     })

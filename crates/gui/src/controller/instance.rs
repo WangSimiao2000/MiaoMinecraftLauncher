@@ -38,6 +38,7 @@ pub fn handle_create_instance(
 
         match result {
             Ok(_) => {
+                tracing::info!(target: "miao_gui::instance", instance = %name, "instance created");
                 let _ = tx.send(AppEvent::InstallFinished {
                     task_id,
                     success: true,
@@ -45,6 +46,7 @@ pub fn handle_create_instance(
                 });
             }
             Err(e) => {
+                tracing::error!(target: "miao_gui::instance", instance = %name, error = %e, "instance creation failed");
                 let _ = tx.send(AppEvent::InstallFinished {
                     task_id,
                     success: false,
@@ -200,8 +202,17 @@ fn stream_game_process(
     use miao_core::launch::{LaunchOptions, build_launch_command};
     use std::io::BufRead;
 
+    tracing::info!(
+        target: "miao_gui::launch",
+        instance = %instance.name,
+        mc_version = %instance.minecraft_version,
+        loader = ?instance.mod_loader.as_ref().map(|l| l.loader_type.as_str()),
+        "launching instance"
+    );
+
     let idx = config.active_account_index.unwrap_or(0);
     let Some(account) = config.accounts.get(idx).cloned() else {
+        tracing::warn!(target: "miao_gui::launch", "no account configured");
         let _ = tx.send(AppEvent::Error("No account configured.".to_string()));
         ctx.request_repaint();
         return;
@@ -224,6 +235,12 @@ fn stream_game_process(
                     new_auth
                 }
                 Err(e) => {
+                    tracing::error!(
+                        target: "miao_gui::launch",
+                        username = %ms_acc.username,
+                        error = %e,
+                        "Microsoft token refresh failed",
+                    );
                     let _ = tx.send(AppEvent::Error(format!(
                         "Token refresh failed for '{}': {}. Please re-login.",
                         ms_acc.username, e

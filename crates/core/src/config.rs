@@ -221,6 +221,10 @@ impl LauncherConfig {
         self.data_dir.join("locales")
     }
 
+    pub fn logs_dir(&self) -> PathBuf {
+        self.data_dir.join("logs")
+    }
+
     pub fn ensure_data_dirs(&self) {
         let dirs = [self.instances_dir(), self.themes_dir(), self.locales_dir()];
         for dir in &dirs {

@@ -13,6 +13,7 @@ pub mod blur;
 mod controller;
 mod dialogs;
 pub mod icons;
+mod logging;
 mod messages;
 pub mod navigation;
 pub mod state;
@@ -30,6 +31,15 @@ fn main() -> Result<()> {
     // This is a no-op on non-Windows platforms.
     #[cfg(target_os = "windows")]
     enable_windows_dpi_awareness();
+
+    let bootstrap_config = miao_core::config::LauncherConfig::load().unwrap_or_default();
+    let _log_guard = logging::init(&bootstrap_config.logs_dir());
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        os = std::env::consts::OS,
+        arch = std::env::consts::ARCH,
+        "MMCL starting"
+    );
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -100,8 +110,12 @@ fn main() -> Result<()> {
             Ok(Box::new(app::MiaoApp::new(cc)))
         }),
     )
-    .map_err(|e| anyhow::anyhow!("eframe error: {}", e))?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "eframe runtime exited with error");
+        anyhow::anyhow!("eframe error: {}", e)
+    })?;
 
+    tracing::info!("MMCL exiting cleanly");
     Ok(())
 }
 
