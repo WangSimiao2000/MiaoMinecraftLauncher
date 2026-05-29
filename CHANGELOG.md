@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Mojang JRE installer**: switched the Java download backend from Adoptium
+  to the official Mojang JRE manifest. Mirrored host-for-host by BMCLAPI, so
+  the existing download mirror chain handles failover for free. Streams
+  files individually with SHA-1 verification — a mid-stream disconnect only
+  re-fetches the affected file.
+- Java source selector in Settings (extensible for future sources).
+- File integrity check before launch with automatic re-download of missing
+  or corrupted libraries / assets.
+- Custom theme support via TOML files in `<data_dir>/themes/`.
+- Two new bundled themes: **Sakura** and **Light**.
+- Bundled Japanese locale (163/163 keys translated); CJK system-font fallback
+  on all platforms.
+- Auto-create `themes/` and `locales/` directories with example templates on
+  first startup.
+- Localized theme names; redesigned theme picker as equal-width grid.
+- Redesigned language picker as a grid with native-name descriptions.
+- `distclean.sh` to remove all build artifacts.
+
+### Changed
+
+- All palettes redesigned with the Morandi color system; theme swatches fixed
+  to render the actual palette.
+- Light theme: explicit text/border colors so titles, subheadings and widgets
+  remain readable on a light background.
+- Animation timings slowed to mobile-standard durations across the GUI.
+- Locale loader now uses linear easing for color/opacity transitions and
+  removes deleted languages on refresh.
+- Theme directory is scanned only on Settings refresh — not every frame.
+- New-instance dialog and Settings page layouts polished for visual
+  consistency.
+- Release artifacts simplified: Linux ships the AppImage directly + bare CLI
+  binary; Windows ships the bare `.exe` (no zip wrapper).
+
+### Fixed
+
+- **Windows**: console window no longer flashes when spawning Java
+  (`CREATE_NO_WINDOW` applied to all child processes).
+- Avatar / cape cache is refreshed on startup instead of stale-loaded.
+- `import_mrpack` now installs the base game and the required mod loader,
+  not just the mods.
+- NeoForge no longer reports compatible versions for Minecraft releases
+  predating NeoForge support.
+- Version matching and error propagation hardened across the version
+  pipeline.
+- `gamma_multiply` replaced with `lerp_color` / alpha for hover transitions
+  (matches the actual painter capability and removes a class of color
+  artifacts).
+- CollapsibleCard arrow rotates around its center; collapse animation
+  smoothed.
+- Self-update compatibility restored after release-asset filename change.
+
+### Internal / CI
+
+- Renamed `tests/version_install.rs` to avoid a false-positive Windows UAC
+  prompt during test execution.
+- Removed code duplication and hardcoded values across GUI rendering paths.
+- Theme picker grid unified; templates prefixed with `_` are now skipped on
+  load and detected on deletion.
+
+[Unreleased]: https://github.com/WangSimiao2000/MiaoMinecraftLauncher/compare/v0.2.0-beta.3...HEAD
+
 ## [0.2.0-beta.3] - 2026-05-28
 
 ### Added

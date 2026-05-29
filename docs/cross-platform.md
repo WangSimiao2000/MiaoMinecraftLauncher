@@ -1,159 +1,149 @@
 # Cross-Platform Support
 
-The launcher supports **Linux, macOS, and Windows**. This document tracks the platform-specific code and its implementation status.
+The launcher supports **Linux, macOS, and Windows**. This document describes
+how each platform-specific concern is handled in code and what remains to be
+done at the CI/release level.
 
-## Summary
+## Status Summary
 
 | Area | Files | Status |
 |------|-------|--------|
-| Java detection | `core/src/java/mod.rs` | ✅ Done |
-| Java download | `core/src/java/download.rs` | ✅ Done |
-| Version meta library filtering | `core/src/version/meta.rs` | ✅ Done |
-| Config default paths | `core/src/config.rs` | ✅ Done |
-| GUI font loading | `gui/src/main.rs` | ✅ Done |
-| Native library extraction | `core/src/version/install.rs` | ⬜ Pending (handled by library rules) |
-| CI cross-platform matrix | `.github/workflows/ci.yml` | ⬜ Pending |
+| Java detection | `core/src/java/mod.rs` | ✅ Implemented |
+| Java installation | `core/src/java/install.rs`, `core/src/java/mojang.rs` | ✅ Implemented (Mojang JRE source) |
+| Version meta library filtering | `core/src/version/meta.rs` | ✅ Implemented |
+| Native library extraction | `core/src/version/install.rs` | ✅ Implemented (driven by library rules) |
+| Config / data directories | `core/src/config.rs` | ✅ Implemented |
+| GUI font loading & CJK fallback | `crates/gui/src/main.rs` | ✅ Implemented |
+| Console window suppression on Windows | `core/src/process.rs` | ✅ Implemented |
+| Per-monitor DPI awareness on Windows | `crates/gui/src/main.rs` | ✅ Implemented |
+| CI Windows build | `.github/workflows/ci.yml`, `release.yml` | ✅ Implemented |
+| CI Linux build + AppImage | `.github/workflows/release.yml` | ✅ Implemented |
+| CI macOS build | — | ⬜ Pending |
+| Released CLI binary on Windows | `.github/workflows/release.yml` | ⬜ Pending (only `miao-gui.exe` shipped) |
 
-## Detailed Changes Required
+## Implementation Details
 
 ### 1. Java Detection (`crates/core/src/java/mod.rs`)
 
-**Current:** Hardcoded Linux paths `/usr/lib/jvm`, `/usr/local/lib/jvm`, `/usr/java`.
+Search paths are dispatched on `std::env::consts::OS`:
 
-**Required:**
 ```rust
-fn system_java_search_paths() -> Vec<&'static str> {
+fn system_java_search_paths() -> Vec<String> {
     match std::env::consts::OS {
-        "linux" => vec!["/usr/lib/jvm", "/usr/local/lib/jvm", "/usr/java"],
-        "macos" => vec!["/Library/Java/JavaVirtualMachines", "/usr/local/opt/openjdk"],
-        "windows" => vec!["C:\\Program Files\\Java", "C:\\Program Files (x86)\\Java"],
+        "linux" => /* /usr/lib/jvm, /usr/local/lib/jvm, /usr/java, ... */,
+        "macos" => /* /Library/Java/JavaVirtualMachines, /usr/local/opt/openjdk, ... */,
+        "windows" => /* C:\Program Files\Java, C:\Program Files (x86)\Java, ... */,
         _ => vec![],
     }
 }
 ```
 
-Additionally on Windows:
-- Check `JAVA_HOME` environment variable
-- Query Windows Registry: `HKLM\SOFTWARE\JavaSoft\Java Runtime Environment`
-- Binary name is `java.exe` not `java`
+`JAVA_HOME` is always honored. The Java executable name is `java.exe` on
+Windows and `java` elsewhere.
 
-### 2. Java Download (`crates/core/src/java/download.rs`)
+### 2. Java Installation (`crates/core/src/java/install.rs` + `mojang.rs`)
 
-**Current:** Line 69 hardcodes `os=linux` in Adoptium API URL. Archive extraction uses `tar::Archive` + `flate2` (tar.gz).
+The launcher fetches the **official Mojang JRE manifest** from
+`piston-meta.mojang.com/v1/products/java-runtime/.../all.json`. This replaces
+the earlier Adoptium-based flow and avoids the GitHub-redirect issues common
+in mainland China — BMCLAPI mirrors `piston-meta.mojang.com` and
+`piston-data.mojang.com` host-for-host, so the existing download mirror chain
+handles failover for free.
 
-**Required:**
-```rust
-let os = match std::env::consts::OS {
-    "linux" => "linux",
-    "macos" => "mac",
-    "windows" => "windows",
-    other => other,
-};
-// URL: ...&os={os}
-```
-
-Archive extraction must branch:
-- Linux/macOS: `.tar.gz` → `tar` + `flate2` (current)
-- Windows: `.zip` → `zip` crate
-
-Binary discovery:
-- Linux/macOS: `bin/java`
-- Windows: `bin/java.exe`
+Files are downloaded individually with SHA-1 verification: a mid-stream
+disconnect re-fetches only the affected file, not the whole archive. The
+installer is source-neutral via `JavaSource` + `JavaInstallPlan`, so adding
+another upstream (e.g. Adoptium fallback) only requires implementing one
+`async fn(&Client, &LauncherConfig, u32) -> Result<JavaInstallPlan>`.
 
 ### 3. Version Meta Library Filtering (`crates/core/src/version/meta.rs`)
 
-**Current:** Line 97 hardcodes `os.name == Some("linux")`.
+`current_os_name()` maps `std::env::consts::OS` to Mojang's metadata
+vocabulary:
 
-**Required:**
 ```rust
-fn current_os_name() -> &'static str {
+pub fn current_os_name() -> &'static str {
     match std::env::consts::OS {
         "linux" => "linux",
-        "macos" => "osx",      // Mojang uses "osx" not "macos"
+        "macos" => "osx",      // Mojang uses "osx", not "macos"
         "windows" => "windows",
         other => other,
     }
 }
-// Then: os.name.as_deref() == Some(current_os_name())
 ```
 
-Note: Mojang's metadata uses `"osx"` for macOS, not `"macos"`.
+This drives both library-rule filtering and native classifier selection
+(`natives-linux` / `natives-windows` / `natives-osx`).
 
-### 4. Config Default Paths (`crates/core/src/config.rs`)
+### 4. Config / Data Directories (`crates/core/src/config.rs`)
 
-**Current:** Fallback is `~/.local/share` (Linux XDG).
+Resolved by `dirs::config_dir()` / `dirs::data_dir()`:
 
-**Required:** The `dirs::data_dir()` call already handles cross-platform correctly:
-- Linux: `~/.local/share`
-- macOS: `~/Library/Application Support`
-- Windows: `C:\Users\<user>\AppData\Roaming`
-
-Only change needed: remove the hardcoded `PathBuf::from("~/.local/share")` fallback and use a truly cross-platform fallback (e.g., current directory).
+| Platform | Config | Data |
+|----------|--------|------|
+| Linux | `~/.config/miao-minecraft-launcher/` | `~/.local/share/miao-minecraft-launcher/` |
+| macOS | `~/Library/Application Support/miao-minecraft-launcher/` | same |
+| Windows | `%APPDATA%\miao-minecraft-launcher\` | same |
+| Portable | `<exe_dir>/mmcl-data/` (auto-detected) | same |
 
 ### 5. GUI Font Loading (`crates/gui/src/main.rs`)
 
-**Current:** CJK font search paths are all Linux:
-```
-/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
-/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc
-...
-```
+The launcher bundles **MiSans Medium** (Latin + CJK Simplified) for primary
+rendering. For glyphs MiSans does not cover (Japanese/Korean specifically),
+`find_system_fallback_font()` probes platform-specific paths:
 
-**Required:**
-```rust
-fn cjk_font_paths() -> Vec<&'static str> {
-    match std::env::consts::OS {
-        "linux" => vec![
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        ],
-        "windows" => vec![
-            "C:\\Windows\\Fonts\\msyh.ttc",      // Microsoft YaHei
-            "C:\\Windows\\Fonts\\simsun.ttc",     // SimSun
-        ],
-        "macos" => vec![
-            "/System/Library/Fonts/PingFang.ttc",
-            "/Library/Fonts/Arial Unicode.ttf",
-        ],
-        _ => vec![],
-    }
-}
-```
+| OS | Probed paths |
+|----|--------------|
+| Linux | Noto Sans CJK (`/usr/share/fonts/opentype/noto/`, `noto-cjk/`, `google-noto-cjk/`, `truetype/noto/`), DejaVu Sans |
+| Windows | Microsoft YaHei (`msyh.ttc`), Malgun Gothic, Yu Gothic, Meiryo, SimSun |
+| macOS | PingFang, Apple SD Gothic Neo, Hiragino Sans GB, Arial Unicode |
+
+The first existing file is loaded as a fallback face. If none are found, the
+launcher still runs with bundled MiSans only.
 
 ### 6. Native Libraries (`crates/core/src/version/install.rs`)
 
-Minecraft includes platform-specific native libraries (LWJGL, etc.) with classifier names like:
-- `natives-linux`
-- `natives-windows`
-- `natives-osx` / `natives-macos`
+Minecraft ships per-OS native classifiers (`natives-linux`,
+`natives-windows`, `natives-osx`). The download task collection picks the
+correct classifier through the rule filter described in section 3 — no
+separate platform branch is needed in `install.rs`.
 
-The download task collection must select the correct classifier for the current OS. This is partially handled by the library rule filtering (item 3 above), but the native extraction path may also need attention.
+### 7. Windows-Specific Fixes
 
-## Dependencies Affected
+- **Per-monitor DPI awareness v2** (`crates/gui/src/main.rs`,
+  `enable_windows_dpi_awareness`): calls `SetProcessDpiAwarenessContext`
+  before window creation so HiDPI rendering is sharp instead of bitmap-
+  stretched.
+- **Console suppression** (`core/src/process.rs`): the launcher itself is
+  built with `windows_subsystem = "windows"`, but spawning Java otherwise
+  flashes a console. The helper applies `CREATE_NO_WINDOW` on Windows and
+  is a no-op on other platforms.
 
-| Crate | Linux-only? | Cross-platform alternative |
-|-------|-------------|---------------------------|
-| `tar` | ✓ (used for .tar.gz Java archives) | Keep + add `zip` branch for Windows |
-| `flate2` | ✓ (gzip decompression) | Keep + add `zip` branch for Windows |
-| `open` | ✓ Cross-platform already | No change needed |
-| `dirs` | ✓ Cross-platform already | No change needed |
-| `rfd` | ✓ Cross-platform already | No change needed |
+## CI / Release Status
 
-## CI Changes for Cross-Platform
+`.github/workflows/`:
 
-Add matrix builds to `.github/workflows/ci.yml`:
-```yaml
-strategy:
-  matrix:
-    os: [ubuntu-latest, windows-latest, macos-latest]
-```
+- `ci.yml` — Linux build + clippy + tests; `check-windows` job keeps
+  Windows compilation green on every push.
+- `release.yml` — On `v*` tag push: `build-linux` (CLI binary +
+  AppImage), `build-windows` (`miao-gui.exe`), and a `release` job that
+  publishes both to GitHub Releases.
 
-Remove the `libgtk-3-dev` etc. apt installs (only needed on Linux).
+### Outstanding CI Work
 
-## Estimated Effort
+| Item | Effort | Notes |
+|------|--------|-------|
+| macOS build in CI | ~0.5 day | Add `macos-latest` to release matrix; verify `eframe` + bundled fonts; produce `.app` bundle |
+| Ship CLI binary on Windows | trivial | Currently only `miao-gui.exe` is uploaded; `miao.exe` already builds |
+| `cargo-dist` / unified packaging | unscoped | Long-term, replace per-OS shell snippets |
 
-- **Minimal viable** (builds + runs on all platforms): ~4-6 hours
-- **Full parity** (Java detection + download works everywhere): ~8-12 hours
-- **Polish** (native font rendering, platform shortcuts): ~2-4 hours additional
+## Dependencies (cross-platform notes)
+
+| Crate | Notes |
+|-------|-------|
+| `tar` + `flate2` | Used for `.tar.gz` Java archives on Linux/macOS |
+| `zip` | Used for `.zip` archives (Windows Java, mrpack import) |
+| `open` | Cross-platform; opens URLs / paths in the OS default handler |
+| `dirs` | Cross-platform user directory resolution |
+| `rfd` | Cross-platform native file dialogs |
+| `self_update` | Atomic binary replacement; handles Windows file-locking quirks |

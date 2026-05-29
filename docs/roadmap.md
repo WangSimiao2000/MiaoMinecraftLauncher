@@ -18,7 +18,7 @@ Comparison baseline: PCL2 (Plain Craft Launcher 2) — the most popular Chinese 
 | CurseForge 搜索安装 | ✅ | ✅ | — | curseforge/ 模块，需配置 API key |
 | 整合包导入导出 (mrpack) | ✅ | ✅ | — | |
 | 整合包导出 (CurseForge 格式) | ❌ | ✅ | Medium | |
-| Java 自动检测 + 下载 | ✅ | ✅ | — | Adoptium |
+| Java 自动检测 + 下载 | ✅ | ✅ | — | Mojang JRE (BMCLAPI 镜像) |
 | BMCLAPI 镜像 | ✅ | ✅ | — | |
 | 多下载源自动切换 | ✅ | ✅ | — | 指数退避重试 + mirror 链式切换 |
 | 单文件多线程下载 | ❌ | ✅ | Low | 当前只有多文件并发 |
@@ -215,6 +215,18 @@ main.rs (入口)
 | 19 | 首次启动引导 | ✅ Done | `gui/src/dialogs/setup_wizard.rs` |
 | 20 | i18n 外置化 (JSON locale files) | ✅ Done | `gui/locales/` + runtime loading |
 
+### Phase 3.5 — Post-beta.3 增强 ✅
+
+| # | Feature | 状态 | 模块 |
+|---|---------|------|------|
+| P1 | Mojang JRE 安装源（替换 Adoptium） | ✅ Done | `core/src/java/install.rs`, `core/src/java/mojang.rs` |
+| P2 | Java 安装源选择器 | ✅ Done | `gui/src/dialogs/settings.rs` |
+| P3 | 启动前文件完整性检查 + 自动修复 | ✅ Done | `core/src/integrity.rs` 接入启动流程 |
+| P4 | 自定义主题 (TOML 文件) | ✅ Done | `core/src/custom_theme.rs` + `<data_dir>/themes/` |
+| P5 | 新增 Sakura / Light 主题 + Morandi 调色 | ✅ Done | `gui/src/theme.rs` |
+| P6 | 日语本地化 + 系统 CJK 字体回退 | ✅ Done | `gui/locales/ja.json`, `gui/src/main.rs::find_system_fallback_font` |
+| P7 | Windows 控制台抑制（启动 Java 不闪窗） | ✅ Done | `core/src/process.rs` |
+
 ### Phase 4 — 未来计划
 
 | # | Feature | 预估工时 | 依赖 |
@@ -223,7 +235,7 @@ main.rs (入口)
 | 22 | 自定义离线皮肤 | 1 天 | 无 |
 | 23 | 自动备份存档 | 1 天 | 无 |
 | 24 | 实例克隆/复制 | 0.5 天 | 无 |
-| 25 | macOS 支持 + .app bundle | 1 天 | CI |
+| 25 | macOS CI 构建 + .app bundle | 0.5 天 | 代码层已支持，仅缺 release.yml 中的 macOS 矩阵和 .app 打包 |
 | 26 | 联机穿透 (P2P) | 5+ 天 | 复杂度极高 |
 
 ---
@@ -232,7 +244,7 @@ main.rs (入口)
 
 | 项目 | 状态 | 描述 |
 |------|------|------|
-| CI 跨平台矩阵 | ⬜ | 加 macOS 构建到 CI |
+| CI 跨平台矩阵 | 🔧 | Linux + Windows 已完成（`ci.yml` 的 `check-windows`、`release.yml` 的 `build-windows`），macOS 待加 |
 | CLI 集成测试 | ⬜ | 用 assert_cmd 测试命令行 |
 | 去除 async-trait/async-recursion | ✅ | nightly 原生 async fn in trait |
 | Dead code 清理 (theme.rs) | ✅ | 已清理 |

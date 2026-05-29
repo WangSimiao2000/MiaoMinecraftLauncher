@@ -8,7 +8,7 @@ A feature-rich Minecraft launcher built in Rust — fast, native, and open sourc
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-nightly-orange.svg)](rust-toolchain.toml)
-[![Tests](https://img.shields.io/badge/Tests-265%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/Tests-274%20passing-brightgreen.svg)](#development)
 
 </div>
 
@@ -39,7 +39,7 @@ A feature-rich Minecraft launcher built in Rust — fast, native, and open sourc
 | **Modpacks** | Import/export `.mrpack` modpacks |
 | **Drag & Drop** | Drop `.jar` / `.zip` files into the window to install mods or resource packs |
 | **Mod Updates** | One-click check for newer versions of installed mods via Modrinth |
-| **Java** | Auto-detect compatible JVM or download from Adoptium |
+| **Java** | Auto-detect compatible JVM or install official Mojang JRE (BMCLAPI mirrored) |
 | **Downloads** | BMCLAPI mirror, multi-source failover, concurrent downloads |
 | **Auth** | Microsoft OAuth device-code flow, offline mode, authlib-injector (LittleSkin, etc.) |
 | **Diagnostics** | Crash-report & log parsing with mod-level identification |
@@ -135,10 +135,12 @@ cargo tarpaulin -p miao-core --skip-clean  # Coverage
 
 No Rust knowledge required — just create a JSON file:
 
-1. Copy `crates/gui/locales/en.json` to a new file (e.g. `ja.json`, `ko.json`, `de.json`)
-2. Add a `"_name"` field with the language's native name (e.g. `"日本語"`)
+1. Copy `crates/gui/locales/en.json` to a new file (e.g. `ko.json`, `de.json`)
+2. Add a `"_name"` field with the language's native name (e.g. `"한국어"`)
 3. Translate all values (keys stay in English)
 4. Submit a PR — or place the file in `<data-dir>/locales/` for personal use
+
+Bundled languages: `en` (English), `zh` (中文), `ja` (日本語).
 
 Users can also hot-reload new translations at runtime via Settings > Appearance > Refresh.
 

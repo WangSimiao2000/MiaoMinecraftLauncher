@@ -59,7 +59,15 @@
 - Auto-detect system Java from platform-specific paths + `JAVA_HOME`
 - Parse version strings (Java 8 `1.8.x` and modern `17.x` formats)
 - Select minimum compatible version for game requirements
-- Auto-download from Adoptium (tar.gz on Unix, zip on Windows)
+- Source-neutral installer architecture (`java/install.rs`):
+  - Defines `JavaInstallPlan` — what files need to land where, source-agnostic
+  - Defines `JavaSource` enum for dispatching to upstream backends
+- Mojang JRE source (`java/mojang.rs`) — default, fetches official Minecraft JRE
+  components from `piston-meta.mojang.com`. Mirrored host-for-host by BMCLAPI,
+  so the existing download mirror chain handles failover automatically. Streams
+  files individually with SHA-1 verification — a mid-file disconnect only
+  requires re-fetching that one file, not the whole archive.
+- GUI exposes a Java source selector in Settings (extensible for future sources)
 
 ### Mod Loader Support (`modloader`)
 
@@ -115,6 +123,38 @@
 
 - Persistent server entries (name, address, port)
 
+### Player Skin (`skin`)
+
+- Fetch player profile from Mojang session server
+- Decode base64 skin/cape textures from profile
+- Crop 8×8 face region from skin texture for UI avatars
+- Cache skin/cape locally under `<data_dir>/cache/` for `file://` rendering by egui
+
+### File Integrity (`integrity`)
+
+- SHA-1 verification of game files before launch
+- Auto-repair: re-download any missing or corrupted libraries/assets
+- Triggered automatically by the launch flow; surfaces missing files to the
+  user when they cannot be recovered
+
+### Process Helpers (`process`)
+
+- Cross-platform child process spawning
+- Suppresses stray console windows on Windows when launching console-subsystem
+  children (Java mostly) — the launcher itself is `windows_subsystem = "windows"`
+  and has no console of its own
+
+### Custom Theme (`custom_theme`)
+
+- User-defined theme palette persistence (RGB triplets for every layer + accent)
+- Loaded from `<data_dir>/themes/*.json`; the GUI hot-reloads on Settings refresh
+
+### HTTP Client (`http`)
+
+- `HttpClient` trait — abstraction over reqwest for testability
+- Production implementation wraps `reqwest::Client` with retries and timeouts
+- Tests inject mock implementations via `&impl HttpClient` parameter
+
 ### Launch (`launch`)
 
 - Build JVM command line from version metadata
@@ -129,9 +169,9 @@
 |--------|---------------|
 | `auth.rs` | Token refresh, account management |
 | `instance.rs` | Create, launch, list, delete, export, import |
-| `java.rs` | Detection and Adoptium download |
+| `java.rs` | Detection and Mojang JRE installation |
 | `loaders.rs` | Fabric/Quilt/NeoForge/Forge operations |
-| `mods.rs` | Modrinth search and install |
+| `mods.rs` | Modrinth + CurseForge search, install, update detection |
 
 ## Data Layout
 
@@ -156,7 +196,8 @@ Config and data directories are determined by `dirs::config_dir()` / `dirs::data
 │   ├── indexes/
 │   └── objects/
 ├── java/
-│   └── jdk-21/
+│   └── mojang/
+│       └── java-runtime-gamma/   (per-source / per-variant directory)
 ├── locales/            (optional: user-contributed translations)
 │   └── ja.json
 └── instances/

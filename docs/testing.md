@@ -2,8 +2,8 @@
 
 ## Overview
 
-- **230 tests** across the workspace
-- **Core coverage**: 67% (testable code ~82%)
+- **274 tests** across the workspace (241 core unit + 33 integration)
+- **Core coverage**: ~67% raw / ~82% of testable code
 - Framework: Rust built-in `#[test]` + `#[tokio::test]`
 - Dev dependencies: `tempfile`, `tokio`
 
@@ -11,23 +11,35 @@
 
 ### Unit Tests (inline `#[cfg(test)]`)
 
-Located alongside source code in each module:
+Located alongside source code in each module. Major test concentrations:
 
 | Module | Tests | Focus |
 |--------|-------|-------|
-| `java/mod.rs` | 28 | Version parsing, detection, compatibility |
+| `java/mod.rs` | 30 | Version parsing, detection, compatibility, caching |
 | `modrinth/api.rs` | 16 | Search, versions, deps resolution, install |
 | `instance/mod.rs` | 12 | CRUD, builder pattern, save/load |
-| `server_list.rs` | 11 | Add/remove/save/load |
+| `crash/parser.rs` | 11 | Crash report + log parsing |
 | `service/mod.rs` | 11 | Config accessors, instance ops, accounts |
+| `server_list.rs` | 11 | Add/remove/save/load |
 | `auth/microsoft.rs` | 10 | Request serialization, UUID parsing |
 | `resource/mod.rs` | 10 | Pack scanning, filtering |
 | `modmanager/mod.rs` | 9 | Mod scanning, toggle |
 | `modrinth/mrpack.rs` | 9 | Export zip, hashes, overrides, loader deps |
 | `version/meta.rs` | 8 | Library rules, Java version, deserialization |
-| `launch/mod.rs` | 7 | Classpath, game args, JVM args |
-| `modloader/*.rs` | 31 | Maven paths, downloads, deserialization |
-| Others | 19 | Config, download, version parsing |
+| `launch/mod.rs` | 8 | Classpath, game args, JVM args |
+| `modloader/{fabric,forge,neoforge}` | 7 each | Maven paths, downloads, deserialization |
+| `modloader/quilt.rs` | 5 | Same as above |
+| `modloader/mod.rs` | 5 | Loader dispatch / shared logic |
+| `config.rs` | 7 | Config defaults, save/load roundtrip |
+| `download/mirror.rs` | 7 | Mirror chain URL transformation |
+| `crash/analyzer.rs` | 5 | Crash type classification, mod identification |
+| `version/install.rs` | 5 | Install plan construction |
+| `java/mojang.rs` | 6 | Mojang JRE manifest parsing |
+| `curseforge/api.rs` | 6 | CurseForge search/install requests |
+| `auth/authlib_injector.rs` | 6 | Yggdrasil flow |
+| `download/manager.rs` | 4 | Concurrent download orchestration |
+| `update/`, `auth/offline`, `version/assets`, `java/install`, … | 3 each | |
+| Other modules | remainder | Config, download, integrity, http, skin, process |
 
 ### Integration Tests (`crates/core/tests/`)
 
@@ -36,19 +48,27 @@ Located alongside source code in each module:
 | `mock_http.rs` | — | Shared `MockHttpClient` helper |
 | `version_manifest.rs` | 4 | Manifest fetching with mirrors |
 | `version_meta_fetch.rs` | 3 | Version meta fetching |
-| `modloader_fetch.rs` | 19 | All modloader version fetching + install |
+| `modloader_fetch.rs` | 20 | All modloader version fetching + install |
+
+### GUI Integration Tests (`crates/gui/tests/`)
+
+| File | Tests | Description |
+|------|-------|-------------|
+| `controller_tests.rs` | 6 | Controller event loop, command dispatch, graceful shutdown, parallel task API |
 
 ## Mocking Pattern
 
 ### HttpClient Trait Injection
 
 ```rust
-#[async_trait::async_trait]
 pub trait HttpClient: Send + Sync {
     async fn get_json<T: DeserializeOwned + Send>(&self, url: &str) -> Result<T>;
     async fn get_bytes(&self, url: &str) -> Result<Vec<u8>>;
 }
 ```
+
+Native `async fn` in trait is used (Rust edition 2024, nightly toolchain) —
+no `async-trait` macro is required.
 
 Production code accepts `&impl HttpClient`. Tests provide a mock with HashMap-based URL pattern matching:
 
@@ -84,6 +104,9 @@ cargo test -p miao-core
 # Specific module
 cargo test -p miao-core -- modrinth::api::tests
 
+# GUI controller tests
+cargo test -p miao-gui --test controller_tests
+
 # With coverage (requires cargo-tarpaulin)
 cargo tarpaulin -p miao-core --skip-clean --out Stdout
 ```
@@ -93,7 +116,7 @@ cargo tarpaulin -p miao-core --skip-clean --out Stdout
 | Scope | Target | Current |
 |-------|--------|---------|
 | Core (testable code) | 80% | ~82% |
-| Core (raw) | — | 67% |
+| Core (raw) | — | ~67% |
 | Network-only code | Excluded | — |
 
 ### Untestable Without External Mocks
@@ -101,8 +124,8 @@ cargo tarpaulin -p miao-core --skip-clean --out Stdout
 These modules require `wiremock` or similar for full coverage:
 
 - `auth/microsoft.rs` — Multi-step OAuth chain
-- `java/download.rs` — Adoptium binary download
-- `service.rs` async methods — Full orchestration flows
+- `java/install.rs` — Mojang JRE binary download
+- `service/*` async methods — Full orchestration flows
 - `modrinth/mrpack.rs` import — Network download phase
 
 ## Adding New Tests
@@ -111,3 +134,4 @@ These modules require `wiremock` or similar for full coverage:
 2. Network-dependent → use `&impl HttpClient` parameter + mock
 3. File I/O → `tempfile::tempdir()` for isolation
 4. Multi-module integration → `crates/core/tests/` with shared `mock_http.rs`
+5. GUI controller / channel-based logic → `crates/gui/tests/controller_tests.rs`
