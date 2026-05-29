@@ -828,38 +828,57 @@ impl MiaoApp {
             },
         );
 
-        if platform::should_render_custom_window_buttons() {
-            ui.scope_builder(
-                egui::UiBuilder::new()
-                    .max_rect(title_bar_rect)
-                    .layout(egui::Layout::right_to_left(egui::Align::Center)),
-                |ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
+        self.render_custom_window_buttons(ui, ctx, title_bar_rect);
+    }
 
-                    if Self::window_control_button(ui, WindowButton::Close).clicked() {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                    }
+    #[cfg(not(target_os = "macos"))]
+    fn render_custom_window_buttons(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        title_bar_rect: egui::Rect,
+    ) {
+        debug_assert!(platform::should_render_custom_window_buttons());
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .max_rect(title_bar_rect)
+                .layout(egui::Layout::right_to_left(egui::Align::Center)),
+            |ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
 
-                    let is_maximized = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
-                    if Self::window_control_button(
-                        ui,
-                        if is_maximized {
-                            WindowButton::Restore
-                        } else {
-                            WindowButton::Maximize
-                        },
-                    )
-                    .clicked()
-                    {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
-                    }
+                if Self::window_control_button(ui, WindowButton::Close).clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
 
-                    if Self::window_control_button(ui, WindowButton::Minimize).clicked() {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                    }
-                },
-            );
-        }
+                let is_maximized = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
+                if Self::window_control_button(
+                    ui,
+                    if is_maximized {
+                        WindowButton::Restore
+                    } else {
+                        WindowButton::Maximize
+                    },
+                )
+                .clicked()
+                {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                }
+
+                if Self::window_control_button(ui, WindowButton::Minimize).clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                }
+            },
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    fn render_custom_window_buttons(
+        &self,
+        _ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _title_bar_rect: egui::Rect,
+    ) {
+        debug_assert!(!platform::should_render_custom_window_buttons());
     }
 
     #[cfg(not(target_os = "macos"))]
