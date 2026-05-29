@@ -39,7 +39,7 @@ A feature-rich Minecraft launcher built in Rust — fast, native, and open sourc
 | **Modpacks** | Import/export `.mrpack` modpacks |
 | **Drag & Drop** | Drop `.jar` / `.zip` files into the window to install mods or resource packs |
 | **Mod Updates** | One-click check for newer versions of installed mods via Modrinth |
-| **Java** | Auto-detect compatible JVM or install official Mojang JRE (BMCLAPI mirrored) |
+| **Java** | Auto-detect compatible JVM or install from Mojang / BMCLAPI / Adoptium Temurin / Microsoft Build of OpenJDK |
 | **Downloads** | BMCLAPI mirror, multi-source failover, concurrent downloads |
 | **Auth** | Microsoft OAuth device-code flow, offline mode, authlib-injector (LittleSkin, etc.) |
 | **Diagnostics** | Crash-report & log parsing with mod-level identification |

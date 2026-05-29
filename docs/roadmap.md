@@ -18,7 +18,7 @@ Comparison baseline: PCL2 (Plain Craft Launcher 2) — the most popular Chinese 
 | CurseForge 搜索安装 | ✅ | ✅ | — | curseforge/ 模块，需配置 API key |
 | 整合包导入导出 (mrpack) | ✅ | ✅ | — | |
 | 整合包导出 (CurseForge 格式) | ❌ | ✅ | Medium | |
-| Java 自动检测 + 下载 | ✅ | ✅ | — | Mojang JRE (BMCLAPI 镜像) |
+| Java 自动检测 + 下载 | ✅ | ✅ | — | Mojang / BMCLAPI / Adoptium Temurin / Microsoft 四源可选 |
 | BMCLAPI 镜像 | ✅ | ✅ | — | |
 | 多下载源自动切换 | ✅ | ✅ | — | 指数退避重试 + mirror 链式切换 |
 | 单文件多线程下载 | ❌ | ✅ | Low | 当前只有多文件并发 |
@@ -226,6 +226,7 @@ main.rs (入口)
 | P5 | 新增 Sakura / Light 主题 + Morandi 调色 | ✅ Done | `gui/src/theme.rs` |
 | P6 | 日语本地化 + 系统 CJK 字体回退 | ✅ Done | `gui/locales/ja.json`, `gui/src/main.rs::find_system_fallback_font` |
 | P7 | Windows 控制台抑制（启动 Java 不闪窗） | ✅ Done | `core/src/process.rs` |
+| P8 | 多 Java 下载源（BMCLAPI / Adoptium Temurin / Microsoft）+ archive 模式安装器 | ✅ Done | `core/src/java/{adoptium,microsoft,bmclapi,extract}.rs` |
 
 ### Phase 4 — 未来计划
 

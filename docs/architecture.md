@@ -60,14 +60,27 @@
 - Parse version strings (Java 8 `1.8.x` and modern `17.x` formats)
 - Select minimum compatible version for game requirements
 - Source-neutral installer architecture (`java/install.rs`):
-  - Defines `JavaInstallPlan` — what files need to land where, source-agnostic
-  - Defines `JavaSource` enum for dispatching to upstream backends
-- Mojang JRE source (`java/mojang.rs`) — default, fetches official Minecraft JRE
-  components from `piston-meta.mojang.com`. Mirrored host-for-host by BMCLAPI,
-  so the existing download mirror chain handles failover automatically. Streams
-  files individually with SHA-1 verification — a mid-file disconnect only
-  requires re-fetching that one file, not the whole archive.
-- GUI exposes a Java source selector in Settings (extensible for future sources)
+  - `JavaInstallPlan` — describes per-file downloads, archive downloads,
+    symlinks, and executable bits. Independent of upstream.
+  - `JavaSource` enum dispatches to per-source planners; each planner returns
+    a `JavaInstallPlan` and `execute()` runs them uniformly (download
+    everything → extract archives → recreate links → set exec bits).
+- `java/extract.rs` — tar.gz / zip extraction with `strip_components` and
+  path-traversal protection. Reusable beyond Java if needed.
+- Four built-in sources:
+  - **Mojang** (`mojang.rs`) — official Minecraft JRE components from
+    `piston-meta.mojang.com`, per-file with SHA-1, mirrored host-for-host by
+    BMCLAPI through the global download mirror chain.
+  - **BMCLAPI** (`bmclapi.rs`) — same manifest as Mojang but forced through
+    the BMCLAPI mirror, decoupled from the user's global mirror setting.
+  - **Adoptium Temurin** (`adoptium.rs`) — `api.adoptium.net` feature_releases
+    endpoint, prefers JRE, falls back to JDK. Single-archive download
+    (tar.gz/zip) with SHA-256. Supports Java 8/11/17/21/25.
+  - **Microsoft Build of OpenJDK** (`microsoft.rs`) — `aka.ms/download-jdk`
+    URL pattern + `.sha256sum.txt` sibling for checksum and version
+    discovery. JDK only, Java 11/17/21/25.
+- GUI exposes the Java source selector in Settings (data-driven from
+  `JavaSource::all()`)
 
 ### Mod Loader Support (`modloader`)
 
@@ -169,7 +182,7 @@
 |--------|---------------|
 | `auth.rs` | Token refresh, account management |
 | `instance.rs` | Create, launch, list, delete, export, import |
-| `java.rs` | Detection and Mojang JRE installation |
+| `java.rs` | Detection and JRE installation (Mojang / BMCLAPI / Adoptium / Microsoft) |
 | `loaders.rs` | Fabric/Quilt/NeoForge/Forge operations |
 | `mods.rs` | Modrinth + CurseForge search, install, update detection |
 
@@ -196,8 +209,13 @@ Config and data directories are determined by `dirs::config_dir()` / `dirs::data
 │   ├── indexes/
 │   └── objects/
 ├── java/
-│   └── mojang/
-│       └── java-runtime-gamma/   (per-source / per-variant directory)
+│   ├── mojang/
+│   │   └── java-runtime-gamma/   (per-source / per-variant directory)
+│   ├── bmclapi/
+│   ├── adoptium/
+│   │   └── 21.0.11+10.0.LTS/
+│   └── microsoft/
+│       └── 21.0.11/
 ├── locales/            (optional: user-contributed translations)
 │   └── ja.json
 └── instances/

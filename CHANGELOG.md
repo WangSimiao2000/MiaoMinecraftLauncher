@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Three new Java download sources** alongside Mojang:
+  - **BMCLAPI**: Mojang's manifest forced through the BMCLAPI mirror, decoupled
+    from the global download-mirror setting.
+  - **Adoptium Temurin** (Eclipse): JRE-first with JDK fallback, covers
+    Java 8/11/17/21/25 — including the majors Mojang doesn't ship (11, 18-20).
+    Single-archive download with SHA-256 verification.
+  - **Microsoft Build of OpenJDK**: JDK-only, Java 11/17/21/25, served from
+    Microsoft's CDN via `aka.ms/download-jdk`.
+- `JavaInstallPlan` now supports archive-based sources (tar.gz/zip with
+  `strip_components=1`) in addition to per-file Mojang downloads. New
+  `core/src/java/extract.rs` module handles extraction with path-traversal
+  protection.
+- `DownloadTask` gained an optional `sha256` field, verified independently of
+  `sha1`.
+
 ## [0.2.0-beta.4] - 2026-05-29
 
 ### Added
