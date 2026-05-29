@@ -50,6 +50,7 @@ futures = "0.3"
 url = "2"
 # Regex (modpack source schema validation)
 regex = "1"
+async-trait = "0.1"
 # Indicatif progress bars (shared between TUI/CLI)
 indicatif = "0.17"
 
