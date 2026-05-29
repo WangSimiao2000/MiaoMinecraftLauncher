@@ -16,6 +16,7 @@ pub mod icons;
 mod logging;
 mod messages;
 pub mod navigation;
+pub mod platform;
 pub mod state;
 mod theme;
 pub mod toast;
@@ -25,12 +26,7 @@ pub mod widgets;
 use anyhow::Result;
 
 fn main() -> Result<()> {
-    // On Windows, ensure the process is per-monitor DPI aware so that winit
-    // reads the correct scale factor from the OS instead of getting a
-    // bitmap-stretched window (which appears blurry on HiDPI displays).
-    // This is a no-op on non-Windows platforms.
-    #[cfg(target_os = "windows")]
-    enable_windows_dpi_awareness();
+    platform::enable_high_dpi_awareness();
 
     let bootstrap_config = miao_core::config::LauncherConfig::load().unwrap_or_default();
     let _log_guard = logging::init(&bootstrap_config.logs_dir());
@@ -41,13 +37,12 @@ fn main() -> Result<()> {
         "MMCL starting"
     );
 
+    let viewport = egui::ViewportBuilder::default()
+        .with_inner_size([960.0, 640.0])
+        .with_min_inner_size([720.0, 480.0])
+        .with_title("MMCL");
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([960.0, 640.0])
-            .with_min_inner_size([720.0, 480.0])
-            .with_title("MMCL")
-            .with_decorations(false)
-            .with_transparent(true),
+        viewport: platform::apply_window_chrome(viewport),
         ..Default::default()
     };
 
@@ -120,60 +115,10 @@ fn main() -> Result<()> {
 }
 
 fn find_system_fallback_font() -> Option<Vec<u8>> {
-    let candidates: &[&str] = if cfg!(target_os = "linux") {
-        &[
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/OTF/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-            "/usr/share/fonts/noto/NotoSans-Regular.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ]
-    } else if cfg!(target_os = "windows") {
-        &[
-            "C:\\Windows\\Fonts\\msyh.ttc",
-            "C:\\Windows\\Fonts\\malgun.ttf",
-            "C:\\Windows\\Fonts\\yugothic.ttf",
-            "C:\\Windows\\Fonts\\meiryo.ttc",
-            "C:\\Windows\\Fonts\\simsun.ttc",
-        ]
-    } else if cfg!(target_os = "macos") {
-        &[
-            "/System/Library/Fonts/PingFang.ttc",
-            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-            "/System/Library/Fonts/Hiragino Sans GB.ttc",
-            "/Library/Fonts/Arial Unicode.ttf",
-        ]
-    } else {
-        &[]
-    };
-
-    for path in candidates {
+    for path in platform::system_fallback_font_paths() {
         if let Ok(data) = std::fs::read(path) {
             return Some(data);
         }
     }
     None
-}
-
-#[cfg(target_os = "windows")]
-fn enable_windows_dpi_awareness() {
-    // Use the Win32 API directly to avoid pulling in an extra dep. Calling
-    // SetProcessDpiAwarenessContext with PER_MONITOR_AWARE_V2 must happen
-    // before any window is created. Failures are non-fatal: an older Windows
-    // build that doesn't support v2 will fall back to the manifest default.
-    use std::ffi::c_void;
-
-    type DpiContext = *mut c_void;
-    const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2: DpiContext = -4_isize as DpiContext;
-
-    unsafe extern "system" {
-        fn SetProcessDpiAwarenessContext(value: DpiContext) -> i32;
-    }
-
-    unsafe {
-        let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    }
 }

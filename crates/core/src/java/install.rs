@@ -160,11 +160,10 @@ fn apply_executable_bits(paths: &[PathBuf]) -> Result<()> {
 
 /// The path of the launcher binary inside an installed JRE directory.
 pub fn java_binary_path(install_dir: &Path) -> PathBuf {
-    let bin_dir = if std::env::consts::OS == "macos" {
-        install_dir.join("jre.bundle/Contents/Home/bin")
-    } else {
-        install_dir.join("bin")
-    };
+    #[cfg(target_os = "macos")]
+    let bin_dir = install_dir.join("jre.bundle/Contents/Home/bin");
+    #[cfg(not(target_os = "macos"))]
+    let bin_dir = install_dir.join("bin");
     bin_dir.join(super::java_binary_name())
 }
 

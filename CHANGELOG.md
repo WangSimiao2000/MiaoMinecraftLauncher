@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **macOS: native title bar with traffic-light buttons**. The launcher previously hid system chrome on every platform and painted its own close / minimize / maximize buttons in the top-right corner. On macOS this clashed with users' muscle memory (traffic lights live top-left) and silently dropped Cmd+W, double-click-to-zoom, full-screen, and accessibility behaviors. macOS builds now keep the system title bar so the OS-drawn buttons stay where they belong, while the title bar's painted area and the title text are hidden so the existing header content can still extend to the very top of the window. The title bar's left edge reserves ~78 px so the launcher's own header doesn't paint behind the traffic lights. Linux and Windows continue to use the fully-custom title bar.
+
+### Changed
+
+- **GUI: centralize platform conditionals** in a new `crates/gui/src/platform` module. Window chrome, the Win32 DPI-awareness call, custom-button rendering, traffic-light padding, and CJK fallback-font paths now route through a single platform abstraction with documented contracts. `main.rs` and `app.rs` no longer reach for `#[cfg]` or `std::env::consts::OS` directly; subsequent platform tweaks land in one file instead of being scattered across the GUI crate.
+- **`core::java::install::java_binary_path`** switched from `std::env::consts::OS == "macos"` to `#[cfg(target_os = "macos")]`. Equivalent behavior, but the dead branch is now removed at compile time and the conditional matches the rest of the file.
+
 ### Fixed
 
 - **macOS: detect system-installed JDKs**. The Java scanner only looked for `<entry>/bin/java`, but macOS JDKs are packaged as `.jdk` bundles whose binary lives at `<entry>/Contents/Home/bin/java`. As a result, every JDK installed via Adoptium / Microsoft / Oracle / Apple `.pkg` (i.e. the standard macOS install path) was invisible and the GUI offered to download Java even when one was already installed. `java_bin_under` now checks both layouts.

@@ -19,6 +19,7 @@ use crate::controller::AppController;
 pub use crate::dialogs::setup_wizard::SetupStep;
 use crate::messages::{AppCommand, AppEvent};
 use crate::navigation::{NavigationStack, Page};
+use crate::platform;
 pub use crate::state::{
     AuthUiState, CfPendingInstall, CfSearchState, DetailTab, Dialog, GameLogState, I18n,
     InstallProgress, InstanceSettingsEdit, LoaderUiState, ModSearchState, ModSource,
@@ -27,6 +28,7 @@ pub use crate::state::{
 use crate::theme;
 use crate::toast::ToastQueue;
 
+#[cfg(not(target_os = "macos"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WindowButton {
     Close,
@@ -811,6 +813,7 @@ impl MiaoApp {
                 .max_rect(title_bar_rect)
                 .layout(egui::Layout::left_to_right(egui::Align::Center)),
             |ui| {
+                ui.add_space(platform::title_bar_left_padding());
                 if is_settings {
                     if ui.button(I18n::t(&lang, "back")).clicked() {
                         self.nav_stack.pop();
@@ -818,7 +821,6 @@ impl MiaoApp {
                     ui.add_space(8.0);
                     ui.label(theme::heading(I18n::t(&lang, "settings")));
                 } else {
-                    ui.add_space(4.0);
                     ui.label(theme::heading("MMCL"));
                     ui.add_space(8.0);
                     ui.label(theme::small("MiaoMinecraftLauncher"));
@@ -826,38 +828,41 @@ impl MiaoApp {
             },
         );
 
-        ui.scope_builder(
-            egui::UiBuilder::new()
-                .max_rect(title_bar_rect)
-                .layout(egui::Layout::right_to_left(egui::Align::Center)),
-            |ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
+        if platform::should_render_custom_window_buttons() {
+            ui.scope_builder(
+                egui::UiBuilder::new()
+                    .max_rect(title_bar_rect)
+                    .layout(egui::Layout::right_to_left(egui::Align::Center)),
+                |ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
 
-                if Self::window_control_button(ui, WindowButton::Close).clicked() {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
+                    if Self::window_control_button(ui, WindowButton::Close).clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
 
-                let is_maximized = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
-                if Self::window_control_button(
-                    ui,
-                    if is_maximized {
-                        WindowButton::Restore
-                    } else {
-                        WindowButton::Maximize
-                    },
-                )
-                .clicked()
-                {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
-                }
+                    let is_maximized = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
+                    if Self::window_control_button(
+                        ui,
+                        if is_maximized {
+                            WindowButton::Restore
+                        } else {
+                            WindowButton::Maximize
+                        },
+                    )
+                    .clicked()
+                    {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                    }
 
-                if Self::window_control_button(ui, WindowButton::Minimize).clicked() {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                }
-            },
-        );
+                    if Self::window_control_button(ui, WindowButton::Minimize).clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                    }
+                },
+            );
+        }
     }
 
+    #[cfg(not(target_os = "macos"))]
     fn window_control_button(ui: &mut egui::Ui, button: WindowButton) -> egui::Response {
         let size = egui::vec2(46.0, 28.0);
         let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
