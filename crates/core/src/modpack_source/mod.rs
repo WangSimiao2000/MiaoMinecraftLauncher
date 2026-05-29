@@ -1,6 +1,7 @@
 pub mod cache;
 pub mod http;
 pub mod installer;
+pub mod live;
 pub mod manifest;
 pub mod registry;
 pub mod resolver;
@@ -10,6 +11,7 @@ pub use http::{HttpError, ProgressSink, RateLimitedClient};
 pub use installer::{
     InstallError, InstallExecutor, InstallOutcome, InstallPlan, cleanup_orphan_staging, install,
 };
+pub use live::LiveResolverDataSource;
 pub use manifest::{
     ConfigOverlay, Criticality, Loader, Manifest, ManifestError, ManifestPackEntry, ModPolicy,
     ModSource, OverlayFile, Pack, PackMod, ReplacementRef, SupportLevel, parse_manifest,
