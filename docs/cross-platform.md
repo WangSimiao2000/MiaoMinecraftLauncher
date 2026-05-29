@@ -19,7 +19,7 @@ done at the CI/release level.
 | CI Windows build | `.github/workflows/ci.yml`, `release.yml` | ✅ Implemented |
 | CI Linux build + AppImage | `.github/workflows/release.yml` | ✅ Implemented |
 | CI macOS build | `.github/workflows/release.yml` | ✅ Implemented (x86_64 + aarch64, .app bundle) |
-| Released CLI binary on Windows | `.github/workflows/release.yml` | ✅ Implemented (`mmcl-cli-windows-x86_64.exe`) |
+| Released CLI binary on Windows | `.github/workflows/release.yml` | ❌ Intentionally skipped — adding a console binary to `PATH` on Windows is awkward; WSL users can use the Linux binary, and the CLI is a strict subset of the GUI (no MS OAuth / CurseForge), so it isn't useful enough for interactive Windows users. Re-enable if real demand surfaces. |
 
 ## Implementation Details
 

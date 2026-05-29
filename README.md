@@ -63,8 +63,17 @@ Binaries output to `target/release/`:
 
 | Binary | Description |
 |--------|-------------|
-| `miao` | Command-line interface |
-| `miao-gui` | Native GUI (egui) |
+| `miao-gui` | Native GUI (egui) — primary frontend, all platforms |
+| `miao` | CLI frontend — Linux / macOS only in official releases |
+
+The CLI is for headless servers, SSH workflows and scripted batch operations
+(create/launch/list/mod-install). It is a strict **subset** of the GUI:
+Microsoft OAuth login, CurseForge, crash analysis, mod-update detection and
+several settings are GUI-only. Use the GUI as your daily driver and reach
+for the CLI when you need to drive the launcher from a script or over a
+shell. We do not ship `miao.exe` on Windows because adding a console binary
+to `PATH` on Windows is awkward enough that the script-automation use case
+is better served by the Linux binary inside WSL.
 
 ### System Dependencies (Linux GUI)
 

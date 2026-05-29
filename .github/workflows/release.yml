@@ -63,9 +63,12 @@ jobs:
           targets: x86_64-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
 
-      # Windows ships both the GUI and the CLI. The CLI is mainly useful for
-      # scripting / SSH / headless servers, but Windows users running WSL or
-      # PowerShell automation should still have it available.
+      # Windows ships GUI only. The CLI is intended for headless / SSH /
+      # scripting workflows where adding a binary to PATH is one shell command;
+      # on Windows neither use case is well-served (WSL users want the Linux
+      # binary, PowerShell automation has weaker pathing ergonomics, and
+      # missing OAuth/CurseForge support in the CLI makes it half a tool for
+      # interactive Windows users). Re-enable if there is real demand.
       - name: Build GUI release binary
         env:
           CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
@@ -73,31 +76,17 @@ jobs:
         run: cargo build --release -p miao-gui
         shell: pwsh
 
-      - name: Build CLI release binary
-        env:
-          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
-          MS_CLIENT_ID: ${{ secrets.MS_CLIENT_ID }}
-        run: cargo build --release -p miao-cli
-        shell: pwsh
-
       - name: Prepare artifacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item target\release\miao-gui.exe dist\mmcl-windows-x86_64.exe
-          Copy-Item target\release\miao.exe dist\mmcl-cli-windows-x86_64.exe
 
       - name: Upload Windows GUI exe
         uses: actions/upload-artifact@v4
         with:
           name: mmcl-windows-x86_64
           path: dist/mmcl-windows-x86_64.exe
-
-      - name: Upload Windows CLI exe
-        uses: actions/upload-artifact@v4
-        with:
-          name: mmcl-cli-windows-x86_64
-          path: dist/mmcl-cli-windows-x86_64.exe
 
   build-macos:
     strategy:
