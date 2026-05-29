@@ -38,8 +38,20 @@ pub struct ResolutionReport {
     pub loader_version: Option<String>,
     pub resolved_at: chrono::DateTime<chrono::Utc>,
     pub mods: Vec<ResolvedMod>,
+    #[serde(default)]
+    pub overlays: Vec<ResolvedOverlay>,
     pub conflicts: Vec<ConflictReport>,
     pub cycle: Option<Vec<CycleNode>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedOverlay {
+    pub target: String,
+    pub source_url: String,
+    pub sha256: String,
+    pub original_size: u64,
+    pub preserve: bool,
+    pub installed_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -291,6 +303,7 @@ pub async fn resolve(
         loader_version: pack.loader_versions.get(mc_version).cloned(),
         resolved_at: chrono::Utc::now(),
         mods,
+        overlays: Vec::new(),
         conflicts,
         cycle: None,
     })

@@ -18,6 +18,18 @@ pub struct Instance {
     pub resolution: Option<Resolution>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub last_played: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modpack_subscription: Option<ModpackSubscription>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ModpackSubscription {
+    pub source_id: String,
+    pub pack_id: String,
+    pub pack_version: String,
+    pub pack_content_hash: String,
+    pub mc_version: String,
+    pub installed_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -50,6 +62,7 @@ impl Default for Instance {
             resolution: None,
             created_at: chrono::Utc::now(),
             last_played: None,
+            modpack_subscription: None,
         }
     }
 }
@@ -374,5 +387,57 @@ mod tests {
     fn instance_load_nonexistent_errors() {
         let path = PathBuf::from("/nonexistent/instance");
         assert!(Instance::load_from(&path).is_err());
+    }
+
+    #[test]
+    fn t_instance_modpack_subscription_default_none() {
+        let inst = Instance::new("plain", "1.21.5");
+        assert!(inst.modpack_subscription.is_none());
+    }
+
+    #[test]
+    fn t_instance_legacy_toml_without_modpack_subscription_loads() {
+        let dir = tempfile::tempdir().unwrap();
+        let instance_dir = dir.path().join("legacy");
+        std::fs::create_dir_all(&instance_dir).unwrap();
+        std::fs::write(
+            instance_dir.join("instance.toml"),
+            r#"name = "legacy"
+minecraft_version = "1.20.4"
+jvm_args = []
+game_args = []
+memory_max_mb = 4096
+memory_min_mb = 512
+created_at = "2025-01-01T00:00:00Z"
+"#,
+        )
+        .unwrap();
+
+        let loaded = Instance::load_from(&instance_dir).unwrap();
+        assert_eq!(loaded.name, "legacy");
+        assert!(loaded.modpack_subscription.is_none());
+    }
+
+    #[test]
+    fn t_instance_with_modpack_subscription_roundtrips() {
+        let dir = tempfile::tempdir().unwrap();
+        let instance_dir = dir.path().join("subscribed");
+
+        let mut inst = Instance::new("subscribed", "1.21.5");
+        inst.modpack_subscription = Some(ModpackSubscription {
+            source_id: "miao".to_string(),
+            pack_id: "miao-1.21-base-test".to_string(),
+            pack_version: "0.1.0".to_string(),
+            pack_content_hash: "deadbeef".to_string(),
+            mc_version: "1.21.5".to_string(),
+            installed_at: chrono::Utc::now(),
+        });
+        inst.save_to(&instance_dir).unwrap();
+
+        let loaded = Instance::load_from(&instance_dir).unwrap();
+        let sub = loaded.modpack_subscription.expect("present");
+        assert_eq!(sub.source_id, "miao");
+        assert_eq!(sub.pack_id, "miao-1.21-base-test");
+        assert_eq!(sub.pack_content_hash, "deadbeef");
     }
 }
