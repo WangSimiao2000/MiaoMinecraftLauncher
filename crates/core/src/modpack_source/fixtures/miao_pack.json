@@ -1,0 +1,47 @@
+{
+  "pack_format": "miao:1.0.0",
+  "id": "miao-1.21-base-test",
+  "display_name": "米奇喵 1.21 基础测试整合包",
+  "version": "0.1.0",
+  "summary": "MMCL Phase 1 fixture: Sodium + Fabric API + REI",
+  "description": "This is a minimal modpack used as a fixture during MMCL Phase 1 implementation of the modpack source ecosystem. It is NOT the final '米奇喵 基础美化包'. See https://github.com/WangSimiao2000/MiaoMinecraftLauncher/blob/main/docs/modpack-source-phase1-spec.md for the design spec.",
+  "loader": "fabric",
+  "mc_versions": ["1.21.4", "1.21.5"],
+  "loader_versions": {},
+  "mods": [
+    {
+      "source": "modrinth",
+      "id": "AANobbMI",
+      "name": "Sodium",
+      "policy": "auto",
+      "locked_version": null,
+      "criticality": "core",
+      "deprecated_after": null,
+      "replacement": null
+    },
+    {
+      "source": "modrinth",
+      "id": "P7dR8mSH",
+      "name": "Fabric API",
+      "policy": "auto",
+      "locked_version": null,
+      "criticality": "core",
+      "deprecated_after": null,
+      "replacement": null
+    },
+    {
+      "source": "modrinth",
+      "id": "nfn13YXA",
+      "name": "Roughly Enough Items (REI)",
+      "policy": "auto",
+      "locked_version": null,
+      "criticality": "optional",
+      "deprecated_after": null,
+      "replacement": null
+    }
+  ],
+  "config_overlay": {
+    "base_url": "https://raw.githubusercontent.com/WangSimiao2000/miao-modpacks/main/packs/miao-1.21-base-test/config",
+    "files": []
+  }
+}

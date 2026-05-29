@@ -12,6 +12,7 @@ pub mod java;
 pub mod launch;
 pub mod modloader;
 pub mod modmanager;
+pub mod modpack_source;
 pub mod modrinth;
 pub mod process;
 pub mod resource;

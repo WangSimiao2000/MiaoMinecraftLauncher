@@ -1,0 +1,23 @@
+{
+  "pack_format": "miao:1.0.0",
+  "source_id": "miao",
+  "source_name": "米奇喵整合包源",
+  "author": "mickeymiao",
+  "homepage": "https://space.bilibili.com/36913332",
+  "updated_at": "2026-05-29T00:00:00Z",
+  "allowed_hosts": [
+    "raw.githubusercontent.com",
+    "cdn.jsdelivr.net"
+  ],
+  "packs": [
+    {
+      "id": "miao-1.21-base-test",
+      "display_name": "米奇喵 1.21 基础测试整合包",
+      "summary": "MMCL Phase 1 fixture: Sodium + Fabric API + REI",
+      "mc_versions": ["1.21.4", "1.21.5"],
+      "loader": "fabric",
+      "support_level": "active",
+      "pack_url": "https://raw.githubusercontent.com/WangSimiao2000/miao-modpacks/main/packs/miao-1.21-base-test/pack.json"
+    }
+  ]
+}

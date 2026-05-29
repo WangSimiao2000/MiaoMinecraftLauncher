@@ -31,6 +31,7 @@ oauth2.workspace = true
 tokio-util.workspace = true
 image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = "0.22"
+regex = { workspace = true }
 winreg = { version = "0.52", optional = true }
 
 [features]

@@ -48,6 +48,8 @@ tar = "0.4"
 futures = "0.3"
 # URL handling
 url = "2"
+# Regex (modpack source schema validation)
+regex = "1"
 # Indicatif progress bars (shared between TUI/CLI)
 indicatif = "0.17"
 
