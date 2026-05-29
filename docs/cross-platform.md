@@ -16,7 +16,8 @@ done at the CI/release level.
 | GUI font loading & CJK fallback | `crates/gui/src/main.rs` | ✅ Implemented |
 | Console window suppression on Windows | `core/src/process.rs` | ✅ Implemented |
 | Per-monitor DPI awareness on Windows | `crates/gui/src/main.rs` | ✅ Implemented |
-| CI Windows build | `.github/workflows/ci.yml`, `release.yml` | ✅ Implemented |
+| CI Windows compilation check | `.github/workflows/ci.yml` (`check-windows`), `release.yml` (`build-windows`) | ✅ Implemented |
+| CI macOS compilation check | `.github/workflows/ci.yml` (`check-macos`), `release.yml` (`build-macos`) | ✅ Implemented (aarch64) |
 | CI Linux build + AppImage | `.github/workflows/release.yml` | ✅ Implemented |
 | CI macOS build | `.github/workflows/release.yml` | ✅ Implemented (aarch64 / Apple Silicon, .app bundle). Intel (`x86_64-apple-darwin`) was tried once and pulled — the macos-13 GitHub-hosted runner queue regularly exceeds one hour, blocking releases. Apple stopped selling Intel Macs in 2023. |
 | Released CLI binary on Windows | `.github/workflows/release.yml` | ❌ Intentionally skipped — adding a console binary to `PATH` on Windows is awkward; WSL users can use the Linux binary, and the CLI is a strict subset of the GUI (no MS OAuth / CurseForge), so it isn't useful enough for interactive Windows users. Re-enable if real demand surfaces. |
@@ -123,8 +124,11 @@ separate platform branch is needed in `install.rs`.
 
 `.github/workflows/`:
 
-- `ci.yml` — Linux build + clippy + tests; `check-windows` job keeps
-  Windows compilation green on every push.
+- `ci.yml` — Linux build + clippy + tests on every push and PR.
+  `check-windows` and `check-macos` jobs keep Windows and macOS
+  (Apple Silicon) compilation green on every push, so platform-specific
+  branches behind `#[cfg(target_os = "...")]` are exercised before tag
+  push instead of only at release time.
 - `release.yml` — On `v*` tag push:
   - `build-linux` — CLI binary + AppImage
   - `build-windows` — `miao-gui.exe` only

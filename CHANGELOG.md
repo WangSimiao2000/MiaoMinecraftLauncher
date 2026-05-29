@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **GUI: centralize platform conditionals** in a new `crates/gui/src/platform` module. Window chrome, the Win32 DPI-awareness call, custom-button rendering, traffic-light padding, and CJK fallback-font paths now route through a single platform abstraction with documented contracts. `main.rs` and `app.rs` no longer reach for `#[cfg]` or `std::env::consts::OS` directly; subsequent platform tweaks land in one file instead of being scattered across the GUI crate.
 - **`core::java::install::java_binary_path`** switched from `std::env::consts::OS == "macos"` to `#[cfg(target_os = "macos")]`. Equivalent behavior, but the dead branch is now removed at compile time and the conditional matches the rest of the file.
+- **CI: validate macOS compilation on every push.** A new `check-macos` job in `ci.yml` runs `cargo check`, `cargo clippy -D warnings`, and `cargo test` on `macos-14` (Apple Silicon) so `#[cfg(target_os = "macos")]` branches are exercised at PR / push time instead of only at `v*` tag push. Mirrors the existing `check-windows` job and closes the loop on the multi-platform CI matrix.
 
 ### Fixed
 
