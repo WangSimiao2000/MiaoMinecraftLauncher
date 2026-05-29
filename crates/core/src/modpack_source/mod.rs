@@ -11,7 +11,7 @@ pub use http::{HttpError, ProgressSink, RateLimitedClient};
 pub use installer::{
     InstallError, InstallExecutor, InstallOutcome, InstallPlan, cleanup_orphan_staging, install,
 };
-pub use live::LiveResolverDataSource;
+pub use live::{LiveInstallExecutor, LiveResolverDataSource};
 pub use manifest::{
     ConfigOverlay, Criticality, Loader, Manifest, ManifestError, ManifestPackEntry, ModPolicy,
     ModSource, OverlayFile, Pack, PackMod, ReplacementRef, SupportLevel, parse_manifest,

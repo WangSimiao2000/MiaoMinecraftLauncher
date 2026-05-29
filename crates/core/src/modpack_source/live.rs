@@ -1,10 +1,17 @@
+use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::DateTime;
 
+use crate::config::LauncherConfig;
 use crate::curseforge::api::{CfFile, CfMod, CurseForgeClient};
+use crate::download::DownloadTask;
+use crate::download::manager::DownloadManager;
 use crate::http::HttpClient;
+use crate::instance::ModLoaderConfig;
+use crate::modloader::ModLoaderType;
+use crate::modpack_source::installer::InstallExecutor;
 use crate::modpack_source::manifest::{Loader, ModSource};
 use crate::modpack_source::resolver::{
     CandidateVersion, DependencyEdge, DependencyKind, ProjectMeta, ReleaseType, ResolverDataSource,
@@ -304,6 +311,101 @@ fn cf_file_to_candidate(
     })
 }
 
+pub struct LiveInstallExecutor<H: HttpClient + 'static> {
+    pub http: Arc<H>,
+    pub config: Arc<LauncherConfig>,
+}
+
+impl<H: HttpClient + 'static> LiveInstallExecutor<H> {
+    pub fn new(http: Arc<H>, config: Arc<LauncherConfig>) -> Self {
+        Self { http, config }
+    }
+}
+
+#[async_trait]
+impl<H: HttpClient + 'static> InstallExecutor for LiveInstallExecutor<H> {
+    async fn download_to(&self, url: &str, dest: &Path) -> Result<(), String> {
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let dm = DownloadManager::new(
+            self.config.download_mirror.clone(),
+            self.config.max_concurrent_downloads,
+        );
+        let task = DownloadTask {
+            url: url.to_string(),
+            dest: dest.to_path_buf(),
+            sha1: None,
+            sha256: None,
+            size: None,
+        };
+        dm.download_all(vec![task])
+            .await
+            .map_err(|e| format!("download {url}: {e}"))
+    }
+
+    async fn install_loader(
+        &self,
+        _instance_dir: &Path,
+        loader_type: &str,
+        mc_version: &str,
+        loader_version: Option<&str>,
+    ) -> Result<ModLoaderConfig, String> {
+        let lt = parse_loader_type(loader_type)?;
+        let version = match loader_version {
+            Some(v) => v.to_string(),
+            None => latest_loader_version(self.http.as_ref(), &lt, mc_version).await?,
+        };
+        crate::modloader::install_loader(
+            self.http.as_ref(),
+            &lt,
+            mc_version,
+            &version,
+            &self.config,
+        )
+        .await
+        .map_err(|e| format!("install_loader {lt:?} {version}: {e}"))
+    }
+}
+
+fn parse_loader_type(s: &str) -> Result<ModLoaderType, String> {
+    match s {
+        "fabric" => Ok(ModLoaderType::Fabric),
+        "forge" => Ok(ModLoaderType::Forge),
+        "neoforge" => Ok(ModLoaderType::NeoForge),
+        "quilt" => Ok(ModLoaderType::Quilt),
+        other => Err(format!("unsupported loader '{other}'")),
+    }
+}
+
+async fn latest_loader_version<H: HttpClient>(
+    http: &H,
+    loader_type: &ModLoaderType,
+    mc_version: &str,
+) -> Result<String, String> {
+    let result = crate::modloader::fetch_all_loader_versions(http, mc_version)
+        .await
+        .map_err(|e| format!("fetch loader versions for {mc_version}: {e}"))?;
+    let stable_first = |a: &crate::modloader::ModLoaderVersion,
+                        b: &crate::modloader::ModLoaderVersion| {
+        match (a.stable, b.stable) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => std::cmp::Ordering::Equal,
+        }
+    };
+    let mut candidates: Vec<_> = result
+        .versions
+        .get(loader_type)
+        .cloned()
+        .unwrap_or_default();
+    candidates.sort_by(stable_first);
+    candidates
+        .first()
+        .map(|v| v.version.clone())
+        .ok_or_else(|| format!("no {loader_type:?} loader available for MC {mc_version}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -431,6 +533,27 @@ mod tests {
             release_type: 1,
         };
         assert!(cf_file_to_candidate("12345", "Test", f).is_none());
+    }
+
+    #[test]
+    fn t_live_09_parse_loader_type_supported_values() {
+        assert!(matches!(
+            parse_loader_type("fabric"),
+            Ok(ModLoaderType::Fabric)
+        ));
+        assert!(matches!(
+            parse_loader_type("forge"),
+            Ok(ModLoaderType::Forge)
+        ));
+        assert!(matches!(
+            parse_loader_type("neoforge"),
+            Ok(ModLoaderType::NeoForge)
+        ));
+        assert!(matches!(
+            parse_loader_type("quilt"),
+            Ok(ModLoaderType::Quilt)
+        ));
+        assert!(parse_loader_type("optifine").is_err());
     }
 
     #[test]
