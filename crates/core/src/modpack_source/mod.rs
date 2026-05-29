@@ -1,6 +1,7 @@
 pub mod cache;
 pub mod http;
 pub mod manifest;
+pub mod registry;
 pub mod resolver;
 
 pub use cache::{Cache, CacheEntry, CacheError, CacheMeta, Freshness};
@@ -10,6 +11,7 @@ pub use manifest::{
     ModSource, OverlayFile, Pack, PackMod, ReplacementRef, SupportLevel, parse_manifest,
     parse_pack,
 };
+pub use registry::{BUILT_IN_SOURCES, ModpackSource, RegistryError, load_sources};
 pub use resolver::{
     CandidateVersion, ConflictReport, CycleNode, DependencyEdge, DependencyKind, ProjectMeta,
     ReleaseType, ResolutionReport, ResolveError, ResolvedMod, ResolvedStatus, ResolverDataSource,
