@@ -266,6 +266,9 @@ pub enum CurseForgeError {
 
     #[error("CurseForge API key not configured")]
     NoApiKey,
+
+    #[error("CurseForge API rate-limited; retry after {retry_after_secs}s")]
+    RateLimited { retry_after_secs: u64 },
 }
 
 /// Configuration errors.

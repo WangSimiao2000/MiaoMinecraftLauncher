@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::time::Duration;
 
 use crate::error::{CurseForgeError, Result};
 use serde::{Deserialize, Serialize};
@@ -6,6 +7,13 @@ use serde::{Deserialize, Serialize};
 const CF_API_BASE: &str = "https://api.curseforge.com/v1";
 const MINECRAFT_GAME_ID: u32 = 432;
 const MODS_CLASS_ID: u32 = 6;
+
+// Retry policy for CurseForge API per spec §3.6.
+// CF has no documented rate limit but returns HTTP 429 with `Retry-After` in practice
+// (PrismLauncher #5303, itzg/docker-minecraft-server #3251).
+const MAX_RETRIES: u32 = 3;
+const BASE_BACKOFF_MS: u64 = 500;
+const RATE_LIMIT_CAP_SECS: u64 = 60;
 
 pub struct CurseForgeClient {
     http: reqwest::Client,
@@ -23,48 +31,110 @@ impl CurseForgeClient {
         }
     }
 
+    /// Send a single HTTP request and apply CF-specific retry policy.
+    ///
+    /// Retries on 429 (using `Retry-After` header when present, else exponential
+    /// backoff) and 5xx (exponential backoff). All other errors propagate.
+    async fn send_with_retry<F>(&self, build: F) -> Result<reqwest::Response>
+    where
+        F: Fn() -> reqwest::RequestBuilder,
+    {
+        let mut attempt: u32 = 0;
+        loop {
+            let resp = build().header("x-api-key", &self.api_key).send().await?;
+
+            let status = resp.status();
+            if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                if attempt >= MAX_RETRIES {
+                    let secs = parse_retry_after(&resp).unwrap_or(RATE_LIMIT_CAP_SECS);
+                    return Err(CurseForgeError::RateLimited {
+                        retry_after_secs: secs,
+                    }
+                    .into());
+                }
+                let wait = parse_retry_after(&resp)
+                    .map(Duration::from_secs)
+                    .unwrap_or_else(|| backoff_delay(attempt));
+                tracing::debug!(?wait, attempt, "CF 429, sleeping before retry");
+                tokio::time::sleep(wait).await;
+                attempt += 1;
+                continue;
+            }
+
+            if status.is_server_error() {
+                if attempt >= MAX_RETRIES {
+                    return Ok(resp.error_for_status()?);
+                }
+                let wait = backoff_delay(attempt);
+                tracing::debug!(?wait, attempt, status = %status, "CF 5xx, sleeping before retry");
+                tokio::time::sleep(wait).await;
+                attempt += 1;
+                continue;
+            }
+
+            return Ok(resp.error_for_status()?);
+        }
+    }
+
     async fn get_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<T> {
         let resp = self
-            .http
-            .get(url)
-            .header("x-api-key", &self.api_key)
-            .header("Accept", "application/json")
-            .send()
-            .await?
-            .error_for_status()?;
+            .send_with_retry(|| self.http.get(url).header("Accept", "application/json"))
+            .await?;
         let data = resp.json().await?;
         Ok(data)
     }
 
     #[allow(dead_code)]
-    async fn post_json<T: serde::de::DeserializeOwned, B: Serialize + Send>(
+    async fn post_json<T: serde::de::DeserializeOwned, B: Serialize + Send + Sync>(
         &self,
         url: &str,
         body: &B,
     ) -> Result<T> {
+        let body_bytes = serde_json::to_vec(body)
+            .map_err(|e| CurseForgeError::DownloadFailed(format!("serialize request body: {e}")))?;
         let resp = self
-            .http
-            .post(url)
-            .header("x-api-key", &self.api_key)
-            .header("Accept", "application/json")
-            .json(body)
-            .send()
-            .await?
-            .error_for_status()?;
+            .send_with_retry(|| {
+                self.http
+                    .post(url)
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .body(body_bytes.clone())
+            })
+            .await?;
         let data = resp.json().await?;
         Ok(data)
     }
 
     async fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
-        let resp = self
-            .http
-            .get(url)
-            .header("x-api-key", &self.api_key)
-            .send()
-            .await?
-            .error_for_status()?;
+        let resp = self.send_with_retry(|| self.http.get(url)).await?;
         Ok(resp.bytes().await?.to_vec())
     }
+}
+
+/// Parse the `Retry-After` header. Per RFC 7231 it can be either an integer
+/// number of seconds or an HTTP-date. CurseForge sends seconds.
+/// HTTP-date support is best-effort; on parse failure, returns None.
+fn parse_retry_after(resp: &reqwest::Response) -> Option<u64> {
+    let header = resp.headers().get(reqwest::header::RETRY_AFTER)?;
+    let s = header.to_str().ok()?;
+    if let Ok(secs) = s.trim().parse::<u64>() {
+        return Some(secs.min(RATE_LIMIT_CAP_SECS));
+    }
+    // Best-effort HTTP-date parse via chrono.
+    let parsed = chrono::DateTime::parse_from_rfc2822(s.trim()).ok()?;
+    let now = chrono::Utc::now();
+    let delta = parsed.signed_duration_since(now).num_seconds();
+    if delta <= 0 {
+        Some(0)
+    } else {
+        Some((delta as u64).min(RATE_LIMIT_CAP_SECS))
+    }
+}
+
+/// Exponential backoff: 500ms, 2s, 8s capped.
+fn backoff_delay(attempt: u32) -> Duration {
+    let factor = 4u64.saturating_pow(attempt);
+    Duration::from_millis(BASE_BACKOFF_MS.saturating_mul(factor))
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -499,5 +569,85 @@ mod tests {
         let resp: CfPaginatedResponse<CfMod> = serde_json::from_str(json).unwrap();
         assert_eq!(resp.pagination.page_size, 20);
         assert_eq!(resp.pagination.total_count, 0);
+    }
+
+    #[test]
+    fn backoff_delay_is_exponential() {
+        assert_eq!(backoff_delay(0), Duration::from_millis(500));
+        assert_eq!(backoff_delay(1), Duration::from_millis(2_000));
+        assert_eq!(backoff_delay(2), Duration::from_millis(8_000));
+    }
+
+    mod retry_integration {
+        use super::*;
+        use crate::error::MiaoError;
+        use httpmock::prelude::*;
+
+        #[tokio::test]
+        async fn t_http_03_curseforge_429_exhausts_returns_rate_limited() {
+            let server = MockServer::start_async().await;
+            let m = server
+                .mock_async(|when, then| {
+                    when.method(GET).path("/mods/1");
+                    then.status(429).header("Retry-After", "0");
+                })
+                .await;
+
+            let client = CurseForgeClient::new("test-key");
+            let url = server.url("/mods/1");
+            let result: Result<CfResponse<CfMod>> = client.get_json(&url).await;
+
+            assert!(
+                matches!(
+                    &result,
+                    Err(MiaoError::CurseForge(CurseForgeError::RateLimited {
+                        retry_after_secs: 0
+                    }))
+                ),
+                "expected RateLimited, got {:?}",
+                result.as_ref().err()
+            );
+            assert_eq!(m.calls_async().await, (MAX_RETRIES + 1) as usize);
+        }
+
+        #[tokio::test]
+        async fn t_http_04_curseforge_5xx_exhausts_then_surfaces_status_error() {
+            let server = MockServer::start_async().await;
+            let m = server
+                .mock_async(|when, then| {
+                    when.method(GET).path("/mods/2");
+                    then.status(503);
+                })
+                .await;
+
+            let client = CurseForgeClient::new("test-key");
+            let url = server.url("/mods/2");
+            let result: Result<CfResponse<CfMod>> = client.get_json(&url).await;
+
+            let err = result.expect_err("expected error after 5xx exhaustion");
+            let status = match &err {
+                MiaoError::Http(e) => e.status(),
+                MiaoError::CurseForge(CurseForgeError::Api(e)) => e.status(),
+                other => panic!("expected reqwest status error, got {other:?}"),
+            };
+            assert_eq!(status, Some(reqwest::StatusCode::SERVICE_UNAVAILABLE));
+            assert_eq!(m.calls_async().await, (MAX_RETRIES + 1) as usize);
+        }
+
+        #[tokio::test]
+        async fn t_http_05_retry_after_invalid_header_falls_back_to_backoff() {
+            let server = MockServer::start_async().await;
+            let m = server
+                .mock_async(|when, then| {
+                    when.method(GET).path("/mods/3");
+                    then.status(429).header("Retry-After", "not-a-number");
+                })
+                .await;
+
+            let client = CurseForgeClient::new("test-key");
+            let url = server.url("/mods/3");
+            let _ignored: Result<CfResponse<CfMod>> = client.get_json(&url).await;
+            assert_eq!(m.calls_async().await, (MAX_RETRIES + 1) as usize);
+        }
     }
 }
