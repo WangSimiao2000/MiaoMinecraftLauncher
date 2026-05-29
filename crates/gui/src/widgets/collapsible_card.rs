@@ -82,15 +82,28 @@ impl<'a> CollapsibleCard<'a> {
                 egui::FontId::proportional(10.0),
                 theme::Colors::text_muted(),
             );
-            ui.painter().add(egui::Shape::Text(egui::epaint::TextShape {
-                pos: arrow_center - arrow_galley.rect.center().to_vec2(),
+            let galley_center = arrow_galley.rect.center().to_vec2();
+            let mut text_shape = egui::epaint::TextShape {
+                pos: arrow_center - galley_center,
                 galley: arrow_galley,
                 underline: egui::Stroke::NONE,
                 fallback_color: theme::Colors::text_muted(),
                 override_text_color: None,
                 opacity_factor: 1.0,
-                angle: arrow_rotation,
-            }));
+                angle: 0.0,
+            };
+            // Rotate around the visual center of the arrow glyph
+            let pivot = arrow_center;
+            let offset = text_shape.pos - pivot;
+            let cos = arrow_rotation.cos();
+            let sin = arrow_rotation.sin();
+            text_shape.pos = pivot
+                + egui::vec2(
+                    offset.x * cos - offset.y * sin,
+                    offset.x * sin + offset.y * cos,
+                );
+            text_shape.angle = arrow_rotation;
+            ui.painter().add(egui::Shape::Text(text_shape));
 
             let title_pos = header_rect.left_center() + egui::vec2(32.0, 0.0);
             ui.painter().text(
@@ -106,14 +119,35 @@ impl<'a> CollapsibleCard<'a> {
                 ui.ctx().data_mut(|d| d.insert_persisted(self.id, open));
             }
 
-            if openness > 0.0 {
+            {
+                let content_id = self.id.with("content_height");
+                let stored_height: f32 = ui.ctx().data_mut(|d| *d.get_temp_mut_or(content_id, 0.0));
+
+                let visible_height = (stored_height + 14.0) * openness;
                 let inner_margin = egui::Margin::symmetric(14, 0);
-                egui::Frame::NONE.inner_margin(inner_margin).show(ui, |ui| {
-                    ui.set_opacity(openness);
-                    ui.set_max_height(ui.available_height().max(500.0) * openness);
-                    add_body(ui);
-                });
-                ui.add_space(14.0 * openness);
+
+                let where_to_put = ui.cursor();
+                let clip_rect = egui::Rect::from_min_size(
+                    where_to_put.min,
+                    egui::vec2(ui.available_width(), visible_height),
+                );
+                ui.allocate_rect(clip_rect, egui::Sense::hover());
+
+                let mut child_rect = egui::Rect::from_min_size(
+                    where_to_put.min,
+                    egui::vec2(ui.available_width(), stored_height.max(500.0)),
+                );
+                child_rect.min.x += inner_margin.left as f32;
+                child_rect.max.x -= inner_margin.right as f32;
+
+                let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(child_rect));
+                child_ui.set_opacity(openness);
+                child_ui.set_clip_rect(clip_rect.intersect(ui.clip_rect()));
+                add_body(&mut child_ui);
+
+                let actual_height = child_ui.min_rect().height();
+                ui.ctx()
+                    .data_mut(|d| d.insert_temp(content_id, actual_height));
             }
         })
     }
