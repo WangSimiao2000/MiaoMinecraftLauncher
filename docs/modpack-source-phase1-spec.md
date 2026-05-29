@@ -89,7 +89,7 @@
       "mc_versions": ["1.21.1", "1.21.4", "1.21.5"],
       "loader": "fabric",                 // "fabric"|"forge"|"neoforge"|"quilt"
       "support_level": "active",          // "active"|"maintenance"|"archived"
-      "pack_url": "https://raw.githubusercontent.com/mickeymiao/miao-modpacks/main/packs/miao-1.21-base/pack.json"
+      "pack_url": "https://raw.githubusercontent.com/WangSimiao2000/miao-modpacks/main/packs/miao-1.21-base/pack.json"
     }
   ]
 }
@@ -131,7 +131,7 @@
     }
   ],
   "config_overlay": {
-    "base_url": "https://raw.githubusercontent.com/mickeymiao/miao-modpacks/main/packs/miao-1.21-base/config",
+    "base_url": "https://raw.githubusercontent.com/WangSimiao2000/miao-modpacks/main/packs/miao-1.21-base/config",
     "files": [
       {
         "path": "_common/options.txt",    // 相对 base_url 的路径
@@ -482,12 +482,14 @@ Phase 1 **不**给 CLI 加命令。CLI 增量是 Phase 3 的工作（[`modpack-s
 ```rust
 pub const BUILT_IN_SOURCES: &[BuiltInSource] = &[BuiltInSource {
     source_id: "miao",
-    manifest_url: "https://raw.githubusercontent.com/mickeymiao/miao-modpacks/main/manifest.json",
+    manifest_url: "https://raw.githubusercontent.com/WangSimiao2000/miao-modpacks/main/manifest.json",
     is_default: true,
 }];
 ```
 
-URL 是占位，正式部署前由作者确认实际仓库路径再换。**不**用环境变量或运行时配置——Phase 1 只内置一个，后续 Phase 2 加用户自添加源时再走 `<data-dir>/modpack-sources/user.toml`。
+仓库 [`WangSimiao2000/miao-modpacks`](https://github.com/WangSimiao2000/miao-modpacks) 已建立，初版 fixture 包 `miao-1.21-base-test`（Sodium + Fabric API + REI，1.21.4 / 1.21.5）已推送 main，作为 Phase 1 实施期间的 end-to-end 验证素材。**不**用环境变量或运行时配置——Phase 1 只内置一个，后续 Phase 2 加用户自添加源时再走 `<data-dir>/modpack-sources/user.toml`。
+
+进入 Phase 2 之前，作者需在 `miao-modpacks` 仓库新增正式整合包（如 `miao-1.21-base`「米奇喵 1.21 基础美化包」），到时把 manifest.json 的 packs 列表加项即可，**MMCL 端无需改动**。
 
 ---
 
