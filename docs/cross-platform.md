@@ -18,8 +18,8 @@ done at the CI/release level.
 | Per-monitor DPI awareness on Windows | `crates/gui/src/main.rs` | ✅ Implemented |
 | CI Windows build | `.github/workflows/ci.yml`, `release.yml` | ✅ Implemented |
 | CI Linux build + AppImage | `.github/workflows/release.yml` | ✅ Implemented |
-| CI macOS build | — | ⬜ Pending |
-| Released CLI binary on Windows | `.github/workflows/release.yml` | ⬜ Pending (only `miao-gui.exe` shipped) |
+| CI macOS build | `.github/workflows/release.yml` | ✅ Implemented (x86_64 + aarch64, .app bundle) |
+| Released CLI binary on Windows | `.github/workflows/release.yml` | ✅ Implemented (`mmcl-cli-windows-x86_64.exe`) |
 
 ## Implementation Details
 
@@ -125,17 +125,21 @@ separate platform branch is needed in `install.rs`.
 
 - `ci.yml` — Linux build + clippy + tests; `check-windows` job keeps
   Windows compilation green on every push.
-- `release.yml` — On `v*` tag push: `build-linux` (CLI binary +
-  AppImage), `build-windows` (`miao-gui.exe`), and a `release` job that
-  publishes both to GitHub Releases.
+- `release.yml` — On `v*` tag push:
+  - `build-linux` — CLI binary + AppImage
+  - `build-windows` — `miao-gui.exe` + `mmcl-cli-windows-x86_64.exe`
+  - `build-macos` — matrix over `x86_64-apple-darwin` (macos-13) and
+    `aarch64-apple-darwin` (macos-14). Each runner produces a tarred
+    `.app` bundle plus a bare CLI binary.
+  - `release` — collects all artifacts and creates the GitHub Release.
 
 ### Outstanding CI Work
 
 | Item | Effort | Notes |
 |------|--------|-------|
-| macOS build in CI | ~0.5 day | Add `macos-latest` to release matrix; verify `eframe` + bundled fonts; produce `.app` bundle |
-| Ship CLI binary on Windows | trivial | Currently only `miao-gui.exe` is uploaded; `miao.exe` already builds |
 | `cargo-dist` / unified packaging | unscoped | Long-term, replace per-OS shell snippets |
+| macOS notarization / code signing | unscoped | Unsigned `.app` bundle currently triggers Gatekeeper warning |
+| Windows code signing | unscoped | Unsigned binaries trigger SmartScreen warning |
 
 ## Dependencies (cross-platform notes)
 

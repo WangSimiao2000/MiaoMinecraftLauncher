@@ -236,8 +236,7 @@ main.rs (入口)
 | 22 | 自定义离线皮肤 | 1 天 | 无 |
 | 23 | 自动备份存档 | 1 天 | 无 |
 | 24 | 实例克隆/复制 | 0.5 天 | 无 |
-| 25 | macOS CI 构建 + .app bundle | 0.5 天 | 代码层已支持，仅缺 release.yml 中的 macOS 矩阵和 .app 打包 |
-| 26 | 联机穿透 (P2P) | 5+ 天 | 复杂度极高 |
+| 25 | 联机穿透 (P2P) | 5+ 天 | 复杂度极高 |
 
 ---
 
@@ -245,12 +244,12 @@ main.rs (入口)
 
 | 项目 | 状态 | 描述 |
 |------|------|------|
-| CI 跨平台矩阵 | 🔧 | Linux + Windows 已完成（`ci.yml` 的 `check-windows`、`release.yml` 的 `build-windows`），macOS 待加 |
-| CLI 集成测试 | ⬜ | 用 assert_cmd 测试命令行 |
+| CI 跨平台矩阵 | ✅ | Linux + Windows + macOS (x86_64 + aarch64) 全部进 release.yml；macOS 产出 .app bundle |
+| CLI 集成测试 | ✅ | `crates/cli/tests/cli.rs` 用 assert_cmd，12 个测试，沙箱化 XDG/APPDATA |
 | 去除 async-trait/async-recursion | ✅ | nightly 原生 async fn in trait |
 | Dead code 清理 (theme.rs) | ✅ | 已清理 |
-| MS_CLIENT_ID 环境变量化 | ⬜ | 安全性改善 |
-| 日志系统 (tracing) | ⬜ | GUI 目前无结构化日志 |
+| MS_CLIENT_ID 环境变量化 | ✅ | `option_env!("MS_CLIENT_ID")` + 默认值 fallback，对齐 CURSEFORGE_API_KEY |
+| 日志系统 (tracing) | ✅ | GUI: stderr + 每日滚动文件 (`<data_dir>/logs/mmcl.log.*`) + panic hook |
 | 升级 eframe 0.30 → 0.34+ | ✅ | 已升级到 egui 0.34 |
 | 动画系统 | ✅ | Spring 物理 + MD3 easing + egui_animation |
 | self_update 集成 | ✅ | 替代手写二进制替换逻辑 |

@@ -251,20 +251,48 @@ Config and data directories are determined by `dirs::config_dir()` / `dirs::data
 | Zip | zip | Mrpack modpack handling |
 | Self-Update | self_update | Atomic binary replacement with rollback |
 
-## Build-time API Keys
+## Build-time Secrets
 
-The launcher uses third-party APIs that require keys. These are injected at compile time via environment variables and fall back to empty string (feature disabled) if not set.
+The launcher uses third-party services that need a key or client id. Both are
+injected at compile time via `option_env!` and fall back to a hardcoded
+default if the env var is not set or empty. This keeps `cargo build` working
+out of the box for contributors while letting CI release builds inject
+production credentials.
 
-| Variable | Service | How to obtain |
-|----------|---------|---------------|
-| `CURSEFORGE_API_KEY` | CurseForge mod search/install | Register at [console.curseforge.com](https://console.curseforge.com), create a project, copy the API key |
+| Variable | Service | Default behavior | How to obtain |
+|----------|---------|------------------|---------------|
+| `CURSEFORGE_API_KEY` | CurseForge mod search/install | Falls back to a public key shipped with the source, override per-user via Settings > Data | Register at [console.curseforge.com](https://console.curseforge.com), create a project, copy the API key |
+| `MS_CLIENT_ID` | Microsoft OAuth (Xbox Live → Minecraft) login | Falls back to the upstream MMCL Azure App registration | Register an Azure app at [portal.azure.com](https://portal.azure.com) → App registrations → "MMCL fork" → Authentication → add public client redirect → copy the Application (client) ID |
 
 Build with keys:
 
 ```bash
-CURSEFORGE_API_KEY="$2a$10$..." cargo build --release
+CURSEFORGE_API_KEY="$2a$10$..." \
+MS_CLIENT_ID="00000000-0000-0000-0000-000000000000" \
+  cargo build --release
 ```
 
-Users can also override the built-in key in Settings > Data > CurseForge API Key.
+Forks publishing their own builds **should** override `MS_CLIENT_ID` so user
+auth tokens are scoped to their own Azure app, not the upstream MMCL one.
+Users can also override `curseforge_api_key` at runtime via Settings.
 
-If no key is provided at build time and the user doesn't set one, CurseForge features are disabled (Modrinth still works without any key).
+If no `CURSEFORGE_API_KEY` is provided at build time and the user doesn't set
+one, CurseForge falls back to the bundled default. If neither is valid the
+search will return a 401 and the UI will surface that to the user. Modrinth
+works without any key.
+
+## Logging
+
+Both the CLI and the GUI initialize `tracing-subscriber` at startup. Logs go
+to two destinations:
+
+| Sink | CLI | GUI | Default level |
+|------|-----|-----|---------------|
+| stderr | ✅ | ✅ | `warn` (CLI), `info` (GUI) |
+| `<data_dir>/logs/mmcl.log.<YYYY-MM-DD>` (daily-rolled) | — | ✅ | `info` |
+
+Use the standard `RUST_LOG` env var to override
+(e.g. `RUST_LOG=miao_gui=debug,miao_core=debug`). The GUI also installs a
+panic hook that funnels panics through `tracing::error!` before re-raising,
+so unexpected crashes leave a record in the log file even when stderr was
+not visible (Windows GUI subsystem has no console).

@@ -2,10 +2,10 @@
 
 ## Overview
 
-- **274 tests** across the workspace (241 core unit + 33 integration)
+- **313 tests** across the workspace (268 core unit + 12 CLI integration + 27 core integration + 6 GUI controller integration)
 - **Core coverage**: ~67% raw / ~82% of testable code
 - Framework: Rust built-in `#[test]` + `#[tokio::test]`
-- Dev dependencies: `tempfile`, `tokio`
+- Dev dependencies: `tempfile`, `tokio`, `assert_cmd`, `predicates`
 
 ## Test Organization
 
@@ -55,6 +55,18 @@ Located alongside source code in each module. Major test concentrations:
 | File | Tests | Description |
 |------|-------|-------------|
 | `controller_tests.rs` | 6 | Controller event loop, command dispatch, graceful shutdown, parallel task API |
+
+### CLI Integration Tests (`crates/cli/tests/`)
+
+| File | Tests | Description |
+|------|-------|-------------|
+| `cli.rs` | 12 | Subcommand discovery, version flag, argument parsing, account creation, isolated config |
+
+CLI tests use `assert_cmd` to spawn the compiled `miao` binary and override
+`HOME`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `APPDATA`, and `LOCALAPPDATA`
+per-test so the test process **never** touches the developer's real config
+directory. Each test gets a fresh `tempfile::tempdir()` as its sandbox. No
+network calls are made in the CLI integration suite.
 
 ## Mocking Pattern
 
