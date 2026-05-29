@@ -7,7 +7,12 @@ use uuid::Uuid;
 
 pub use authlib_injector::AuthlibInjectorAccount;
 
-pub const MS_CLIENT_ID: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
+const MS_CLIENT_ID_DEFAULT: &str = "d3bbcbda-1e98-4ccd-9fc7-b107f30a5af8";
+
+pub const MS_CLIENT_ID: &str = match option_env!("MS_CLIENT_ID") {
+    Some(s) if !s.is_empty() => s,
+    _ => MS_CLIENT_ID_DEFAULT,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum SkinModel {
@@ -172,6 +177,15 @@ mod tests {
         assert_eq!(auth.access_token(), "token123");
         assert!(auth.is_microsoft());
         assert!(!auth.is_offline());
+    }
+
+    #[test]
+    fn ms_client_id_resolves_to_non_empty() {
+        assert!(!MS_CLIENT_ID.is_empty());
+        match option_env!("MS_CLIENT_ID") {
+            Some(s) if !s.is_empty() => assert_eq!(MS_CLIENT_ID, s),
+            _ => assert_eq!(MS_CLIENT_ID, MS_CLIENT_ID_DEFAULT),
+        }
     }
 
     #[test]
