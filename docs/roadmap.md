@@ -252,5 +252,5 @@ main.rs (入口)
 | 日志系统 (tracing) | ✅ | GUI: stderr + 每日滚动文件 (`<data_dir>/logs/mmcl.log.*`) + panic hook |
 | 升级 eframe 0.30 → 0.34+ | ✅ | 已升级到 egui 0.34 |
 | 动画系统 | ✅ | Spring 物理 + MD3 easing + egui_animation |
-| self_update 集成 | ✅ | 替代手写二进制替换逻辑 |
+| 自动替换二进制 (self_update) | ❌ | 移除：代码从未接入 UI，三平台一致用"跳浏览器手动下"流程；macOS .app bundle 替换需要 Sparkle/Tauri-style 实现，未来再考虑 |
 | 全局动效覆盖 | ✅ | 所有交互组件 hover/select/transition 有动效 |

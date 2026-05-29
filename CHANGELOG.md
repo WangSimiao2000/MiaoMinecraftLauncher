@@ -20,6 +20,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **GUI structured logging**: `miao-gui` now initializes `tracing-subscriber` at startup with two sinks — colored stderr (level `info`) and a daily-rolled file appender at `<data_dir>/logs/mmcl.log.<YYYY-MM-DD>`. A panic hook routes panics through `tracing::error!` before re-raising, so Windows users (whose `windows_subsystem = "windows"` builds have no console) still get crash diagnostics on disk. Override the default filter with `RUST_LOG=miao_gui=debug` etc.
 - **CLI integration tests** (`crates/cli/tests/cli.rs`): 12 `assert_cmd` tests cover `--version`, `--help`, subcommand discovery, argument parsing, account creation, and isolation via `XDG_CONFIG_HOME` so the tests never touch the user's real config.
 
+### Removed
+
+- **Dead self-update implementation** (`crates/core/src/update/`): the entire 256-line module had zero callers — the GUI's update flow uses an inline 11-line GitHub API check in `gui/src/controller/versions.rs::handle_check_updates`, and the *Download* button in Settings > About opens the Releases page in the browser. The `apply_update` / `download_update` / `perform_self_update` helpers were never wired into either frontend, so users have always been on the manual-download flow regardless of platform. Removing the dead code also drops the `self_update` crate dependency (and its transitive `indicatif` / `quick-xml` / `self-replace` / `urlencoding` chain). A future automatic-replacement implementation will need to handle macOS `.app` bundles (Sparkle/Tauri-style) anyway, so the prior single-file replacement code wouldn't have applied.
+
 ## [0.2.0-beta.4] - 2026-05-29
 
 ### Added

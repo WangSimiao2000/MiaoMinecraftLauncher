@@ -18,7 +18,7 @@
 
 | Crate | Role |
 |-------|------|
-| `miao-core` | Core library: auth, version management, downloads, instance management, Java detection, mod loader support, Modrinth/CurseForge integration, crash analysis, self-update |
+| `miao-core` | Core library: auth, version management, downloads, instance management, Java detection, mod loader support, Modrinth/CurseForge integration, crash analysis |
 | `miao-cli` | CLI entry point with subcommands |
 | `miao-gui` | Graphical UI using egui/eframe, with custom animation system (spring physics + MD3 easing) |
 
@@ -114,12 +114,13 @@
 - Identify suspected mods with confidence levels (High/Medium/Low)
 - Generate fix suggestions based on crash category
 
-### Self-Update (`update`)
+### Update Notification
 
-- Check GitHub Releases for new versions
-- Platform-specific asset selection (OS × arch)
-- Atomic binary replacement via `self_update` crate (handles Windows file-locking)
-- One-shot `perform_self_update()` for blocking update flow
+The GUI polls the GitHub Releases API on startup
+([`gui/src/controller/versions.rs::handle_check_updates`](../crates/gui/src/controller/versions.rs))
+and surfaces a banner in Settings > About when the latest tag does not match
+the embedded `CARGO_PKG_VERSION`. Clicking *Download* opens the Releases
+page in the default browser; the launcher does not replace its own binary.
 
 ### Mod Management (`modmanager`)
 
@@ -249,7 +250,7 @@ Config and data directories are determined by `dirs::config_dir()` / `dirs::data
 | Serialization | serde + toml/json | Standard Rust serialization |
 | Hashing | sha1/sha2 | Download integrity verification |
 | Zip | zip | Mrpack modpack handling |
-| Self-Update | self_update | Atomic binary replacement with rollback |
+
 
 ## Build-time Secrets
 

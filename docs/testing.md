@@ -2,7 +2,7 @@
 
 ## Overview
 
-- **313 tests** across the workspace (268 core unit + 12 CLI integration + 27 core integration + 6 GUI controller integration)
+- **310 tests** across the workspace (265 core unit + 12 CLI integration + 27 core integration + 6 GUI controller integration)
 - **Core coverage**: ~67% raw / ~82% of testable code
 - Framework: Rust built-in `#[test]` + `#[tokio::test]`
 - Dev dependencies: `tempfile`, `tokio`, `assert_cmd`, `predicates`

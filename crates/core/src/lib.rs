@@ -18,5 +18,4 @@ pub mod resource;
 pub mod server_list;
 pub mod service;
 pub mod skin;
-pub mod update;
 pub mod version;

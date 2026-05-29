@@ -150,4 +150,3 @@ separate platform branch is needed in `install.rs`.
 | `open` | Cross-platform; opens URLs / paths in the OS default handler |
 | `dirs` | Cross-platform user directory resolution |
 | `rfd` | Cross-platform native file dialogs |
-| `self_update` | Atomic binary replacement; handles Windows file-locking quirks |

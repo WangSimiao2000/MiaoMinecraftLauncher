@@ -8,7 +8,7 @@ A feature-rich Minecraft launcher built in Rust — fast, native, and open sourc
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-nightly-orange.svg)](rust-toolchain.toml)
-[![Tests](https://img.shields.io/badge/Tests-313%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/Tests-310%20passing-brightgreen.svg)](#development)
 
 </div>
 
@@ -43,7 +43,7 @@ A feature-rich Minecraft launcher built in Rust — fast, native, and open sourc
 | **Downloads** | BMCLAPI mirror, multi-source failover, concurrent downloads |
 | **Auth** | Microsoft OAuth device-code flow, offline mode, authlib-injector (LittleSkin, etc.) |
 | **Diagnostics** | Crash-report & log parsing with mod-level identification |
-| **Updates** | Self-update from GitHub Releases |
+| **Updates** | New-version notifications via GitHub Releases (one-click jump to download page) |
 | **Resources** | Resource packs, shader packs, world saves |
 | **i18n** | External JSON locale files — community-contributed translations without code changes |
 
@@ -109,7 +109,7 @@ See [`docs/architecture.md`](docs/architecture.md) for detailed module documenta
 | Animation | egui_animation + custom Spring physics |
 | CLI | clap (derive) |
 | Serialization | serde + toml / json |
-| Self-Update | self_update (GitHub Releases) |
+| Update Check | GitHub Releases API (manual download) |
 | Font | MiSans Medium (bundled) |
 | Icons | Bootstrap Icons (bundled TTF) |
 
@@ -153,7 +153,6 @@ Users can also hot-reload new translations at runtime via Settings > Appearance 
 | [reqwest](https://github.com/seanmonstar/reqwest) | MIT OR Apache-2.0 | seanmonstar |
 | [serde](https://github.com/serde-rs/serde) | MIT OR Apache-2.0 | David Tolnay |
 | [clap](https://github.com/clap-rs/clap) | MIT OR Apache-2.0 | Kevin K. |
-| [self_update](https://github.com/jaemk/self_update) | MIT | jaemk |
 | [egui_animation](https://github.com/lucasmerlin/hello_egui) | MIT | lucasmerlin |
 | [MiSans](https://hyperos.mi.com/font/en) | SIL OFL 1.1 | Xiaomi |
 | [Bootstrap Icons](https://icons.getbootstrap.com/) | MIT | The Bootstrap Authors |

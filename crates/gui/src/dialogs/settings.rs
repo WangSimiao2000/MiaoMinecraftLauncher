@@ -1625,10 +1625,6 @@ impl MiaoApp {
                     "https://github.com/clap-rs/clap",
                 ),
                 (
-                    "self_update — jaemk (MIT)",
-                    "https://github.com/jaemk/self_update",
-                ),
-                (
                     "egui_animation — lucasmerlin (MIT)",
                     "https://github.com/lucasmerlin/hello_egui",
                 ),
