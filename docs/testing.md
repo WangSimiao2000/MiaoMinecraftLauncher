@@ -2,7 +2,7 @@
 
 ## Overview
 
-- **310 tests** across the workspace (265 core unit + 12 CLI integration + 27 core integration + 6 GUI controller integration; 5 of the GUI controller tests are `#[ignore]`'d as they hit live network endpoints, so default `cargo test` runs 305)
+- **315 tests** across the workspace (270 core unit + 12 CLI integration + 27 core integration + 6 GUI controller integration; 5 of the GUI controller tests are `#[ignore]`'d as they hit live network endpoints, so default `cargo test` runs 310)
 - **Core coverage**: ~67% raw / ~82% of testable code
 - Framework: Rust built-in `#[test]` + `#[tokio::test]`
 - Dev dependencies: `tempfile`, `tokio`, `assert_cmd`, `predicates`

@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **macOS: detect system-installed JDKs**. The Java scanner only looked for `<entry>/bin/java`, but macOS JDKs are packaged as `.jdk` bundles whose binary lives at `<entry>/Contents/Home/bin/java`. As a result, every JDK installed via Adoptium / Microsoft / Oracle / Apple `.pkg` (i.e. the standard macOS install path) was invisible and the GUI offered to download Java even when one was already installed. `java_bin_under` now checks both layouts.
+- **macOS: extend Java search paths** to cover Homebrew (`/opt/homebrew/opt`, `/opt/homebrew/Cellar`, `/usr/local/opt`, `/usr/local/Cellar`), the legacy Internet Plug-Ins Java location, the user's `~/Library/Java/JavaVirtualMachines`, and SDKMAN (`~/.sdkman/candidates/java`). The directory walker is now bounded by `max_depth=4` to handle Homebrew Cellar's nested layout (`<formula>/<version>/libexec/openjdk.jdk`) without runaway scans into unrelated trees.
+
 ## [0.2.0-beta.5] - 2026-05-29
 
 ### Added

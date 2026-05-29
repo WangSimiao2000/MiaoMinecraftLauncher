@@ -128,10 +128,21 @@ fn system_java_search_paths() -> Vec<String> {
             "/usr/local/lib/jvm".to_string(),
             "/usr/java".to_string(),
         ],
-        "macos" => vec![
-            "/Library/Java/JavaVirtualMachines".to_string(),
-            "/usr/local/opt/openjdk".to_string(),
-        ],
+        "macos" => {
+            let mut paths = vec![
+                "/Library/Java/JavaVirtualMachines".to_string(),
+                "/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Home".to_string(),
+                "/opt/homebrew/opt".to_string(),
+                "/opt/homebrew/Cellar".to_string(),
+                "/usr/local/opt".to_string(),
+                "/usr/local/Cellar".to_string(),
+            ];
+            if let Ok(home) = std::env::var("HOME") {
+                paths.push(format!("{}/.sdkman/candidates/java", home));
+                paths.push(format!("{}/Library/Java/JavaVirtualMachines", home));
+            }
+            paths
+        }
         "windows" => {
             let mut paths = vec![
                 "C:\\Program Files\\Java".to_string(),
@@ -173,21 +184,56 @@ pub fn java_binary_name() -> &'static str {
     }
 }
 
+/// Returns the `bin/java` path for a JDK/JRE rooted at `entry`, if one exists.
+///
+/// Layouts handled:
+/// - `<entry>/bin/java` — Linux distros, Windows, raw extracted JDKs, SDKMAN.
+/// - `<entry>/Contents/Home/bin/java` — macOS `.jdk` / `.jre` bundles
+///   (`/Library/Java/JavaVirtualMachines/<x>.jdk`, Homebrew's
+///   `<prefix>/opt/openjdk*/libexec/openjdk.jdk`, etc.).
+fn java_bin_under(entry: &Path) -> Option<PathBuf> {
+    let direct = entry.join("bin").join(java_binary_name());
+    if direct.exists() {
+        return Some(direct);
+    }
+    let bundle = entry
+        .join("Contents")
+        .join("Home")
+        .join("bin")
+        .join(java_binary_name());
+    if bundle.exists() {
+        return Some(bundle);
+    }
+    None
+}
+
 fn detect_java_recursive(base: &Path) -> Vec<JavaInstallation> {
+    detect_java_with_depth(base, 16)
+}
+
+/// Walk `base` looking for JDKs, bounded by `max_depth` to avoid runaway
+/// scans into unrelated trees (`/Library`, `/usr/local/Cellar/...`).
+///
+/// A "JDK" is any directory recognized by [`java_bin_under`]. If a directory
+/// hits, we record it and stop descending into it; otherwise we descend.
+/// Example: 4 layers covers `/usr/local/Cellar/<formula>/<version>/libexec/openjdk.jdk`.
+fn detect_java_with_depth(base: &Path, max_depth: usize) -> Vec<JavaInstallation> {
     let mut installations = Vec::new();
+    if max_depth == 0 {
+        return installations;
+    }
     let Ok(entries) = std::fs::read_dir(base) else {
         return installations;
     };
 
     for entry in entries.flatten() {
         let path = entry.path();
-        let java_bin = path.join("bin").join(java_binary_name());
-        if java_bin.exists() {
+        if let Some(java_bin) = java_bin_under(&path) {
             if let Ok(info) = probe_java(&java_bin) {
                 installations.push(info);
             }
         } else if path.is_dir() {
-            installations.extend(detect_java_recursive(&path));
+            installations.extend(detect_java_with_depth(&path, max_depth - 1));
         }
     }
     installations
@@ -201,17 +247,7 @@ pub fn detect_java_in_paths(search_paths: &[&str]) -> Vec<JavaInstallation> {
         if !base_path.exists() {
             continue;
         }
-
-        if let Ok(entries) = std::fs::read_dir(&base_path) {
-            for entry in entries.flatten() {
-                let java_bin = entry.path().join("bin").join(java_binary_name());
-                if java_bin.exists()
-                    && let Ok(info) = probe_java(&java_bin)
-                {
-                    installations.push(info);
-                }
-            }
-        }
+        installations.extend(detect_java_with_depth(&base_path, 4));
     }
 
     installations.sort_by_key(|j| j.major_version);
@@ -620,5 +656,59 @@ mod tests {
         std::fs::create_dir_all(&java_dir).unwrap();
         let result = detect_java_with_data_dir(tmp.path());
         assert!(result.iter().all(|j| !j.path.starts_with(&java_dir)));
+    }
+
+    fn touch_fake_java(dir: &Path) -> PathBuf {
+        std::fs::create_dir_all(dir).unwrap();
+        let bin = dir.join(java_binary_name());
+        std::fs::write(&bin, b"").unwrap();
+        bin
+    }
+
+    #[test]
+    fn java_bin_under_finds_direct_layout() {
+        let tmp = tempfile::tempdir().unwrap();
+        let bin = touch_fake_java(&tmp.path().join("bin"));
+        assert_eq!(java_bin_under(tmp.path()), Some(bin));
+    }
+
+    #[test]
+    fn java_bin_under_finds_macos_bundle_layout() {
+        let tmp = tempfile::tempdir().unwrap();
+        let bin = touch_fake_java(&tmp.path().join("Contents").join("Home").join("bin"));
+        assert_eq!(java_bin_under(tmp.path()), Some(bin));
+    }
+
+    #[test]
+    fn java_bin_under_prefers_direct_over_bundle() {
+        let tmp = tempfile::tempdir().unwrap();
+        let direct = touch_fake_java(&tmp.path().join("bin"));
+        touch_fake_java(&tmp.path().join("Contents").join("Home").join("bin"));
+        assert_eq!(java_bin_under(tmp.path()), Some(direct));
+    }
+
+    #[test]
+    fn java_bin_under_returns_none_for_directory_without_java() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join("bin")).unwrap();
+        assert_eq!(java_bin_under(tmp.path()), None);
+    }
+
+    #[test]
+    fn macos_search_paths_include_bundle_locations() {
+        if std::env::consts::OS != "macos" {
+            return;
+        }
+        let paths = system_java_search_paths();
+        assert!(
+            paths
+                .iter()
+                .any(|p| p == "/Library/Java/JavaVirtualMachines")
+        );
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.ends_with("/opt") || p.ends_with("/Cellar"))
+        );
     }
 }
