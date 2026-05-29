@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod instance;
 pub mod java;
+pub mod modpack_source;
 pub mod mods;
 pub mod versions;
 
@@ -90,6 +91,38 @@ async fn controller_loop(
             }
             AppCommand::ImportMrpack { task_id, config } => {
                 instance::handle_import_mrpack(task_id, config, event_tx.clone(), ctx.clone());
+            }
+            AppCommand::FetchModpackManifest {
+                source_id,
+                manifest_url,
+            } => {
+                modpack_source::handle_fetch_manifest(
+                    source_id,
+                    manifest_url,
+                    event_tx.clone(),
+                    ctx.clone(),
+                );
+            }
+            AppCommand::InstallModpack {
+                source_id,
+                pack_id,
+                pack_url,
+                mc_version,
+                loader,
+                instance_name,
+                config,
+            } => {
+                modpack_source::handle_install_modpack(
+                    source_id,
+                    pack_id,
+                    pack_url,
+                    mc_version,
+                    loader,
+                    instance_name,
+                    config,
+                    event_tx.clone(),
+                    ctx.clone(),
+                );
             }
             AppCommand::StartMsLogin { client_id, config } => {
                 auth::handle_ms_login(client_id, config, event_tx.clone(), ctx.clone());

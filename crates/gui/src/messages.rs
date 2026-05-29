@@ -43,6 +43,21 @@ pub enum AppCommand {
         config: LauncherConfig,
     },
 
+    // ── Modpack source ──
+    FetchModpackManifest {
+        source_id: String,
+        manifest_url: String,
+    },
+    InstallModpack {
+        source_id: String,
+        pack_id: String,
+        pack_url: String,
+        mc_version: String,
+        loader: String,
+        instance_name: String,
+        config: LauncherConfig,
+    },
+
     // ── Auth ──
     StartMsLogin {
         client_id: String,
@@ -177,6 +192,24 @@ pub enum AppEvent {
     },
     InstallFinished {
         task_id: String,
+        success: bool,
+        message: String,
+    },
+
+    // ── Modpack source ──
+    ModpackManifestFetched {
+        source_id: String,
+        manifest: miao_core::modpack_source::Manifest,
+    },
+    ModpackManifestFailed {
+        source_id: String,
+        error: String,
+    },
+    ModpackInstallFinished {
+        #[allow(dead_code)]
+        source_id: String,
+        #[allow(dead_code)]
+        pack_id: String,
         success: bool,
         message: String,
     },

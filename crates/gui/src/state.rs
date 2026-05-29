@@ -173,6 +173,14 @@ pub struct NewInstanceInput {
     pub version_idx: usize,
     pub loader: usize,
     pub loader_version_idx: usize,
+    pub mode: NewInstanceMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NewInstanceMode {
+    #[default]
+    Custom,
+    Modpack,
 }
 
 impl NewInstanceInput {

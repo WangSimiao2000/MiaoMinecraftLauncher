@@ -23,7 +23,8 @@ use crate::platform;
 pub use crate::state::{
     AuthUiState, CfPendingInstall, CfSearchState, DetailTab, Dialog, GameLogState, I18n,
     InstallProgress, InstanceSettingsEdit, LoaderUiState, ModSearchState, ModSource,
-    ModpackSourceState, NewInstanceInput, PendingInstall, SettingsTab, VersionsUiState,
+    ModpackSourceState, NewInstanceInput, NewInstanceMode, PendingInstall, SettingsTab,
+    VersionsUiState,
 };
 use crate::theme;
 use crate::toast::ToastQueue;
@@ -347,6 +348,37 @@ impl MiaoApp {
                         }
                     } else {
                         self.toasts.error(&message);
+                    }
+                }
+                AppEvent::ModpackManifestFetched {
+                    source_id,
+                    manifest,
+                } => {
+                    self.modpack_source.manifest_loading = false;
+                    self.modpack_source.manifest_error = None;
+                    self.modpack_source.current_source_id = Some(source_id);
+                    self.modpack_source.manifest = Some(manifest);
+                    self.modpack_source.selected_pack_idx = None;
+                    self.modpack_source.selected_mc_version = None;
+                }
+                AppEvent::ModpackManifestFailed { source_id, error } => {
+                    self.modpack_source.manifest_loading = false;
+                    self.modpack_source.current_source_id = Some(source_id);
+                    self.modpack_source.manifest_error = Some(error.clone());
+                    self.toasts.error(format!("Modpack manifest: {error}"));
+                }
+                AppEvent::ModpackInstallFinished {
+                    success, message, ..
+                } => {
+                    self.status = message.clone();
+                    if success {
+                        self.toasts.success(&message);
+                        self.instances = instance::list_instances(&self.config.instances_dir())
+                            .unwrap_or_default();
+                        self.selected_instance = Some(self.instances.len().saturating_sub(1));
+                        self.active_tab = DetailTab::Mods;
+                    } else {
+                        self.toasts.error(format!("Modpack install: {message}"));
                     }
                 }
                 AppEvent::DeviceCode(dc) => {

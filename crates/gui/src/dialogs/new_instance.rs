@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use crate::app::{Dialog, I18n, MiaoApp};
+use crate::app::{Dialog, I18n, MiaoApp, NewInstanceMode};
 use crate::theme;
 
 impl MiaoApp {
@@ -77,6 +77,38 @@ impl MiaoApp {
                     });
                 });
                 ui.add_space(12.0);
+
+                ui.horizontal(|ui| {
+                    let custom_selected = self.new_instance.mode == NewInstanceMode::Custom;
+                    let modpack_selected = self.new_instance.mode == NewInstanceMode::Modpack;
+                    if ui
+                        .selectable_label(
+                            custom_selected,
+                            I18n::t(&lang, "new_instance_tab_custom"),
+                        )
+                        .clicked()
+                    {
+                        self.new_instance.mode = NewInstanceMode::Custom;
+                    }
+                    if ui
+                        .selectable_label(
+                            modpack_selected,
+                            I18n::t(&lang, "new_instance_tab_modpack"),
+                        )
+                        .clicked()
+                    {
+                        self.new_instance.mode = NewInstanceMode::Modpack;
+                    }
+                });
+                ui.add_space(8.0);
+
+                if self.new_instance.mode == NewInstanceMode::Modpack {
+                    self.render_modpack_tab(ui, &lang, &mut open);
+                    if !open {
+                        self.active_dialog = Dialog::None;
+                    }
+                    return;
+                }
 
                 ui.label(theme::small(I18n::t(&lang, "instance_name")));
                 ui.add_space(3.0);
