@@ -2,7 +2,7 @@
 
 ## Overview
 
-- **310 tests** across the workspace (265 core unit + 12 CLI integration + 27 core integration + 6 GUI controller integration)
+- **310 tests** across the workspace (265 core unit + 12 CLI integration + 27 core integration + 6 GUI controller integration; 5 of the GUI controller tests are `#[ignore]`'d as they hit live network endpoints, so default `cargo test` runs 305)
 - **Core coverage**: ~67% raw / ~82% of testable code
 - Framework: Rust built-in `#[test]` + `#[tokio::test]`
 - Dev dependencies: `tempfile`, `tokio`, `assert_cmd`, `predicates`
@@ -55,6 +55,14 @@ Located alongside source code in each module. Major test concentrations:
 | File | Tests | Description |
 |------|-------|-------------|
 | `controller_tests.rs` | 6 | Controller event loop, command dispatch, graceful shutdown, parallel task API |
+
+Five of the six controller tests hit live Mojang / Fabric / Forge / Modrinth /
+GitHub endpoints and are marked `#[ignore]` so the default `cargo test`
+doesn't fail on transient network issues. The CI `integration` job runs
+them explicitly with `cargo test -p miao-gui --test controller_tests --
+--ignored` and is allowed to fail on network blips. The remaining test
+(`cancel_task_when_no_active_task_is_noop`) is purely local and runs by
+default.
 
 ### CLI Integration Tests (`crates/cli/tests/`)
 

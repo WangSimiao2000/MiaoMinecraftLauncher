@@ -53,6 +53,7 @@ fn drain_events_blocking(
 }
 
 #[test]
+#[ignore = "hits live Mojang endpoint; integration job runs with --ignored"]
 fn version_manifest_fetch_produces_event() {
     let (rt, mut controller) = setup();
 
@@ -78,6 +79,7 @@ fn version_manifest_fetch_produces_event() {
 }
 
 #[test]
+#[ignore = "hits live Fabric/Forge maven endpoints; integration job runs with --ignored"]
 fn loader_versions_fetch_produces_event() {
     let (rt, mut controller) = setup();
 
@@ -104,6 +106,7 @@ fn loader_versions_fetch_produces_event() {
 }
 
 #[test]
+#[ignore = "hits live GitHub API; integration job runs with --ignored"]
 fn check_for_updates_produces_event_or_nothing() {
     let (rt, mut controller) = setup();
 
@@ -135,6 +138,7 @@ fn cancel_task_when_no_active_task_is_noop() {
 }
 
 #[test]
+#[ignore = "hits live Modrinth API; integration job runs with --ignored"]
 fn mod_search_produces_results_or_error() {
     let (rt, mut controller) = setup();
 
@@ -158,6 +162,7 @@ fn mod_search_produces_results_or_error() {
 }
 
 #[test]
+#[ignore = "fetches version manifest before validating; integration job runs with --ignored"]
 fn create_instance_with_invalid_version_fails() {
     let (rt, mut controller) = setup();
     let tmp = tempfile::tempdir().unwrap();
