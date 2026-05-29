@@ -245,3 +245,4 @@ jobs:
           files: release-files/*
           body_path: ${{ steps.notes.outputs.has_notes == 'true' && 'release-notes.md' || '' }}
           generate_release_notes: ${{ steps.notes.outputs.has_notes != 'true' }}
+          prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
