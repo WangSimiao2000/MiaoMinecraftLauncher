@@ -23,7 +23,7 @@ use crate::platform;
 pub use crate::state::{
     AuthUiState, CfPendingInstall, CfSearchState, DetailTab, Dialog, GameLogState, I18n,
     InstallProgress, InstanceSettingsEdit, LoaderUiState, ModSearchState, ModSource,
-    NewInstanceInput, PendingInstall, SettingsTab, VersionsUiState,
+    ModpackSourceState, NewInstanceInput, PendingInstall, SettingsTab, VersionsUiState,
 };
 use crate::theme;
 use crate::toast::ToastQueue;
@@ -96,6 +96,10 @@ pub struct MiaoApp {
     pub file_scan_cache: FileScanCache,
     pub mod_updates: Vec<miao_core::modrinth::api::ModUpdateInfo>,
     pub checking_updates: bool,
+    /// Modpack source UI state. Phase 1 PR 3.3 lays the field; PR 3.4 wires
+    /// it to the new-instance modpack browser dialog.
+    #[allow(dead_code)]
+    pub modpack_source: ModpackSourceState,
     pub setup_step: SetupStep,
 
     pub blur_renderer: Arc<Mutex<BlurRenderer>>,
@@ -256,6 +260,7 @@ impl MiaoApp {
             file_scan_cache: FileScanCache::new(),
             mod_updates: Vec::new(),
             checking_updates: false,
+            modpack_source: ModpackSourceState::default(),
             setup_step: SetupStep::default(),
 
             blur_renderer,

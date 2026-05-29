@@ -29,6 +29,7 @@ pub enum DetailTab {
     Resources,
     Worlds,
     Log,
+    ModpackSync,
     Settings,
 }
 
@@ -138,6 +139,17 @@ pub enum PendingInstall {
 pub struct GameLogState {
     pub lines: VecDeque<String>,
     pub running: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ModpackSourceState {
+    pub current_source_id: Option<String>,
+    pub manifest: Option<miao_core::modpack_source::Manifest>,
+    pub manifest_loading: bool,
+    pub manifest_error: Option<String>,
+    pub selected_pack_idx: Option<usize>,
+    pub selected_mc_version: Option<String>,
+    pub current_subscription_report: Option<miao_core::modpack_source::ResolutionReport>,
 }
 
 impl GameLogState {

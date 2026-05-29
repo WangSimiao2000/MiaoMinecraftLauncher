@@ -44,6 +44,7 @@ impl MiaoApp {
             DetailTab::Resources => self.render_resources_tab(ui, &instance_dir),
             DetailTab::Worlds => self.render_worlds_tab(ui, &instance_dir),
             DetailTab::Log => self.render_log_tab(ui, &instance_dir),
+            DetailTab::ModpackSync => self.render_modpack_sync_tab(ui, &instance_dir, &inst),
             DetailTab::Settings => self.render_instance_settings_tab(ui),
         });
     }
@@ -141,15 +142,26 @@ impl MiaoApp {
     }
 
     fn render_tabs(&mut self, ui: &mut egui::Ui) {
+        let show_modpack_sync = self
+            .selected_instance
+            .and_then(|i| self.instances.get(i))
+            .map(|inst| inst.modpack_subscription.is_some())
+            .unwrap_or(false);
+
+        let mut tab_list: Vec<(DetailTab, &str)> = vec![
+            (DetailTab::Mods, "tab_mods"),
+            (DetailTab::Resources, "tab_resources"),
+            (DetailTab::Worlds, "tab_worlds"),
+            (DetailTab::Log, "tab_log"),
+        ];
+        if show_modpack_sync {
+            tab_list.push((DetailTab::ModpackSync, "tab_modpack_sync"));
+        }
+        tab_list.push((DetailTab::Settings, "tab_settings"));
+
         ui.horizontal(|ui| {
             let lang = self.language.clone();
-            for (tab, key) in [
-                (DetailTab::Mods, "tab_mods"),
-                (DetailTab::Resources, "tab_resources"),
-                (DetailTab::Worlds, "tab_worlds"),
-                (DetailTab::Log, "tab_log"),
-                (DetailTab::Settings, "tab_settings"),
-            ] {
+            for (tab, key) in tab_list {
                 let label = I18n::t(&lang, key);
                 let selected = self.active_tab == tab;
 
