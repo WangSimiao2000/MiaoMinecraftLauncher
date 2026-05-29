@@ -18,7 +18,7 @@ done at the CI/release level.
 | Per-monitor DPI awareness on Windows | `crates/gui/src/main.rs` | ✅ Implemented |
 | CI Windows build | `.github/workflows/ci.yml`, `release.yml` | ✅ Implemented |
 | CI Linux build + AppImage | `.github/workflows/release.yml` | ✅ Implemented |
-| CI macOS build | `.github/workflows/release.yml` | ✅ Implemented (x86_64 + aarch64, .app bundle) |
+| CI macOS build | `.github/workflows/release.yml` | ✅ Implemented (aarch64 / Apple Silicon, .app bundle). Intel (`x86_64-apple-darwin`) was tried once and pulled — the macos-13 GitHub-hosted runner queue regularly exceeds one hour, blocking releases. Apple stopped selling Intel Macs in 2023. |
 | Released CLI binary on Windows | `.github/workflows/release.yml` | ❌ Intentionally skipped — adding a console binary to `PATH` on Windows is awkward; WSL users can use the Linux binary, and the CLI is a strict subset of the GUI (no MS OAuth / CurseForge), so it isn't useful enough for interactive Windows users. Re-enable if real demand surfaces. |
 
 ## Implementation Details
@@ -127,10 +127,9 @@ separate platform branch is needed in `install.rs`.
   Windows compilation green on every push.
 - `release.yml` — On `v*` tag push:
   - `build-linux` — CLI binary + AppImage
-  - `build-windows` — `miao-gui.exe` + `mmcl-cli-windows-x86_64.exe`
-  - `build-macos` — matrix over `x86_64-apple-darwin` (macos-13) and
-    `aarch64-apple-darwin` (macos-14). Each runner produces a tarred
-    `.app` bundle plus a bare CLI binary.
+  - `build-windows` — `miao-gui.exe` only
+  - `build-macos` — `aarch64-apple-darwin` on macos-14 (Apple Silicon).
+    Produces a tarred `.app` bundle plus a bare CLI binary.
   - `release` — collects all artifacts and creates the GitHub Release.
 
 ### Outstanding CI Work

@@ -89,13 +89,16 @@ jobs:
           path: dist/mmcl-windows-x86_64.exe
 
   build-macos:
+    # macOS Apple Silicon only. The macos-13 (Intel) GitHub-hosted runner
+    # frequently sits in queue for >1h with a status page that still says
+    # "operational" — capacity is throttled in practice. Apple stopped
+    # selling Intel Macs in 2023, so the modern macOS install base is
+    # effectively all aarch64. Re-add x86_64-apple-darwin if there is real
+    # demand from a user on an old Intel Mac.
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
-            target: x86_64-apple-darwin
-            arch: x86_64
           - runner: macos-14
             target: aarch64-apple-darwin
             arch: aarch64
