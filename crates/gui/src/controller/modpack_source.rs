@@ -33,6 +33,9 @@ impl ChannelProgressSink {
 impl InstallProgressSink for ChannelProgressSink {
     fn on_phase(&self, phase: InstallPhase) {
         let label = match phase {
+            InstallPhase::DownloadingMinecraft { mc } => {
+                format!("Downloading Minecraft {mc}")
+            }
             InstallPhase::InstallingLoader {
                 mc,
                 loader,
@@ -72,6 +75,10 @@ impl InstallProgressSink for ChannelProgressSink {
             format!("Config: {current_path}")
         };
         self.emit(completed, total, label);
+    }
+
+    fn on_minecraft_progress(&self, completed: usize, total: usize, label: &str) {
+        self.emit(completed, total, label.to_string());
     }
 }
 

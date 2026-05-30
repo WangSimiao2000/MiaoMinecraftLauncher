@@ -10,15 +10,22 @@ use crate::modpack_source::manifest::{ConfigOverlay, OverlayFile, Pack};
 use crate::modpack_source::resolver::{
     ResolutionReport, ResolvedMod, ResolvedOverlay, ResolvedStatus,
 };
+use crate::version::install::{EnsurePhase, EnsureProgress};
 
 pub trait InstallProgressSink: Send + Sync {
     fn on_phase(&self, phase: InstallPhase);
     fn on_mod_progress(&self, completed: usize, total: usize, current_name: &str);
     fn on_overlay_progress(&self, completed: usize, total: usize, current_path: &str);
+    fn on_minecraft_progress(&self, completed: usize, total: usize, label: &str) {
+        let _ = (completed, total, label);
+    }
 }
 
 #[derive(Debug, Clone)]
 pub enum InstallPhase {
+    DownloadingMinecraft {
+        mc: String,
+    },
     InstallingLoader {
         mc: String,
         loader: String,
@@ -57,6 +64,9 @@ pub enum InstallError {
     #[error("loader install failed: {0}")]
     Loader(String),
 
+    #[error("vanilla Minecraft install failed: {0}")]
+    Minecraft(String),
+
     #[error("rollback failed: original error {original}; cleanup error {cleanup}")]
     RollbackFailed { original: String, cleanup: String },
 }
@@ -72,6 +82,15 @@ pub trait InstallExecutor: Send + Sync {
         mc_version: &str,
         loader_version: Option<&str>,
     ) -> Result<crate::instance::ModLoaderConfig, String>;
+
+    async fn ensure_minecraft_installed(
+        &self,
+        mc_version: &str,
+        progress: Option<EnsureProgress>,
+    ) -> Result<(), String> {
+        let _ = (mc_version, progress);
+        Ok(())
+    }
 }
 
 pub struct InstallPlan<'a> {
@@ -137,6 +156,32 @@ async fn run_install(
 ) -> Result<InstallOutcome, InstallError> {
     let loader_type_str = plan.pack.loader.canonical();
     let loader_version = plan.report.loader_version.as_deref();
+
+    if let Some(sink) = &plan.progress {
+        sink.on_phase(InstallPhase::DownloadingMinecraft {
+            mc: plan.report.mc_version.clone(),
+        });
+    }
+    let ensure_progress: Option<EnsureProgress> = plan.progress.as_ref().map(|sink| {
+        let sink = Arc::clone(sink);
+        Arc::new(move |phase: EnsurePhase, completed: usize, total: usize| {
+            let label = match phase {
+                EnsurePhase::FetchingManifest => "Fetching version manifest".to_string(),
+                EnsurePhase::DownloadingClient { .. } => {
+                    format!("Downloading libraries ({completed}/{total})")
+                }
+                EnsurePhase::DownloadingAssets { .. } => {
+                    format!("Downloading assets ({completed}/{total})")
+                }
+                EnsurePhase::ExtractingNatives => "Extracting natives".to_string(),
+            };
+            sink.on_minecraft_progress(completed, total, &label);
+        }) as EnsureProgress
+    });
+    executor
+        .ensure_minecraft_installed(&plan.report.mc_version, ensure_progress)
+        .await
+        .map_err(InstallError::Minecraft)?;
 
     if let Some(sink) = &plan.progress {
         sink.on_phase(InstallPhase::InstallingLoader {

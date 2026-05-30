@@ -1,11 +1,146 @@
+use std::sync::Arc;
+
 use crate::error::Result;
 
 use crate::config::{DownloadMirror, LauncherConfig};
 use crate::download::DownloadTask;
+use crate::download::manager::DownloadManager;
 use crate::download::mirror::transform_url;
 use crate::http::HttpClient;
 
 use super::meta::VersionMeta;
+
+/// Phase of vanilla Minecraft install reported through [`EnsureProgress`].
+///
+/// See [`ensure_installed`].
+#[derive(Debug, Clone)]
+pub enum EnsurePhase {
+    FetchingManifest,
+    DownloadingClient { total: usize },
+    DownloadingAssets { total: usize },
+    ExtractingNatives,
+}
+
+/// Progress callback for [`ensure_installed`]. The callback is invoked from
+/// the async runtime; implementations must be cheap and non-blocking.
+///
+/// `completed` and `total` are scoped to the current phase. For phases that
+/// do not have a meaningful unit count (e.g. [`EnsurePhase::FetchingManifest`])
+/// both are `0`.
+pub type EnsureProgress = Arc<dyn Fn(EnsurePhase, usize, usize) + Send + Sync>;
+
+/// Ensure the vanilla Minecraft client for `mc_version` is fully installed
+/// under `config`'s data directory. Idempotent: if `version.json`, the client
+/// jar, libraries, natives, and asset index already exist on disk we still
+/// re-run the download manager but it short-circuits to a no-op when every
+/// task is already satisfied.
+///
+/// On success, callers can launch the instance: `<versions_dir>/<mc>/<mc>.json`
+/// is present, libraries / natives / assets are on disk, and natives have been
+/// extracted to `<versions_dir>/<mc>/natives/`.
+///
+/// This is the same flow as the GUI's "+ New Instance" wizard's vanilla
+/// download stage, factored out so the modpack installer can call it. See
+/// [`crate::modpack_source::installer::run_install`] for the modpack call site.
+pub async fn ensure_installed<H: HttpClient>(
+    http: &H,
+    config: &LauncherConfig,
+    mc_version: &str,
+    progress: Option<EnsureProgress>,
+) -> Result<()> {
+    use crate::error::MiaoError;
+
+    if let Some(cb) = progress.as_ref() {
+        cb(EnsurePhase::FetchingManifest, 0, 0);
+    }
+
+    let versions = super::manifest::fetch_version_manifest(http, &config.download_mirror).await?;
+    let entry = versions
+        .iter()
+        .find(|v| v.id == mc_version)
+        .ok_or_else(|| {
+            MiaoError::Other(format!("MC version '{mc_version}' not found in manifest"))
+        })?;
+
+    let meta = fetch_version_meta(http, &entry.url, &config.download_mirror).await?;
+    save_version_meta(&meta, config)?;
+
+    let mut tasks = all_download_tasks(&meta, config, &config.download_mirror);
+    tasks.extend(collect_native_downloads(
+        &meta,
+        config,
+        &config.download_mirror,
+    ));
+    let total = tasks.len();
+    if let Some(cb) = progress.as_ref() {
+        cb(EnsurePhase::DownloadingClient { total }, 0, total);
+    }
+    let dm = if let Some(cb) = progress.as_ref() {
+        let cb = cb.clone();
+        DownloadManager::new(
+            config.download_mirror.clone(),
+            config.max_concurrent_downloads,
+        )
+        .with_progress_callback(Arc::new(move |p| {
+            cb(
+                EnsurePhase::DownloadingClient {
+                    total: p.total_files,
+                },
+                p.completed_files,
+                p.total_files,
+            );
+        }))
+    } else {
+        DownloadManager::new(
+            config.download_mirror.clone(),
+            config.max_concurrent_downloads,
+        )
+    };
+    dm.download_all(tasks).await?;
+
+    let asset_index_path = config
+        .assets_dir()
+        .join("indexes")
+        .join(format!("{}.json", meta.asset_index.id));
+    if asset_index_path.exists() {
+        let asset_index = super::assets::fetch_asset_index(&asset_index_path).await?;
+        let asset_tasks =
+            super::assets::collect_asset_downloads(&asset_index, config, &config.download_mirror);
+        let total = asset_tasks.len();
+        if let Some(cb) = progress.as_ref() {
+            cb(EnsurePhase::DownloadingAssets { total }, 0, total);
+        }
+        let dm = if let Some(cb) = progress.as_ref() {
+            let cb = cb.clone();
+            DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            )
+            .with_progress_callback(Arc::new(move |p| {
+                cb(
+                    EnsurePhase::DownloadingAssets {
+                        total: p.total_files,
+                    },
+                    p.completed_files,
+                    p.total_files,
+                );
+            }))
+        } else {
+            DownloadManager::new(
+                config.download_mirror.clone(),
+                config.max_concurrent_downloads,
+            )
+        };
+        dm.download_all(asset_tasks).await?;
+    }
+
+    if let Some(cb) = progress.as_ref() {
+        cb(EnsurePhase::ExtractingNatives, 0, 0);
+    }
+    extract_natives(&meta, config)?;
+
+    Ok(())
+}
 
 pub async fn fetch_version_meta(
     http: &impl HttpClient,

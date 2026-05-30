@@ -366,6 +366,21 @@ impl<H: HttpClient + 'static> InstallExecutor for LiveInstallExecutor<H> {
         .await
         .map_err(|e| format!("install_loader {lt:?} {version}: {e}"))
     }
+
+    async fn ensure_minecraft_installed(
+        &self,
+        mc_version: &str,
+        progress: Option<crate::version::install::EnsureProgress>,
+    ) -> Result<(), String> {
+        crate::version::install::ensure_installed(
+            self.http.as_ref(),
+            &self.config,
+            mc_version,
+            progress,
+        )
+        .await
+        .map_err(|e| format!("ensure_installed {mc_version}: {e}"))
+    }
 }
 
 fn parse_loader_type(s: &str) -> Result<ModLoaderType, String> {
