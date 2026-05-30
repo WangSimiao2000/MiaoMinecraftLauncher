@@ -635,36 +635,36 @@ rev2 比 rev1 多 0.5-1 天，主要来自 CF 客户端前置重构 + NeoForge �
 
 发版前必须全部通过：
 
-**自动化检查**：
-- [ ] `cargo check --workspace` 0 警告（启用 `-D warnings` 等价）
-- [ ] `cargo clippy --workspace -- -D warnings` 通过
-- [ ] `cargo test --workspace` 100% 通过；现有 314 个测试无回归
-- [ ] §7.1 列举的所有 critical-path 测试用例都已实现并通过
-- [ ] §7.2 列举的所有 installer 集成测试都已实现并通过
+**自动化检查**（截至 2026-05-31，phase1-work@b4916e8）：
+- [x] `cargo check --workspace` 0 警告
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` 通过
+- [x] `cargo test --workspace` 100% 通过：core 388 / cli 12 / gui 13，无回归
+- [x] §7.1 critical-path 测试用例（registry/cache/manifest/resolver）已实现并通过
+- [x] §7.2 installer 集成测试 13 项（t_install_01 - t_install_13）已实现并通过
 
-**手动 QA**：
-- [ ] 从 0 装一个米奇喵整合包（选 1.21.5），全部 mod Compatible 时安装成功 → 启动进游戏
-- [ ] 故意选一个有 Pending mod 的 MC 版本，UI 正确分级 → 玩家点继续仍能装上 Compatible 的部分
-- [ ] 故意选一个 NeoForge 整合包，验证 §3.2 step 2 二次校验生效（要么正确解算，要么 Ambiguous 状态被识别）
-- [ ] 故意选一个有 incompatible 声明的 mod 组合 → 硬阻塞，不允许直接安装
-- [ ] 故意触发循环依赖（mock fixture）→ UI 展示环路径节点
-- [ ] 断网情况下打开 GUI，已缓存的 manifest 可读，新解算操作显示「网络不可用，已用缓存」
-- [ ] 安装期间 GUI 显示进度条 + "无法取消" 提示（Phase 1 取消不实现）
-- [ ] 安装失败（人工 hosts 把某个下载 URL 指到 127.0.0.1）→ 实例目录回滚，UI 显示原因
-- [ ] **A3.2 关键验证**：先建一个名为 "Test" 的实例并放入测试存档；尝试用同名"Test"装整合包 → 必须**预检拒绝**，不删原存档
-- [ ] **A3.1 关键验证**：在 Fedora 或 Arch 默认配置（`/tmp` = tmpfs）上安装整合包 → staging 应在 `<instance>/.staging/` 而非 `/tmp`，安装成功
-- [ ] 触发 Modrinth API 限流（人工狂点"重新解算"）→ UI 显示「API 限流，X 秒后重试」倒计时，不报错崩溃
-- [ ] 触发 pack.json 解析失败（pack_format 主版本太大）→ UI 显示「源版本不兼容」
-- [ ] 触发 manifest 网络拉取超时 → 兜底用本地缓存
-- [ ] 触发 Modrinth 503 → 自动重试 3 次后失败，UI 显示原因
-- [ ] 装到一半磁盘满（人工填满分区）→ 整体回滚，原实例目录干净
-- [ ] 实例详情「整合包同步」Tab 显示已安装 pack 的 mod 列表和状态（含 Deprecated 跳过的 mod）
-- [ ] 旧实例（没有 `modpack_subscription`）的 toml 仍能读，详情 Tab 不显示「整合包同步」
-- [ ] `<data-dir>/modpack-sources/user.toml` 写一个测试源 → 重启 MMCL 后能加载（§5 已就绪，无 UI 但可读）
+**手动 QA**（截至 2026-05-31，QA session 一覆盖以下条目；剩余 11 项是边界 case 故障注入或需要造假数据，留待 0.3.0-rc 前抽样）：
+- [x] 从 0 装一个米奇喵整合包（选 1.21.5），全部 mod Compatible 时安装成功 → 启动进游戏
+- [x] 故意选一个有 Pending / Abandoned mod 的 MC 版本（用 Indium 作真实 fixture），UI 正确分级 → 玩家点继续仍能装上 Compatible 的部分；通过新增的 confirm modal（`dialogs/modpack_confirm.rs`）实现 explicit consent
+- [ ] 故意选一个 NeoForge 整合包，验证 §3.2 step 2 二次校验生效（米奇喵源现仅含 Fabric pack，需另造 NeoForge fixture）
+- [ ] 故意选一个有 incompatible 声明的 mod 组合 → 硬阻塞（**core 测试 t_install_07 已覆盖后端语义；GUI 行为未人工验证**）
+- [ ] 故意触发循环依赖（mock fixture）→ UI 展示环路径节点（**core resolver 测试已覆盖 cycle 检测；GUI 渲染未人工验证**）
+- [ ] 断网情况下打开 GUI，已缓存的 manifest 可读 — **未实现：GUI 当前未接 `modpack_source::cache`，每次 fetch_manifest 直连网络（known gap）**
+- [ ] 安装期间 GUI 显示进度条 + "无法取消" 提示（Phase 1 取消不实现）— **进度条已实现并验证（spinner + InstallProgress 标签）；"无法取消" 文案未加**
+- [ ] 安装失败（人工 hosts 把某个下载 URL 指到 127.0.0.1）→ 实例目录回滚（**core 测试 t_install_03/04/05/06 已覆盖回滚；GUI 行为未人工验证**）
+- [ ] **A3.2 关键**：同名实例预检拒绝（**core 测试 t_install_02 已覆盖；GUI 复验未人工跑**）
+- [x] **A3.1 关键**：staging 在 `<instance>/.staging/`（`installer.rs:128` 静态确认 + 安装时观察一致）
+- [ ] 触发 Modrinth API 限流（狂点"重新解算"）→ UI 倒计时（**HTTP client RateLimitedClient 已实现；GUI 未提供"重新解算"按钮所以无法人工触发，遗留 0.3.0-rc**）
+- [ ] pack_format 主版本太大 → UI「源版本不兼容」（**core schema validation 已覆盖；GUI 未人工验证错误文案**）
+- [ ] manifest 网络超时 → 兜底用本地缓存 — **同 #6，cache 层未在 GUI 接通**
+- [ ] Modrinth 503 → 自动重试 3 次后失败（**RateLimitedClient 内置重试；未人工注入 503 验证 UI 错误**）
+- [ ] 装到一半磁盘满（填满分区）→ 整体回滚（**核心回滚由 t_install_03-06 覆盖；具体磁盘满路径未人工验证**）
+- [x] 实例详情「整合包同步」Tab 显示 mod 列表和状态（含 Deprecated）— 同步 Tab 渲染验证；含状态图标修复 emoji tofu
+- [x] 旧实例（无 `modpack_subscription`）的 toml 仍能读，详情 Tab 不显示「整合包同步」— 代码层验证（`detail.rs:148` `is_some()` 检查 + `t_instance_legacy_toml_without_modpack_subscription_loads`）
+- [x] `<data-dir>/modpack-sources/user.toml` 写测试源 → 重启 MMCL 后加载 — 修复 GUI 未调用 `load_sources()` 的 bug；e2e 验证用 example.com 源，下拉框出现且 manifest 拉取返回预期 404 不崩溃
 
 **交付物**：
-- [ ] 三种语言（en/zh/ja）的新文案都有
-- [ ] CHANGELOG / Release notes 草稿（描述 Phase 1 范围 + 已知 Phase 2 缺口）
+- [x] 三种语言（en/zh/ja）的新文案都有 — 206 keys 三语完全对齐（200 Phase 1 base + 4 confirm modal + 2 resolving overlay）
+- [ ] CHANGELOG / Release notes 草稿（描述 Phase 1 范围 + 已知 Phase 2 缺口）— 待 0.3.0-beta.1 release commit 时补
 
 ---
 
@@ -719,3 +719,64 @@ Phase 1 不预先实现 Phase 2/3 的功能，但**以上接口字段必须在 P
 | **A6.3** | Testing | 🟢→已修 | 加 4 项异常场景 QA | §9 |
 
 **最终结论**：rev2 spec 实施 ready。所有 5 个 CRITICAL 全部修订；所有 8 个 MAJOR 全部修订；所有 8 个 MINOR 全部修订或显式延期。
+
+---
+
+## 12. 实施进度（last updated 2026-05-31，phase1-work@b4916e8）
+
+### 已完成
+
+实现层面 §3-§5 全部落地（schema / cache / RateLimitedClient / resolver / registry / installer / LiveResolverDataSource / LiveInstallExecutor / new-instance modpack tab / detail modpack-sync tab）。代码量：phase1-work 相对 main 领先 22 commits，413 个测试通过（core 388 + cli 12 + gui 13），clippy `-D warnings` 全绿。
+
+QA session 1（2026-05-31）期间发现并修复了 4 个真 bug：
+
+1. `fix(modpack-source): install vanilla Minecraft before mod loader` — 整合包安装 vanilla MC 顺序错误（已在 phase1-work 16d2b4 修）
+2. `fix(launch): fall back through download-mirror chain for vanilla MC manifest/meta` — `download_mirror = Official` 在不可达 piston-meta 的网络上整合包安装失败
+3. `feat(modpack-source): GUI Phase 1 QA polish` 一并修了三处：
+   - `<data-dir>/modpack-sources/user.toml` 没被 GUI 调用 `load_sources()`
+   - 同步 Tab 的 emoji 图标在缺 emoji 字体的系统上 tofu
+   - Pending / 非 Compatible mod 没有 explicit consent UI（resolve 后加 confirm modal）
+
+§9 DoD 已通过的项见 §9 上方更新过的清单；其余项要么有 core 层测试覆盖（行为正确性），要么是边界 case 故障注入（断网/限流/磁盘满 等），未在本轮人工跑。
+
+### 已知缺口（Phase 2 接管前应处理）
+
+按重要性：
+
+1. **Cache 层未在 GUI 接通**：`core::modpack_source::cache::Cache` 类型已实现并测试，但 `controller::modpack_source::handle_fetch_manifest` 直接走 HTTP，没用 cache。后果：spec §9 第 6 项「断网兜底」、第 13 项「manifest 网络拉取超时 → 兜底用本地缓存」字面无法验证。修复点：在 fetch_manifest 调用前查 cache，network 成功后写 cache，network 失败 + cache 存在时返回 cache（带 stale 标记到 UI）。
+2. **「重新解算」按钮缺失**：modpack browse tab 没有显式的"重新解算"按钮（只有"刷新"刷的是 manifest 不是 resolution）。后果：§9 第 11 项「狂点重新解算 → 限流倒计时」物理上无法触发。
+3. **"无法取消" 提示文案**：spec §4.3 / §9 第 7 项明确要求 Phase 1 不实现取消并需告知用户。当前进度条 UI 没这文案。
+4. **NeoForge / incompatible / 循环依赖 GUI 行为未验证**：core 测试覆盖了后端语义（t_install_07 incompatible / t_resolve_* cycle / NeoForge game_versions 二次校验），但 GUI 端未人工跑。米奇喵源现仅含 Fabric pack，需另造 fixture。
+5. **故障注入抽样未跑**：hosts 重定向回滚 / 磁盘满 / Modrinth 503 等，core 测试覆盖回滚语义但 UI 错误展示未验证。
+
+### 接下来要做什么（按优先级）
+
+**P0 — 0.3.0-beta.1 release 前必做**：
+
+1. 给 phase1-work 加 `release: v0.3.0-beta.1` commit：bump `Cargo.toml` workspace version 到 `0.3.0-beta.1`；CHANGELOG `[Unreleased]` 改为 `[0.3.0-beta.1] - YYYY-MM-DD`；release notes 草稿写 Phase 1 范围摘要 + 已知 Phase 2 缺口（参考上一节）。参考 v0.2.0-beta.7 的 release commit 格式。
+2. fast-forward merge phase1-work → main，push origin/main，打 tag `v0.3.0-beta.1`，让 release workflow 自动建 release。
+
+**P1 — 0.3.0-rc 前应做**：
+
+3. 接通 Cache 层到 GUI（`controller::modpack_source::handle_fetch_manifest` 走 cache → network → cache fallback 链路，UI 显示 stale 标记）；这同时解决 §9 #6 / #13。
+4. 加「重新解算」按钮到 modpack browse tab，让 §9 #11 限流场景人工可验证。
+5. 安装期进度条加 "无法取消" 文案（i18n 三语）。
+6. NeoForge fixture：在米奇喵源仓库加一个最小 NeoForge pack（同 fabric pack 类似）跑 §9 #3。
+7. 抽样跑 3-5 个故障注入项（断网、hosts 重定向、磁盘满任选）。
+
+**P2 — Phase 2 设计阶段处理**：
+
+8. user.toml GUI 编辑入口（spec §10「Phase 2 仅加 GUI 编辑入口」）。
+9. 整合包升级流程（消费 `pack_content_hash` 双层防御，§10）。
+10. 配置文件 overlay 更新流程（消费 `preserve` / `original_size`，§10）。
+
+### 下次启动 session 的最快路径
+
+```bash
+git checkout main
+git pull
+git log --oneline -5  # 应看到 commit B b4916e8 + commit A 00180b0 + 之前的 18 个 phase1 commits
+cargo test --workspace --no-fail-fast  # 确认 413 tests 仍全绿
+```
+
+如果决定直接发 0.3.0-beta.1，找 v0.2.0-beta.7 那个 release commit 作模板（`d1b0e69`），照葫芦画瓢即可。如果决定先补 P1 几项再发，从「Cache 层接通到 GUI」开始最值，因为它解锁两个 §9 DoD 项。

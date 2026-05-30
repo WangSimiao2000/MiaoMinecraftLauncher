@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Modpack source ecosystem (Phase 1)**: First end-to-end implementation of the design in [`docs/modpack-source.md`](docs/modpack-source.md) and [`docs/modpack-source-phase1-spec.md`](docs/modpack-source-phase1-spec.md). The launcher now ships a built-in 「米奇喵整合包源」 entry that fetches a remote `manifest.json`, resolves each declared mod against Modrinth / CurseForge for the chosen Minecraft version, downloads the matching artifacts under a per-instance `.staging/` directory with full rollback on any failure, and writes a `modpack_subscription` block plus a `.miao-modpack/{pack.json, resolved.json, source.json}` set onto the resulting instance so Phase 2 can later detect upstream changes via `(pack_version, pack_content_hash)`. The "+ New Instance" dialog grew a Modpack tab driving this flow, and instance detail gained a 「整合包同步」 tab that surfaces the resolved mod list with `Compatible / Pending / Abandoned / Conflict / Deprecated / Ambiguous` classification per mod. User-registered sources are read from `<data-dir>/modpack-sources/user.toml` at startup; Phase 1 has no GUI to add or edit them yet (Phase 2 surface).
+- **Pending / non-Compatible confirm dialog**: when modpack resolution returns any mod that is not `Compatible`, the install pipeline now stops between resolve and install and shows a centered modal listing every mod with a colored status label and "Continue install" / "Cancel" buttons. All-Compatible reports skip the modal so the happy path is unchanged. Resolve runs behind a spinner overlay so users no longer see a multi-second blank UI between clicking install and the modal appearing.
+
+### Changed
+
+- **Vanilla MC manifest / version-meta fetches now traverse the download-mirror fallback chain**. `fetch_version_manifest` and `fetch_version_meta` previously made a single HTTP request against the configured mirror, so a `download_mirror = Official` config that could not reach `piston-meta.mojang.com` would fail outright even when BMCLAPI was reachable. Both now iterate `build_fallback_chain` (Official → BMCLAPI, BMCLAPI → Official, Custom → BMCLAPI → Official), warn on each failed mirror, and only return the last error if every mirror fails. This is the same chain the `DownloadManager` was already using for libraries / assets / client jar.
+
+### Fixed
+
+- **Modpack-sync tab status counters rendered as tofu (☐) on systems without a system emoji font**, because none of the bundled fonts (MiSans / Bootstrap Icons / CJK fallbacks) had glyphs for ✅ ⚠️ ⏸️ ❌. Switched to Bootstrap Icons' `check-circle-fill` / `exclamation-triangle-fill` / `pause-circle-fill` / `x-circle-fill` plus `theme::Colors::{success,warning,text_muted,danger}()` so the colored counters survive every locale and platform.
+- **`<data-dir>/modpack-sources/user.toml` was not actually loaded by the GUI**. `core::modpack_source::load_sources` was implemented and tested, but `dialogs/modpack_browse.rs` resolved source IDs through `BUILT_IN_SOURCES` only, so user-registered sources never appeared in the source dropdown. Now loaded once at startup into `ModpackSourceState.sources`, which the dropdown enumerates.
+
 ## [0.2.0-beta.7] - 2026-05-30
 
 ### Fixed
