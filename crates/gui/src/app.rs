@@ -711,9 +711,14 @@ impl eframe::App for MiaoApp {
                             }
                         });
                     } else {
+                        let label_text = if progress.label.is_empty() {
+                            self.status.clone()
+                        } else {
+                            progress.label.clone()
+                        };
                         ui.horizontal(|ui| {
                             ui.spinner();
-                            ui.label(theme::status_text(&self.status));
+                            ui.label(theme::status_text(&label_text));
                             if ui.small_button(crate::icons::ICON_X).clicked() {
                                 self.cancel_all_tasks();
                             }
