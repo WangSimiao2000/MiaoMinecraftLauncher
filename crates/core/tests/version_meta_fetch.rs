@@ -111,3 +111,18 @@ async fn fetch_version_meta_network_error() {
     .await;
     assert!(result.is_err());
 }
+
+#[tokio::test]
+async fn fetch_version_meta_official_failure_falls_back_to_bmclapi() {
+    let mock = MockHttpClient::new();
+    mock.mock_response("bmclapi2.bangbang93.com", VERSION_META_JSON);
+
+    let meta = fetch_version_meta(
+        &mock,
+        "https://piston-meta.mojang.com/v1/packages/abc/1.20.4.json",
+        &DownloadMirror::Official,
+    )
+    .await
+    .expect("should fall back to BMCLAPI when Mojang fails");
+    assert_eq!(meta.id, "1.20.4");
+}

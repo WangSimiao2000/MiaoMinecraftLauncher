@@ -60,3 +60,26 @@ async fn fetch_manifest_network_error() {
     let result = fetch_version_manifest(&mock, &DownloadMirror::Official).await;
     assert!(result.is_err());
 }
+
+#[tokio::test]
+async fn fetch_manifest_official_failure_falls_back_to_bmclapi() {
+    let mock = MockHttpClient::new();
+    mock.mock_response("bmclapi2.bangbang93.com", MANIFEST_JSON);
+
+    let versions = fetch_version_manifest(&mock, &DownloadMirror::Official)
+        .await
+        .expect("should fall back to BMCLAPI when Mojang fails");
+    assert_eq!(versions.len(), 5);
+    assert_eq!(versions[0].id, "1.20.4");
+}
+
+#[tokio::test]
+async fn fetch_manifest_bmclapi_failure_falls_back_to_official() {
+    let mock = MockHttpClient::new();
+    mock.mock_response("piston-meta.mojang.com", MANIFEST_JSON);
+
+    let versions = fetch_version_manifest(&mock, &DownloadMirror::Bmclapi)
+        .await
+        .expect("should fall back to Mojang when BMCLAPI fails");
+    assert_eq!(versions.len(), 5);
+}

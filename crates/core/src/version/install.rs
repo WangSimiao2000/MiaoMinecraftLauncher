@@ -147,8 +147,21 @@ pub async fn fetch_version_meta(
     version_url: &str,
     mirror: &DownloadMirror,
 ) -> Result<VersionMeta> {
-    let url = transform_url(version_url, mirror);
-    http.get_json(&url).await
+    let chain = crate::download::mirror::build_fallback_chain(mirror);
+    let mut last_err: Option<crate::error::MiaoError> = None;
+    for m in &chain {
+        let url = transform_url(version_url, m);
+        match http.get_json::<VersionMeta>(&url).await {
+            Ok(meta) => return Ok(meta),
+            Err(e) => {
+                tracing::warn!("version meta fetch from {url} failed: {e}; trying fallback");
+                last_err = Some(e);
+            }
+        }
+    }
+    Err(last_err.unwrap_or_else(|| {
+        crate::error::MiaoError::Other("no mirrors in fallback chain".to_string())
+    }))
 }
 
 pub fn collect_library_downloads(
