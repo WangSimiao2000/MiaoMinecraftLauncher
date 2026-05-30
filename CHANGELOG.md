@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0-beta.7] - 2026-05-30
+
+### Fixed
+
+- **Launch: deduplicate classpath entries by Maven coordinate.** Vanilla Minecraft 1.21.4 ships ASM 9.6 in its libraries, while modern Fabric loader (0.16.x) ships ASM 9.9 as part of its installer extras. Both jars were being concatenated onto the JVM classpath unchanged, so Fabric's `LoaderUtil.verifyClasspath` rejected the launch with `duplicate ASM classes found on classpath`. Forge and NeoForge are affected by the same class of conflict for any artifact they bundle whose version drifts from vanilla's. The classpath builder now deduplicates entries under `(groupId, artifactId, classifier)`, comparing versions segment-wise and keeping the higher one, mirroring Prism Launcher's `LaunchProfile::applyLibrary` strategy. The classifier is included in the key so LWJGL native classifier jars (e.g. `lwjgl-3.3.3.jar` vs `lwjgl-3.3.3-natives-linux.jar`) remain distinct keys and natives are not collapsed into a single entry. This is a pre-existing bug — the code path was unchanged from initial launcher implementation — but it surfaced now because 1.21.4 + modern Fabric is the first version pairing in this repo to actually be exercised end-to-end through to the game's main menu.
+
+### Changed
+
+- **CurseForge client: retry on 429 / 5xx with `Retry-After` honored.** The CurseForge API client now retries transient failures up to 3 times with exponential backoff. When the server returns `Retry-After` (either as a delay-seconds integer or as an HTTP-date), the client waits for the indicated duration before retrying instead of using its default backoff. Previously a single 429 from CurseForge would surface to the user as a hard error even when waiting a few seconds would have resolved it; this is a particularly common failure mode when many mods are queried in quick succession (mod search, dependency resolution, modpack install). Mirrors the retry behavior already implemented for Modrinth.
+
 ## [0.2.0-beta.6] - 2026-05-29
 
 ### Added
@@ -23,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **macOS: detect system-installed JDKs**. The Java scanner only looked for `<entry>/bin/java`, but macOS JDKs are packaged as `.jdk` bundles whose binary lives at `<entry>/Contents/Home/bin/java`. As a result, every JDK installed via Adoptium / Microsoft / Oracle / Apple `.pkg` (i.e. the standard macOS install path) was invisible and the GUI offered to download Java even when one was already installed. `java_bin_under` now checks both layouts.
 - **macOS: extend Java search paths** to cover Homebrew (`/opt/homebrew/opt`, `/opt/homebrew/Cellar`, `/usr/local/opt`, `/usr/local/Cellar`), the legacy Internet Plug-Ins Java location, the user's `~/Library/Java/JavaVirtualMachines`, and SDKMAN (`~/.sdkman/candidates/java`). The directory walker is now bounded by `max_depth=4` to handle Homebrew Cellar's nested layout (`<formula>/<version>/libexec/openjdk.jdk`) without runaway scans into unrelated trees.
 
+[0.2.0-beta.7]: https://github.com/WangSimiao2000/MiaoMinecraftLauncher/compare/v0.2.0-beta.6...v0.2.0-beta.7
 [0.2.0-beta.6]: https://github.com/WangSimiao2000/MiaoMinecraftLauncher/compare/v0.2.0-beta.5...v0.2.0-beta.6
 
 ## [0.2.0-beta.5] - 2026-05-29
