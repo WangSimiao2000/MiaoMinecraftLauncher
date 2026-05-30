@@ -150,6 +150,21 @@ pub struct ModpackSourceState {
     pub selected_pack_idx: Option<usize>,
     pub selected_mc_version: Option<String>,
     pub current_subscription_report: Option<miao_core::modpack_source::ResolutionReport>,
+    pub sources: std::collections::HashMap<String, miao_core::modpack_source::ModpackSource>,
+    pub resolving: Option<String>,
+    pub pending_confirm: Option<PendingModpackInstall>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PendingModpackInstall {
+    pub source_id: String,
+    pub pack_id: String,
+    pub pack_url: String,
+    pub instance_name: String,
+    pub config: Box<miao_core::config::LauncherConfig>,
+    pub report: Box<miao_core::modpack_source::ResolutionReport>,
+    pub pack_raw: Vec<u8>,
+    pub pack: Box<miao_core::modpack_source::Pack>,
 }
 
 impl GameLogState {

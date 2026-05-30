@@ -103,7 +103,7 @@ async fn controller_loop(
                     ctx.clone(),
                 );
             }
-            AppCommand::InstallModpack {
+            AppCommand::ResolveModpack {
                 source_id,
                 pack_id,
                 pack_url,
@@ -112,7 +112,7 @@ async fn controller_loop(
                 instance_name,
                 config,
             } => {
-                modpack_source::handle_install_modpack(
+                modpack_source::handle_resolve_modpack(
                     source_id,
                     pack_id,
                     pack_url,
@@ -120,6 +120,29 @@ async fn controller_loop(
                     loader,
                     instance_name,
                     config,
+                    event_tx.clone(),
+                    ctx.clone(),
+                );
+            }
+            AppCommand::ApplyModpackInstall {
+                source_id,
+                pack_id,
+                pack_url,
+                instance_name,
+                config,
+                report,
+                pack_raw,
+                pack,
+            } => {
+                modpack_source::handle_apply_install(
+                    source_id,
+                    pack_id,
+                    pack_url,
+                    instance_name,
+                    config,
+                    report,
+                    pack_raw,
+                    pack,
                     event_tx.clone(),
                     ctx.clone(),
                 );

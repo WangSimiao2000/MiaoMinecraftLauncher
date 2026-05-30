@@ -13,3 +13,7 @@ pub const ICON_FOLDER_OPEN: &str = "\u{F3D8}";
 pub const ICON_ARROW_LEFT: &str = "\u{F12F}";
 pub const ICON_DOWNLOAD: &str = "\u{F30A}";
 pub const ICON_X: &str = "\u{F62A}";
+pub const ICON_CHECK_CIRCLE_FILL: &str = "\u{F26B}";
+pub const ICON_EXCLAMATION_TRIANGLE_FILL: &str = "\u{F33A}";
+pub const ICON_PAUSE_CIRCLE_FILL: &str = "\u{F4C2}";
+pub const ICON_X_CIRCLE_FILL: &str = "\u{F622}";

@@ -5,6 +5,10 @@ use miao_core::instance::Instance;
 use miao_core::modpack_source::{ResolutionReport, ResolvedStatus};
 
 use crate::app::{I18n, MiaoApp};
+use crate::icons::{
+    ICON_CHECK_CIRCLE_FILL, ICON_EXCLAMATION_TRIANGLE_FILL, ICON_PAUSE_CIRCLE_FILL,
+    ICON_X_CIRCLE_FILL,
+};
 use crate::theme;
 
 impl MiaoApp {
@@ -76,10 +80,30 @@ impl MiaoApp {
             counts.tally(&m.status);
         }
         ui.horizontal(|ui| {
-            ui.label(format!("✅ {}", counts.compatible));
-            ui.label(format!("⚠️ {}", counts.pending + counts.ambiguous));
-            ui.label(format!("⏸️ {}", counts.deprecated));
-            ui.label(format!("❌ {}", counts.abandoned + counts.conflict));
+            ui.label(
+                egui::RichText::new(format!("{} {}", ICON_CHECK_CIRCLE_FILL, counts.compatible))
+                    .color(theme::Colors::success()),
+            );
+            ui.label(
+                egui::RichText::new(format!(
+                    "{} {}",
+                    ICON_EXCLAMATION_TRIANGLE_FILL,
+                    counts.pending + counts.ambiguous
+                ))
+                .color(theme::Colors::warning()),
+            );
+            ui.label(
+                egui::RichText::new(format!("{} {}", ICON_PAUSE_CIRCLE_FILL, counts.deprecated))
+                    .color(theme::Colors::text_muted()),
+            );
+            ui.label(
+                egui::RichText::new(format!(
+                    "{} {}",
+                    ICON_X_CIRCLE_FILL,
+                    counts.abandoned + counts.conflict
+                ))
+                .color(theme::Colors::danger()),
+            );
         });
         ui.add_space(theme::Spacing::SMALL_GAP);
 

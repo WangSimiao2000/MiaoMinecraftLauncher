@@ -216,6 +216,25 @@ impl MiaoApp {
         let active_custom_theme = config.custom_theme_name.clone();
         let cf_api_key_input = config.curseforge_api_key.clone().unwrap_or_default();
 
+        let modpack_sources = miao_core::modpack_source::load_sources(&config.data_dir)
+            .unwrap_or_else(|err| {
+                tracing::warn!("failed to load modpack sources: {err}");
+                miao_core::modpack_source::BUILT_IN_SOURCES
+                    .iter()
+                    .map(|b| {
+                        (
+                            b.source_id.to_string(),
+                            miao_core::modpack_source::ModpackSource {
+                                source_id: b.source_id.to_string(),
+                                manifest_url: b.manifest_url.to_string(),
+                                is_built_in: true,
+                                display_name_hint: Some(b.display_name_hint.to_string()),
+                            },
+                        )
+                    })
+                    .collect()
+            });
+
         Self {
             config,
             instances,
@@ -261,7 +280,10 @@ impl MiaoApp {
             file_scan_cache: FileScanCache::new(),
             mod_updates: Vec::new(),
             checking_updates: false,
-            modpack_source: ModpackSourceState::default(),
+            modpack_source: ModpackSourceState {
+                sources: modpack_sources,
+                ..Default::default()
+            },
             setup_step: SetupStep::default(),
 
             blur_renderer,
@@ -366,6 +388,52 @@ impl MiaoApp {
                     self.modpack_source.current_source_id = Some(source_id);
                     self.modpack_source.manifest_error = Some(error.clone());
                     self.toasts.error(format!("Modpack manifest: {error}"));
+                }
+                AppEvent::ModpackResolutionReady {
+                    source_id,
+                    pack_id,
+                    pack_url,
+                    instance_name,
+                    config,
+                    report,
+                    pack_raw,
+                    pack,
+                } => {
+                    self.modpack_source.resolving = None;
+                    let needs_confirmation = report.mods.iter().any(|m| {
+                        !matches!(
+                            m.status,
+                            miao_core::modpack_source::ResolvedStatus::Compatible
+                        )
+                    });
+                    let pending = crate::state::PendingModpackInstall {
+                        source_id,
+                        pack_id,
+                        pack_url,
+                        instance_name,
+                        config,
+                        report,
+                        pack_raw,
+                        pack,
+                    };
+                    if needs_confirmation {
+                        self.modpack_source.pending_confirm = Some(pending);
+                    } else {
+                        self.controller.send(AppCommand::ApplyModpackInstall {
+                            source_id: pending.source_id,
+                            pack_id: pending.pack_id,
+                            pack_url: pending.pack_url,
+                            instance_name: pending.instance_name,
+                            config: pending.config,
+                            report: pending.report,
+                            pack_raw: pending.pack_raw,
+                            pack: pending.pack,
+                        });
+                    }
+                }
+                AppEvent::ModpackResolutionFailed { error, .. } => {
+                    self.modpack_source.resolving = None;
+                    self.toasts.error(format!("Modpack resolve: {error}"));
                 }
                 AppEvent::ModpackInstallFinished {
                     task_id,
@@ -825,6 +893,24 @@ impl eframe::App for MiaoApp {
                 self.render_java_download_confirm(ctx, instance_idx, java_major);
             }
             Dialog::None => {}
+        }
+
+        let modpack_overlay_active = self.modpack_source.pending_confirm.is_some()
+            || self.modpack_source.resolving.is_some();
+        if modpack_overlay_active {
+            let screen = ctx.content_rect();
+            egui::Area::new(egui::Id::new("modpack_overlay_blur_backdrop"))
+                .fixed_pos(screen.min)
+                .interactable(true)
+                .order(egui::Order::Middle)
+                .show(ctx, |ui| {
+                    ui.set_clip_rect(screen);
+                    let tint = egui::Color32::from_black_alpha(120);
+                    crate::blur::blur_behind(ui, &self.blur_renderer, screen, 12.0, tint);
+                    ui.allocate_rect(screen, egui::Sense::click());
+                });
+            self.render_modpack_resolving_overlay(ctx);
+            self.render_modpack_confirm_dialog(ctx);
         }
 
         self.toasts.render(ctx);

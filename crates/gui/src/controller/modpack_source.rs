@@ -172,7 +172,7 @@ pub fn handle_fetch_manifest(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn handle_install_modpack(
+pub fn handle_resolve_modpack(
     source_id: String,
     pack_id: String,
     pack_url: String,
@@ -183,13 +183,66 @@ pub fn handle_install_modpack(
     event_tx: mpsc::UnboundedSender<AppEvent>,
     ctx: Context,
 ) {
+    tokio::spawn(async move {
+        let result = async {
+            let pack_raw = fetch_with_github_fallback(&pack_url)
+                .await
+                .map_err(|e| format!("fetch pack.json: {e}"))?;
+            let pack = parse_pack(&pack_raw).map_err(|e| format!("parse pack.json: {e}"))?;
+            let http = Arc::new(ReqwestClient::new());
+            let resolver_src = LiveResolverDataSource::new(http, None);
+            let report = resolve(&pack, &pack_raw, &mc_version, &resolver_src)
+                .await
+                .map_err(|e| format!("resolve: {e}"))?;
+            Ok::<_, String>((pack, pack_raw, report))
+        }
+        .await;
+
+        let event = match result {
+            Ok((pack, pack_raw, report)) => AppEvent::ModpackResolutionReady {
+                source_id,
+                pack_id,
+                pack_url,
+                instance_name,
+                config: Box::new(config),
+                report: Box::new(report),
+                pack_raw,
+                pack: Box::new(pack),
+            },
+            Err(error) => AppEvent::ModpackResolutionFailed {
+                source_id,
+                pack_id,
+                error,
+            },
+        };
+        let _ = event_tx.send(event);
+        ctx.request_repaint();
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn handle_apply_install(
+    source_id: String,
+    pack_id: String,
+    pack_url: String,
+    instance_name: String,
+    config: Box<LauncherConfig>,
+    report: Box<miao_core::modpack_source::ResolutionReport>,
+    pack_raw: Vec<u8>,
+    pack: Box<miao_core::modpack_source::Pack>,
+    event_tx: mpsc::UnboundedSender<AppEvent>,
+    ctx: Context,
+) {
+    let config = *config;
+    let report = *report;
+    let pack = *pack;
     let task_id = format!("modpack-install:{source_id}:{pack_id}:{instance_name}");
 
     let _ = event_tx.send(AppEvent::InstallProgress {
         task_id: task_id.clone(),
         completed: 0,
         total: 0,
-        label: "Fetching pack.json…".to_string(),
+        label: format!("Installing {} mods…", report.mods.len()),
     });
     ctx.request_repaint();
 
@@ -200,19 +253,25 @@ pub fn handle_install_modpack(
     });
 
     tokio::spawn(async move {
-        let result = run_install(
-            &source_id,
-            &pack_id,
-            &pack_url,
-            &mc_version,
-            &instance_name,
-            &config,
-            sink,
-            &event_tx,
-            &task_id,
-            &ctx,
-        )
-        .await;
+        let progress_sink: Arc<dyn InstallProgressSink> = sink;
+        let http = Arc::new(ReqwestClient::new());
+        let executor = LiveInstallExecutor::new(http, Arc::new(config.clone()));
+
+        let plan = InstallPlan {
+            instance_name: instance_name.clone(),
+            pack: &pack,
+            pack_raw: &pack_raw,
+            report: &report,
+            source_id: source_id.clone(),
+            source_url: pack_url.clone(),
+            manifest_etag: None,
+            progress: Some(progress_sink),
+        };
+
+        let instances_root = config.instances_dir().clone();
+        let result = install(plan, &instances_root, &executor)
+            .await
+            .map_err(|e| format!("install: {e}"));
 
         let event = match result {
             Ok(_) => AppEvent::ModpackInstallFinished {
@@ -233,68 +292,6 @@ pub fn handle_install_modpack(
         let _ = event_tx.send(event);
         ctx.request_repaint();
     });
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn run_install(
-    source_id: &str,
-    _pack_id: &str,
-    pack_url: &str,
-    mc_version: &str,
-    instance_name: &str,
-    config: &LauncherConfig,
-    sink: Arc<ChannelProgressSink>,
-    event_tx: &mpsc::UnboundedSender<AppEvent>,
-    task_id: &str,
-    ctx: &Context,
-) -> Result<(), String> {
-    let _ = event_tx.send(AppEvent::InstallProgress {
-        task_id: task_id.to_string(),
-        completed: 0,
-        total: 0,
-        label: "Fetching pack.json…".to_string(),
-    });
-    ctx.request_repaint();
-
-    let pack_raw = fetch_with_github_fallback(pack_url)
-        .await
-        .map_err(|e| format!("fetch pack.json: {e}"))?;
-    let pack = parse_pack(&pack_raw).map_err(|e| format!("parse pack.json: {e}"))?;
-
-    let _ = event_tx.send(AppEvent::InstallProgress {
-        task_id: task_id.to_string(),
-        completed: 0,
-        total: 0,
-        label: format!("Resolving {} mods…", pack.mods.len()),
-    });
-    ctx.request_repaint();
-
-    let http = Arc::new(ReqwestClient::new());
-    let cf = None;
-    let resolver_src = LiveResolverDataSource::new(http.clone(), cf);
-    let report = resolve(&pack, &pack_raw, mc_version, &resolver_src)
-        .await
-        .map_err(|e| format!("resolve: {e}"))?;
-
-    let executor = LiveInstallExecutor::new(http, Arc::new(config.clone()));
-    let progress_sink: Arc<dyn InstallProgressSink> = sink;
-    let plan = InstallPlan {
-        instance_name: instance_name.to_string(),
-        pack: &pack,
-        pack_raw: &pack_raw,
-        report: &report,
-        source_id: source_id.to_string(),
-        source_url: pack_url.to_string(),
-        manifest_etag: None,
-        progress: Some(progress_sink),
-    };
-
-    let instances_root = config.instances_dir().clone();
-    install(plan, &instances_root, &executor)
-        .await
-        .map_err(|e| format!("install: {e}"))?;
-
-    Ok(())
 }
 
 #[cfg(test)]

@@ -16,18 +16,27 @@ impl MiaoApp {
             .current_source_id
             .clone()
             .unwrap_or_else(|| "miao".to_string());
+        let mut source_ids: Vec<String> = self.modpack_source.sources.keys().cloned().collect();
+        source_ids.sort();
         ui.horizontal(|ui| {
             egui::ComboBox::from_id_salt("modpack_source_select")
                 .selected_text(&source_label)
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut self.modpack_source.current_source_id,
-                        Some("miao".to_string()),
-                        "miao",
-                    );
+                    for sid in &source_ids {
+                        ui.selectable_value(
+                            &mut self.modpack_source.current_source_id,
+                            Some(sid.clone()),
+                            sid,
+                        );
+                    }
                 });
+            let active_id = self
+                .modpack_source
+                .current_source_id
+                .clone()
+                .unwrap_or_else(|| "miao".to_string());
             if ui.button(I18n::t(lang, "modpack_browse_refresh")).clicked() {
-                self.fetch_modpack_manifest("miao");
+                self.fetch_modpack_manifest(&active_id);
             }
         });
 
@@ -147,10 +156,11 @@ impl MiaoApp {
     }
 
     pub fn fetch_modpack_manifest(&mut self, source_id: &str) {
-        let manifest_url = miao_core::modpack_source::BUILT_IN_SOURCES
-            .iter()
-            .find(|s| s.source_id == source_id)
-            .map(|s| s.manifest_url.to_string());
+        let manifest_url = self
+            .modpack_source
+            .sources
+            .get(source_id)
+            .map(|s| s.manifest_url.clone());
         let Some(url) = manifest_url else {
             self.modpack_source.manifest_error = Some(format!("unknown source: {source_id}"));
             return;
@@ -172,7 +182,8 @@ impl MiaoApp {
         loader: String,
         instance_name: String,
     ) {
-        self.controller.send(AppCommand::InstallModpack {
+        self.modpack_source.resolving = Some(instance_name.clone());
+        self.controller.send(AppCommand::ResolveModpack {
             source_id,
             pack_id,
             pack_url,

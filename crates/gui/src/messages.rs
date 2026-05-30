@@ -48,7 +48,7 @@ pub enum AppCommand {
         source_id: String,
         manifest_url: String,
     },
-    InstallModpack {
+    ResolveModpack {
         source_id: String,
         pack_id: String,
         pack_url: String,
@@ -56,6 +56,16 @@ pub enum AppCommand {
         loader: String,
         instance_name: String,
         config: LauncherConfig,
+    },
+    ApplyModpackInstall {
+        source_id: String,
+        pack_id: String,
+        pack_url: String,
+        instance_name: String,
+        config: Box<LauncherConfig>,
+        report: Box<miao_core::modpack_source::ResolutionReport>,
+        pack_raw: Vec<u8>,
+        pack: Box<miao_core::modpack_source::Pack>,
     },
 
     // ── Auth ──
@@ -203,6 +213,23 @@ pub enum AppEvent {
     },
     ModpackManifestFailed {
         source_id: String,
+        error: String,
+    },
+    ModpackResolutionReady {
+        source_id: String,
+        pack_id: String,
+        pack_url: String,
+        instance_name: String,
+        config: Box<LauncherConfig>,
+        report: Box<miao_core::modpack_source::ResolutionReport>,
+        pack_raw: Vec<u8>,
+        pack: Box<miao_core::modpack_source::Pack>,
+    },
+    ModpackResolutionFailed {
+        #[allow(dead_code)]
+        source_id: String,
+        #[allow(dead_code)]
+        pack_id: String,
         error: String,
     },
     ModpackInstallFinished {
