@@ -1,4 +1,6 @@
-use std::path::PathBuf;
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::error::Result;
@@ -58,11 +60,37 @@ fn build_classpath(options: &LaunchOptions) -> Result<String> {
 }
 
 fn build_classpath_for_os(options: &LaunchOptions, os: &str) -> Result<String> {
+    let libraries_dir = options.config.libraries_dir();
     let mut paths: Vec<String> = Vec::new();
+    let mut coord_index: HashMap<String, usize> = HashMap::new();
+
+    let push_lib =
+        |paths: &mut Vec<String>, coord_index: &mut HashMap<String, usize>, path_str: String| {
+            let Some(key) = maven_coord_key(Path::new(&path_str), &libraries_dir) else {
+                paths.push(path_str);
+                return;
+            };
+            match coord_index.get(&key).copied() {
+                None => {
+                    coord_index.insert(key, paths.len());
+                    paths.push(path_str);
+                }
+                Some(existing_idx) => {
+                    let existing_path = &paths[existing_idx];
+                    let new_ver = maven_coord_version(Path::new(&path_str), &libraries_dir);
+                    let old_ver = maven_coord_version(Path::new(existing_path), &libraries_dir);
+                    if let (Some(n), Some(o)) = (new_ver, old_ver)
+                        && compare_maven_version(&n, &o) == Ordering::Greater
+                    {
+                        paths[existing_idx] = path_str;
+                    }
+                }
+            }
+        };
 
     if let Some(loader) = &options.instance.mod_loader {
         for lib_path in &loader.extra_libraries {
-            paths.push(lib_path.clone());
+            push_lib(&mut paths, &mut coord_index, lib_path.clone());
         }
     }
 
@@ -82,8 +110,12 @@ fn build_classpath_for_os(options: &LaunchOptions, os: &str) -> Result<String> {
         if let Some(downloads) = &lib.downloads
             && let Some(artifact) = &downloads.artifact
         {
-            let path = options.config.libraries_dir().join(&artifact.path);
-            paths.push(path.to_string_lossy().to_string());
+            let path = libraries_dir.join(&artifact.path);
+            push_lib(
+                &mut paths,
+                &mut coord_index,
+                path.to_string_lossy().to_string(),
+            );
         }
     }
 
@@ -94,11 +126,72 @@ fn build_classpath_for_os(options: &LaunchOptions, os: &str) -> Result<String> {
         .join(format!("{}.jar", options.version_meta.id));
     paths.push(client_jar.to_string_lossy().to_string());
 
-    // Windows uses ';' as the classpath separator, every other platform uses
-    // ':'. Hard-coding ':' would also break on Windows because absolute paths
-    // contain a drive-letter colon (e.g. C:\...).
     let separator = if os == "windows" { ";" } else { ":" };
     Ok(paths.join(separator))
+}
+
+fn maven_coord_version(jar_path: &Path, libraries_dir: &Path) -> Option<String> {
+    let rel = jar_path.strip_prefix(libraries_dir).ok()?;
+    let segments: Vec<&str> = rel.iter().map(|s| s.to_str()).collect::<Option<Vec<_>>>()?;
+    if segments.len() < 4 {
+        return None;
+    }
+    Some(segments[segments.len() - 2].to_string())
+}
+
+fn compare_maven_version(a: &str, b: &str) -> Ordering {
+    let split = |s: &str| -> Vec<String> {
+        s.split(['.', '-', '+', '_'])
+            .map(|p| p.to_string())
+            .collect()
+    };
+    let a_parts = split(a);
+    let b_parts = split(b);
+    for i in 0..a_parts.len().max(b_parts.len()) {
+        let ap = a_parts.get(i).map(String::as_str).unwrap_or("0");
+        let bp = b_parts.get(i).map(String::as_str).unwrap_or("0");
+        let an = ap.parse::<u64>().ok();
+        let bn = bp.parse::<u64>().ok();
+        let cmp = match (an, bn) {
+            (Some(x), Some(y)) => x.cmp(&y),
+            (Some(_), None) => Ordering::Greater,
+            (None, Some(_)) => Ordering::Less,
+            (None, None) => ap.cmp(bp),
+        };
+        if cmp != Ordering::Equal {
+            return cmp;
+        }
+    }
+    Ordering::Equal
+}
+
+fn maven_coord_key(jar_path: &Path, libraries_dir: &Path) -> Option<String> {
+    let rel = jar_path.strip_prefix(libraries_dir).ok()?;
+    let segments: Vec<&str> = rel.iter().map(|s| s.to_str()).collect::<Option<Vec<_>>>()?;
+    if segments.len() < 4 {
+        return None;
+    }
+    let filename = segments[segments.len() - 1];
+    let version = segments[segments.len() - 2];
+    let artifact_id = segments[segments.len() - 3];
+    let group_segments = &segments[..segments.len() - 3];
+    let group_id = group_segments.join(".");
+
+    let stem = filename.strip_suffix(".jar")?;
+    let prefix = format!("{artifact_id}-{version}");
+    let classifier = stem.strip_prefix(&prefix).and_then(|rest| {
+        if rest.is_empty() {
+            Some("")
+        } else {
+            rest.strip_prefix('-')
+        }
+    })?;
+
+    if classifier.is_empty() {
+        Some(format!("{group_id}:{artifact_id}"))
+    } else {
+        Some(format!("{group_id}:{artifact_id}::{classifier}"))
+    }
 }
 
 fn build_game_args(options: &LaunchOptions) -> Result<Vec<String>> {
@@ -286,10 +379,309 @@ mod tests {
     fn build_classpath_uses_semicolon_on_windows() {
         let options = make_test_options(false);
         let cp = build_classpath_for_os(&options, "windows").unwrap();
-        // Must contain ';' (the windows-correct separator) and must NOT contain
-        // any ':' inside path entries from the test fixture, which uses
-        // unix-style paths only.
         assert!(cp.contains(';'));
+    }
+
+    #[test]
+    fn maven_coord_key_extracts_group_and_artifact_no_classifier() {
+        let lib_dir = PathBuf::from("/data/libraries");
+        let key = maven_coord_key(&lib_dir.join("org/ow2/asm/asm/9.9/asm-9.9.jar"), &lib_dir);
+        assert_eq!(key, Some("org.ow2.asm:asm".to_string()));
+
+        let key2 = maven_coord_key(
+            &lib_dir.join("com/mojang/authlib/3.16/authlib-3.16.jar"),
+            &lib_dir,
+        );
+        assert_eq!(key2, Some("com.mojang:authlib".to_string()));
+    }
+
+    #[test]
+    fn maven_coord_key_includes_classifier_for_lwjgl_natives() {
+        let lib_dir = PathBuf::from("/data/libraries");
+        let regular = maven_coord_key(
+            &lib_dir.join("org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar"),
+            &lib_dir,
+        );
+        let native = maven_coord_key(
+            &lib_dir.join("org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3-natives-linux.jar"),
+            &lib_dir,
+        );
+        assert_eq!(regular, Some("org.lwjgl:lwjgl".to_string()));
+        assert_eq!(native, Some("org.lwjgl:lwjgl::natives-linux".to_string()));
+        assert_ne!(
+            regular, native,
+            "regular jar and natives jar must not collide"
+        );
+    }
+
+    #[test]
+    fn maven_coord_key_includes_classifier_with_hyphens() {
+        let lib_dir = PathBuf::from("/data/libraries");
+        let key = maven_coord_key(
+            &lib_dir.join("io/netty/netty-transport-native-epoll/4.1.115.Final/netty-transport-native-epoll-4.1.115.Final-linux-x86_64.jar"),
+            &lib_dir,
+        );
+        assert_eq!(
+            key,
+            Some("io.netty:netty-transport-native-epoll::linux-x86_64".to_string())
+        );
+    }
+
+    #[test]
+    fn maven_coord_key_returns_none_for_paths_outside_libraries_dir() {
+        let lib_dir = PathBuf::from("/data/libraries");
+        assert_eq!(
+            maven_coord_key(Path::new("/elsewhere/foo.jar"), &lib_dir),
+            None
+        );
+    }
+
+    #[test]
+    fn maven_coord_key_returns_none_for_too_short_path() {
+        let lib_dir = PathBuf::from("/data/libraries");
+        assert_eq!(maven_coord_key(&lib_dir.join("flat.jar"), &lib_dir), None);
+    }
+
+    #[test]
+    fn maven_coord_key_returns_none_for_filename_not_matching_artifact_version() {
+        let lib_dir = PathBuf::from("/data/libraries");
+        assert_eq!(
+            maven_coord_key(
+                &lib_dir.join("org/foo/bar/1.0/UNRELATED-NAME.jar"),
+                &lib_dir
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn compare_maven_version_numeric_segments() {
+        assert_eq!(compare_maven_version("9.9", "9.6"), Ordering::Greater);
+        assert_eq!(compare_maven_version("9.6", "9.9"), Ordering::Less);
+        assert_eq!(compare_maven_version("9.10", "9.9"), Ordering::Greater);
+        assert_eq!(compare_maven_version("9.9", "9.9"), Ordering::Equal);
+    }
+
+    #[test]
+    fn compare_maven_version_handles_qualifiers() {
+        assert_eq!(
+            compare_maven_version("4.1.115.Final", "4.1.116"),
+            Ordering::Less,
+            "numeric segment 115 < 116 should dominate over later qualifier"
+        );
+        assert_eq!(
+            compare_maven_version("4.1.115.Final", "4.1.115.Final"),
+            Ordering::Equal
+        );
+    }
+
+    #[test]
+    fn maven_coord_version_extracts_from_path() {
+        let lib_dir = PathBuf::from("/data/libraries");
+        assert_eq!(
+            maven_coord_version(&lib_dir.join("org/ow2/asm/asm/9.9/asm-9.9.jar"), &lib_dir),
+            Some("9.9".to_string())
+        );
+        assert_eq!(
+            maven_coord_version(&lib_dir.join("flat.jar"), &lib_dir),
+            None
+        );
+    }
+
+    #[test]
+    fn build_classpath_dedup_keeps_higher_version_when_loader_first() {
+        let mut options = make_test_options(false);
+        let lib_dir = options.config.libraries_dir();
+        options.instance.mod_loader = Some(crate::instance::ModLoaderConfig {
+            loader_type: crate::modloader::ModLoaderType::Fabric,
+            version: "0.16.10".to_string(),
+            main_class: None,
+            extra_libraries: vec![
+                lib_dir
+                    .join("org/ow2/asm/asm/9.9/asm-9.9.jar")
+                    .to_string_lossy()
+                    .to_string(),
+            ],
+        });
+        options.version_meta.libraries.push(Library {
+            name: "org.ow2.asm:asm:9.6".to_string(),
+            downloads: Some(LibraryDownloads {
+                artifact: Some(Artifact {
+                    path: "org/ow2/asm/asm/9.6/asm-9.6.jar".to_string(),
+                    sha1: "ccc".to_string(),
+                    size: 100,
+                    url: String::new(),
+                }),
+                classifiers: None,
+            }),
+            rules: None,
+            natives: None,
+            extract: None,
+        });
+
+        let cp = build_classpath_for_os(&options, "linux").unwrap();
+
+        assert!(cp.contains("asm-9.9.jar"));
+        assert!(!cp.contains("asm-9.6.jar"));
+    }
+
+    #[test]
+    fn build_classpath_dedup_keeps_higher_version_when_vanilla_first() {
+        let mut options = make_test_options(false);
+        let lib_dir = options.config.libraries_dir();
+        options.instance.mod_loader = Some(crate::instance::ModLoaderConfig {
+            loader_type: crate::modloader::ModLoaderType::Fabric,
+            version: "0.16.10".to_string(),
+            main_class: None,
+            extra_libraries: vec![
+                lib_dir
+                    .join("org/ow2/asm/asm/9.6/asm-9.6.jar")
+                    .to_string_lossy()
+                    .to_string(),
+            ],
+        });
+        options.version_meta.libraries.push(Library {
+            name: "org.ow2.asm:asm:9.9".to_string(),
+            downloads: Some(LibraryDownloads {
+                artifact: Some(Artifact {
+                    path: "org/ow2/asm/asm/9.9/asm-9.9.jar".to_string(),
+                    sha1: "ccc".to_string(),
+                    size: 100,
+                    url: String::new(),
+                }),
+                classifiers: None,
+            }),
+            rules: None,
+            natives: None,
+            extract: None,
+        });
+
+        let cp = build_classpath_for_os(&options, "linux").unwrap();
+
+        assert!(
+            cp.contains("asm-9.9.jar"),
+            "version comparison should choose 9.9 even when 9.6 was inserted first"
+        );
+        assert!(!cp.contains("asm-9.6.jar"));
+    }
+
+    #[test]
+    fn build_classpath_dedupes_loader_vs_vanilla_asm() {
+        let mut options = make_test_options(false);
+        let lib_dir = options.config.libraries_dir();
+        options.instance.mod_loader = Some(crate::instance::ModLoaderConfig {
+            loader_type: crate::modloader::ModLoaderType::Fabric,
+            version: "0.16.10".to_string(),
+            main_class: Some("net.fabricmc.loader.impl.launch.knot.KnotClient".to_string()),
+            extra_libraries: vec![
+                lib_dir
+                    .join("org/ow2/asm/asm/9.9/asm-9.9.jar")
+                    .to_string_lossy()
+                    .to_string(),
+            ],
+        });
+        options.version_meta.libraries.push(Library {
+            name: "org.ow2.asm:asm:9.6".to_string(),
+            downloads: Some(LibraryDownloads {
+                artifact: Some(Artifact {
+                    path: "org/ow2/asm/asm/9.6/asm-9.6.jar".to_string(),
+                    sha1: "ccc".to_string(),
+                    size: 100,
+                    url: String::new(),
+                }),
+                classifiers: None,
+            }),
+            rules: None,
+            natives: None,
+            extract: None,
+        });
+
+        let cp = build_classpath_for_os(&options, "linux").unwrap();
+
+        assert!(cp.contains("asm-9.9.jar"), "loader's ASM 9.9 must remain");
+        assert!(
+            !cp.contains("asm-9.6.jar"),
+            "vanilla's ASM 9.6 must be dropped (would cause Fabric duplicate-class crash)"
+        );
+    }
+
+    #[test]
+    fn build_classpath_keeps_lwjgl_native_classifier_alongside_regular_jar() {
+        let mut options = make_test_options(false);
+        options.version_meta.libraries.extend(vec![
+            Library {
+                name: "org.lwjgl:lwjgl:3.3.3".to_string(),
+                downloads: Some(LibraryDownloads {
+                    artifact: Some(Artifact {
+                        path: "org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar".to_string(),
+                        sha1: "a".to_string(),
+                        size: 100,
+                        url: String::new(),
+                    }),
+                    classifiers: None,
+                }),
+                rules: None,
+                natives: None,
+                extract: None,
+            },
+            Library {
+                name: "org.lwjgl:lwjgl:3.3.3:natives-linux".to_string(),
+                downloads: Some(LibraryDownloads {
+                    artifact: Some(Artifact {
+                        path: "org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3-natives-linux.jar".to_string(),
+                        sha1: "b".to_string(),
+                        size: 100,
+                        url: String::new(),
+                    }),
+                    classifiers: None,
+                }),
+                rules: None,
+                natives: None,
+                extract: None,
+            },
+        ]);
+
+        let cp = build_classpath_for_os(&options, "linux").unwrap();
+
+        assert!(
+            cp.contains("lwjgl-3.3.3.jar"),
+            "regular lwjgl jar must remain"
+        );
+        assert!(
+            cp.contains("lwjgl-3.3.3-natives-linux.jar"),
+            "lwjgl native classifier must NOT be deduped against the regular jar"
+        );
+    }
+
+    #[test]
+    fn build_classpath_keeps_distinct_artifacts_in_same_group() {
+        let mut options = make_test_options(false);
+        let lib_dir = options.config.libraries_dir();
+        options.instance.mod_loader = Some(crate::instance::ModLoaderConfig {
+            loader_type: crate::modloader::ModLoaderType::Fabric,
+            version: "0.16.10".to_string(),
+            main_class: None,
+            extra_libraries: vec![
+                lib_dir
+                    .join("org/ow2/asm/asm/9.9/asm-9.9.jar")
+                    .to_string_lossy()
+                    .to_string(),
+                lib_dir
+                    .join("org/ow2/asm/asm-tree/9.9/asm-tree-9.9.jar")
+                    .to_string_lossy()
+                    .to_string(),
+                lib_dir
+                    .join("org/ow2/asm/asm-commons/9.9/asm-commons-9.9.jar")
+                    .to_string_lossy()
+                    .to_string(),
+            ],
+        });
+
+        let cp = build_classpath_for_os(&options, "linux").unwrap();
+
+        assert!(cp.contains("asm-9.9.jar"));
+        assert!(cp.contains("asm-tree-9.9.jar"));
+        assert!(cp.contains("asm-commons-9.9.jar"));
     }
 
     #[test]
