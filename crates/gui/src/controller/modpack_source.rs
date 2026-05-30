@@ -5,12 +5,75 @@ use egui::Context;
 use miao_core::config::LauncherConfig;
 use miao_core::http::ReqwestClient;
 use miao_core::modpack_source::{
-    InstallPlan, LiveInstallExecutor, LiveResolverDataSource, install, parse_manifest, parse_pack,
-    resolve,
+    InstallPhase, InstallPlan, InstallProgressSink, LiveInstallExecutor, LiveResolverDataSource,
+    install, parse_manifest, parse_pack, resolve,
 };
 use tokio::sync::mpsc;
 
 use crate::messages::AppEvent;
+
+struct ChannelProgressSink {
+    task_id: String,
+    event_tx: mpsc::UnboundedSender<AppEvent>,
+    ctx: Context,
+}
+
+impl ChannelProgressSink {
+    fn emit(&self, completed: usize, total: usize, label: String) {
+        let _ = self.event_tx.send(AppEvent::InstallProgress {
+            task_id: self.task_id.clone(),
+            completed,
+            total,
+            label,
+        });
+        self.ctx.request_repaint();
+    }
+}
+
+impl InstallProgressSink for ChannelProgressSink {
+    fn on_phase(&self, phase: InstallPhase) {
+        let label = match phase {
+            InstallPhase::InstallingLoader {
+                mc,
+                loader,
+                version,
+            } => match version {
+                Some(v) => format!("Installing {loader} {v} for MC {mc}"),
+                None => format!("Installing latest {loader} for MC {mc}"),
+            },
+            InstallPhase::DownloadingMods { total } => {
+                format!("Downloading {total} mods")
+            }
+            InstallPhase::WritingOverlay { total } => {
+                format!("Writing {total} config files")
+            }
+            InstallPhase::Finalizing => "Finalizing instance".to_string(),
+        };
+        self.emit(0, 0, label);
+    }
+
+    fn on_mod_progress(&self, completed: usize, total: usize, current_name: &str) {
+        let label = if completed >= total {
+            "Mods downloaded".to_string()
+        } else if current_name.is_empty() {
+            format!("Mods ({completed}/{total})")
+        } else {
+            format!("Mod: {current_name}")
+        };
+        self.emit(completed, total, label);
+    }
+
+    fn on_overlay_progress(&self, completed: usize, total: usize, current_path: &str) {
+        let label = if completed >= total {
+            "Config written".to_string()
+        } else if current_path.is_empty() {
+            format!("Config ({completed}/{total})")
+        } else {
+            format!("Config: {current_path}")
+        };
+        self.emit(completed, total, label);
+    }
+}
 
 const FETCH_TIMEOUT: Duration = Duration::from_secs(8);
 const RAW_GITHUB_PREFIX: &str = "https://raw.githubusercontent.com/";
@@ -113,6 +176,22 @@ pub fn handle_install_modpack(
     event_tx: mpsc::UnboundedSender<AppEvent>,
     ctx: Context,
 ) {
+    let task_id = format!("modpack-install:{source_id}:{pack_id}:{instance_name}");
+
+    let _ = event_tx.send(AppEvent::InstallProgress {
+        task_id: task_id.clone(),
+        completed: 0,
+        total: 0,
+        label: "Fetching pack.json…".to_string(),
+    });
+    ctx.request_repaint();
+
+    let sink = Arc::new(ChannelProgressSink {
+        task_id: task_id.clone(),
+        event_tx: event_tx.clone(),
+        ctx: ctx.clone(),
+    });
+
     tokio::spawn(async move {
         let result = run_install(
             &source_id,
@@ -121,17 +200,23 @@ pub fn handle_install_modpack(
             &mc_version,
             &instance_name,
             &config,
+            sink,
+            &event_tx,
+            &task_id,
+            &ctx,
         )
         .await;
 
         let event = match result {
             Ok(_) => AppEvent::ModpackInstallFinished {
+                task_id,
                 source_id,
                 pack_id,
                 success: true,
-                message: format!("installed '{instance_name}'"),
+                message: format!("Installed '{instance_name}'"),
             },
             Err(e) => AppEvent::ModpackInstallFinished {
+                task_id,
                 source_id,
                 pack_id,
                 success: false,
@@ -143,6 +228,7 @@ pub fn handle_install_modpack(
     });
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_install(
     source_id: &str,
     _pack_id: &str,
@@ -150,11 +236,31 @@ async fn run_install(
     mc_version: &str,
     instance_name: &str,
     config: &LauncherConfig,
+    sink: Arc<ChannelProgressSink>,
+    event_tx: &mpsc::UnboundedSender<AppEvent>,
+    task_id: &str,
+    ctx: &Context,
 ) -> Result<(), String> {
+    let _ = event_tx.send(AppEvent::InstallProgress {
+        task_id: task_id.to_string(),
+        completed: 0,
+        total: 0,
+        label: "Fetching pack.json…".to_string(),
+    });
+    ctx.request_repaint();
+
     let pack_raw = fetch_with_github_fallback(pack_url)
         .await
         .map_err(|e| format!("fetch pack.json: {e}"))?;
     let pack = parse_pack(&pack_raw).map_err(|e| format!("parse pack.json: {e}"))?;
+
+    let _ = event_tx.send(AppEvent::InstallProgress {
+        task_id: task_id.to_string(),
+        completed: 0,
+        total: 0,
+        label: format!("Resolving {} mods…", pack.mods.len()),
+    });
+    ctx.request_repaint();
 
     let http = Arc::new(ReqwestClient::new());
     let cf = None;
@@ -164,6 +270,7 @@ async fn run_install(
         .map_err(|e| format!("resolve: {e}"))?;
 
     let executor = LiveInstallExecutor::new(http, Arc::new(config.clone()));
+    let progress_sink: Arc<dyn InstallProgressSink> = sink;
     let plan = InstallPlan {
         instance_name: instance_name.to_string(),
         pack: &pack,
@@ -172,6 +279,7 @@ async fn run_install(
         source_id: source_id.to_string(),
         source_url: pack_url.to_string(),
         manifest_etag: None,
+        progress: Some(progress_sink),
     };
 
     let instances_root = config.instances_dir().clone();

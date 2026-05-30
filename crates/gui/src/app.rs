@@ -368,8 +368,14 @@ impl MiaoApp {
                     self.toasts.error(format!("Modpack manifest: {error}"));
                 }
                 AppEvent::ModpackInstallFinished {
-                    success, message, ..
+                    task_id,
+                    success,
+                    message,
+                    ..
                 } => {
+                    self.active_installs.remove(&task_id);
+                    self.install_progress.remove(&task_id);
+                    self.smoothed_progress = 0.0;
                     self.status = message.clone();
                     if success {
                         self.toasts.success(&message);

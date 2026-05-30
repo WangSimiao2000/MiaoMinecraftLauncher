@@ -9,7 +9,8 @@ pub mod resolver;
 pub use cache::{Cache, CacheEntry, CacheError, CacheMeta, Freshness};
 pub use http::{HttpError, ProgressSink, RateLimitedClient};
 pub use installer::{
-    InstallError, InstallExecutor, InstallOutcome, InstallPlan, cleanup_orphan_staging, install,
+    InstallError, InstallExecutor, InstallOutcome, InstallPhase, InstallPlan, InstallProgressSink,
+    cleanup_orphan_staging, install,
 };
 pub use live::{LiveInstallExecutor, LiveResolverDataSource};
 pub use manifest::{

@@ -206,6 +206,7 @@ pub enum AppEvent {
         error: String,
     },
     ModpackInstallFinished {
+        task_id: String,
         #[allow(dead_code)]
         source_id: String,
         #[allow(dead_code)]

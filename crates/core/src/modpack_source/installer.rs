@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
@@ -9,6 +10,28 @@ use crate::modpack_source::manifest::{ConfigOverlay, OverlayFile, Pack};
 use crate::modpack_source::resolver::{
     ResolutionReport, ResolvedMod, ResolvedOverlay, ResolvedStatus,
 };
+
+pub trait InstallProgressSink: Send + Sync {
+    fn on_phase(&self, phase: InstallPhase);
+    fn on_mod_progress(&self, completed: usize, total: usize, current_name: &str);
+    fn on_overlay_progress(&self, completed: usize, total: usize, current_path: &str);
+}
+
+#[derive(Debug, Clone)]
+pub enum InstallPhase {
+    InstallingLoader {
+        mc: String,
+        loader: String,
+        version: Option<String>,
+    },
+    DownloadingMods {
+        total: usize,
+    },
+    WritingOverlay {
+        total: usize,
+    },
+    Finalizing,
+}
 
 #[derive(Debug, Error)]
 pub enum InstallError {
@@ -59,6 +82,7 @@ pub struct InstallPlan<'a> {
     pub source_id: String,
     pub source_url: String,
     pub manifest_etag: Option<String>,
+    pub progress: Option<Arc<dyn InstallProgressSink>>,
 }
 
 pub struct InstallOutcome {
@@ -114,6 +138,14 @@ async fn run_install(
     let loader_type_str = plan.pack.loader.canonical();
     let loader_version = plan.report.loader_version.as_deref();
 
+    if let Some(sink) = &plan.progress {
+        sink.on_phase(InstallPhase::InstallingLoader {
+            mc: plan.report.mc_version.clone(),
+            loader: loader_type_str.to_string(),
+            version: loader_version.map(|s| s.to_string()),
+        });
+    }
+
     let loader_config = executor
         .install_loader(
             instance_dir,
@@ -127,11 +159,25 @@ async fn run_install(
     let staging_mods = staging.join("mods");
     std::fs::create_dir_all(&staging_mods)?;
 
-    for m in &plan.report.mods {
-        if !matches!(m.status, ResolvedStatus::Compatible) {
-            continue;
+    let downloadable: Vec<&ResolvedMod> = plan
+        .report
+        .mods
+        .iter()
+        .filter(|m| matches!(m.status, ResolvedStatus::Compatible))
+        .collect();
+    let mod_total = downloadable.len();
+    if let Some(sink) = &plan.progress {
+        sink.on_phase(InstallPhase::DownloadingMods { total: mod_total });
+    }
+
+    for (idx, m) in downloadable.iter().enumerate() {
+        if let Some(sink) = &plan.progress {
+            sink.on_mod_progress(idx, mod_total, &m.display_name);
         }
         download_mod(executor, m, &staging_mods).await?;
+    }
+    if let Some(sink) = &plan.progress {
+        sink.on_mod_progress(mod_total, mod_total, "");
     }
 
     let mods_dir = Instance::mods_dir(instance_dir);
@@ -139,6 +185,16 @@ async fn run_install(
 
     let mut overlays_installed: Vec<ResolvedOverlay> = Vec::new();
     if let Some(overlay) = &plan.pack.config_overlay {
+        let applicable: Vec<&OverlayFile> = overlay
+            .files
+            .iter()
+            .filter(|f| applies_to(f, &plan.report.mc_version))
+            .collect();
+        if let Some(sink) = &plan.progress {
+            sink.on_phase(InstallPhase::WritingOverlay {
+                total: applicable.len(),
+            });
+        }
         let staging_overlay = staging.join("overlay");
         std::fs::create_dir_all(&staging_overlay)?;
         overlays_installed = stage_and_install_overlay(
@@ -147,8 +203,13 @@ async fn run_install(
             &staging_overlay,
             instance_dir,
             executor,
+            plan.progress.as_ref(),
         )
         .await?;
+    }
+
+    if let Some(sink) = &plan.progress {
+        sink.on_phase(InstallPhase::Finalizing);
     }
 
     let metadata_dir = instance_dir.join(".miao-modpack");
@@ -273,11 +334,18 @@ async fn stage_and_install_overlay(
     staging_overlay: &Path,
     instance_dir: &Path,
     executor: &dyn InstallExecutor,
+    progress: Option<&Arc<dyn InstallProgressSink>>,
 ) -> Result<Vec<ResolvedOverlay>, InstallError> {
+    let applicable: Vec<&OverlayFile> = overlay
+        .files
+        .iter()
+        .filter(|f| applies_to(f, mc_version))
+        .collect();
+    let total = applicable.len();
     let mut installed = Vec::new();
-    for f in &overlay.files {
-        if !applies_to(f, mc_version) {
-            continue;
+    for (idx, f) in applicable.iter().enumerate() {
+        if let Some(sink) = progress {
+            sink.on_overlay_progress(idx, total, &f.target);
         }
         let url = format!(
             "{base}/{path}",
@@ -312,6 +380,9 @@ async fn stage_and_install_overlay(
             preserve: f.preserve,
             installed_at: chrono::Utc::now(),
         });
+    }
+    if let Some(sink) = progress {
+        sink.on_overlay_progress(total, total, "");
     }
     Ok(installed)
 }
@@ -590,6 +661,7 @@ mod tests {
             source_id: "miao".to_string(),
             source_url: "https://example.com/manifest.json".to_string(),
             manifest_etag: None,
+            progress: None,
         };
 
         let outcome = install(plan, instances_root.path(), &exec).await.unwrap();
@@ -631,6 +703,7 @@ mod tests {
             source_id: "miao".to_string(),
             source_url: "https://example.com/manifest.json".to_string(),
             manifest_etag: None,
+            progress: None,
         };
 
         let result = install(plan, instances_root.path(), &exec).await;
@@ -659,6 +732,7 @@ mod tests {
             source_id: "miao".to_string(),
             source_url: "https://example.com/manifest.json".to_string(),
             manifest_etag: None,
+            progress: None,
         };
 
         let result = install(plan, instances_root.path(), &exec).await;
@@ -688,6 +762,7 @@ mod tests {
             source_id: "miao".to_string(),
             source_url: "https://example.com/manifest.json".to_string(),
             manifest_etag: None,
+            progress: None,
         };
 
         let result = install(plan, instances_root.path(), &exec).await;
@@ -732,6 +807,7 @@ mod tests {
             source_id: "miao".to_string(),
             source_url: "https://example.com/manifest.json".to_string(),
             manifest_etag: None,
+            progress: None,
         };
 
         let result = install(plan, instances_root.path(), &exec).await;
@@ -758,6 +834,7 @@ mod tests {
             source_id: "miao".to_string(),
             source_url: "https://example.com/manifest.json".to_string(),
             manifest_etag: None,
+            progress: None,
         };
 
         let result = install(plan, instances_root.path(), &exec).await;
@@ -786,6 +863,7 @@ mod tests {
             source_id: "miao".to_string(),
             source_url: "https://example.com/manifest.json".to_string(),
             manifest_etag: None,
+            progress: None,
         };
 
         let result = install(plan, instances_root.path(), &exec).await;
@@ -831,6 +909,7 @@ mod tests {
             source_id: "miao".to_string(),
             source_url: "https://example.com/manifest.json".to_string(),
             manifest_etag: None,
+            progress: None,
         };
 
         let outcome = install(plan, instances_root.path(), &exec).await.unwrap();
