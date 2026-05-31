@@ -189,6 +189,8 @@
   "account_added": "アカウントを追加しました。",
   "skin_model": "モデル:",
   "no_account_to_launch": "起動前にアカウントを追加してください。",
+  "launching_instance": "{name} を起動中…",
+  "launching_short": "起動中…",
   "check_updates": "アップデート確認",
   "up_to_date": "すべてのModは最新です",
   "updates_available": "件のアップデートあり",

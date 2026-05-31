@@ -364,8 +364,8 @@ pub fn list_item_frame(hovered: bool, selected: bool) -> egui::Frame {
         .inner_margin(Margin::symmetric(10, 6))
 }
 
-pub fn launch_button() -> egui::Button<'static> {
-    egui::Button::new(RichText::new("▶ Launch").size(Fonts::BUTTON).strong())
+pub fn launch_button(label: &str) -> egui::Button<'_> {
+    egui::Button::new(RichText::new(label).size(Fonts::BUTTON).strong())
         .fill(Colors::success())
         .corner_radius(CornerRadius::same(6))
 }

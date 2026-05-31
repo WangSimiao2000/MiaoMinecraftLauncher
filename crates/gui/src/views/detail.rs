@@ -86,7 +86,17 @@ impl MiaoApp {
                     });
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add(theme::launch_button()).clicked() {
+                        let launch_task_id = format!("launch:{}", inst.name);
+                        let is_launching = self.active_installs.contains(&launch_task_id);
+                        let btn_label = if is_launching {
+                            I18n::t(&self.language, "launching_short")
+                        } else {
+                            I18n::t(&self.language, "launch")
+                        };
+                        if ui
+                            .add_enabled(!is_launching, theme::launch_button(btn_label))
+                            .clicked()
+                        {
                             self.launch_instance(idx);
                         }
                         ui.add_space(8.0);

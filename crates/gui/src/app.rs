@@ -639,6 +639,10 @@ impl MiaoApp {
                         }
                     }
                 }
+                AppEvent::LaunchSpawned { task_id } => {
+                    self.active_installs.remove(&task_id);
+                    self.install_progress.remove(&task_id);
+                }
                 AppEvent::ExportResult(msg) => {
                     self.status = msg;
                 }
@@ -662,10 +666,6 @@ impl MiaoApp {
                     self.install_progress.remove(&task_id);
                     self.smoothed_progress = 0.0;
                     self.status = "Cancelled.".to_string();
-                }
-                AppEvent::Error(msg) => {
-                    self.status = msg.clone();
-                    self.toasts.error(&msg);
                 }
             }
         }
@@ -784,10 +784,14 @@ impl eframe::App for MiaoApp {
                         } else {
                             progress.label.clone()
                         };
+                        let cancellable = self
+                            .active_installs
+                            .iter()
+                            .any(|id| !id.starts_with("launch:"));
                         ui.horizontal(|ui| {
                             ui.spinner();
                             ui.label(theme::status_text(&label_text));
-                            if ui.small_button(crate::icons::ICON_X).clicked() {
+                            if cancellable && ui.small_button(crate::icons::ICON_X).clicked() {
                                 self.cancel_all_tasks();
                             }
                         });
@@ -1178,9 +1182,24 @@ impl MiaoApp {
 
         self.game_log.lines.clear();
         self.game_log.running = true;
-        self.status = format!("Launched {}", inst.name);
+
+        let task_id = format!("launch:{}", inst.name);
+        let lang = self.language.clone();
+        let launching_label = I18n::t(&lang, "launching_instance").replace("{name}", &inst.name);
+        self.status = launching_label.clone();
+        self.toasts.info(&launching_label);
+        self.active_installs.insert(task_id.clone());
+        self.install_progress.insert(
+            task_id.clone(),
+            InstallProgress {
+                completed: 0,
+                total: 0,
+                label: launching_label,
+            },
+        );
 
         self.controller.send(AppCommand::LaunchInstance {
+            task_id,
             idx,
             instance: inst.clone(),
             config: self.config.clone(),

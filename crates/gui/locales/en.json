@@ -173,6 +173,8 @@
   "account_added": "Account added.",
   "skin_model": "Model:",
   "no_account_to_launch": "Please add an account before launching.",
+  "launching_instance": "Launching {name}…",
+  "launching_short": "Launching…",
   "load_more": "Load More",
   "check_updates": "Check Updates",
   "up_to_date": "All mods are up to date",

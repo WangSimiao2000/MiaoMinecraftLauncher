@@ -30,6 +30,7 @@ pub enum AppCommand {
         config: LauncherConfig,
     },
     LaunchInstance {
+        task_id: String,
         idx: usize,
         instance: Instance,
         config: LauncherConfig,
@@ -306,6 +307,16 @@ pub enum AppEvent {
     GameExited {
         exit_code: Option<i32>,
     },
+    /// Emitted by the launch worker exactly once when the JVM has been spawned
+    /// successfully. Unlike [`AppEvent::InstallFinished`] this carries no
+    /// side-effects (no instance list refresh, no tab switching, no Java
+    /// re-detection) — its sole purpose is to clear the launch-progress entry
+    /// from `active_installs` / `install_progress` so the bottom-bar spinner
+    /// stops. The actual game-running indicator is then driven by
+    /// `game_log.running` (set by [`AppEvent::GameLogLine`] arrivals).
+    LaunchSpawned {
+        task_id: String,
+    },
 
     // ── Instance ──
     ExportResult(String),
@@ -319,5 +330,4 @@ pub enum AppEvent {
     TaskCancelled {
         task_id: String,
     },
-    Error(String),
 }

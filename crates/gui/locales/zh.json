@@ -173,6 +173,8 @@
   "account_added": "账号已添加。",
   "skin_model": "模型：",
   "no_account_to_launch": "请先添加账号再启动游戏。",
+  "launching_instance": "正在启动 {name}…",
+  "launching_short": "启动中…",
   "load_more": "加载更多",
   "check_updates": "检查更新",
   "up_to_date": "所有模组已是最新",

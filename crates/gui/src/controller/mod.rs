@@ -74,11 +74,13 @@ async fn controller_loop(
                 active_tasks.insert(task_id, handle);
             }
             AppCommand::LaunchInstance {
+                task_id,
                 idx,
                 instance,
                 config,
             } => {
                 instance::handle_launch_instance(
+                    task_id,
                     idx,
                     instance,
                     config,

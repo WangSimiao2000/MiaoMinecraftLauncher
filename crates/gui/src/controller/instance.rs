@@ -59,6 +59,7 @@ pub fn handle_create_instance(
 }
 
 pub fn handle_launch_instance(
+    task_id: String,
     idx: usize,
     instance: Instance,
     config: LauncherConfig,
@@ -66,7 +67,7 @@ pub fn handle_launch_instance(
     ctx: Context,
 ) {
     std::thread::spawn(move || {
-        stream_game_process(idx, instance, config, tx, ctx);
+        stream_game_process(task_id, idx, instance, config, tx, ctx);
     });
 }
 
@@ -189,6 +190,7 @@ pub fn handle_import_mrpack(
 }
 
 fn stream_game_process(
+    task_id: String,
     _idx: usize,
     instance: Instance,
     mut config: LauncherConfig,
@@ -210,16 +212,34 @@ fn stream_game_process(
         "launching instance"
     );
 
+    let send_phase = |label: String| {
+        let _ = tx.send(AppEvent::InstallProgress {
+            task_id: task_id.clone(),
+            completed: 0,
+            total: 0,
+            label,
+        });
+        ctx.request_repaint();
+    };
+    let fail = |msg: String| {
+        let _ = tx.send(AppEvent::InstallFinished {
+            task_id: task_id.clone(),
+            success: false,
+            message: msg,
+        });
+        ctx.request_repaint();
+    };
+
     let idx = config.active_account_index.unwrap_or(0);
     let Some(account) = config.accounts.get(idx).cloned() else {
         tracing::warn!(target: "miao_gui::launch", "no account configured");
-        let _ = tx.send(AppEvent::Error("No account configured.".to_string()));
-        ctx.request_repaint();
+        fail("No account configured.".to_string());
         return;
     };
 
     let account = match &account {
         AuthMethod::Microsoft(ms_acc) if ms_acc.is_expired() => {
+            send_phase(format!("Refreshing account '{}'…", ms_acc.username));
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -241,11 +261,10 @@ fn stream_game_process(
                         error = %e,
                         "Microsoft token refresh failed",
                     );
-                    let _ = tx.send(AppEvent::Error(format!(
+                    fail(format!(
                         "Token refresh failed for '{}': {}. Please re-login.",
                         ms_acc.username, e
-                    )));
-                    ctx.request_repaint();
+                    ));
                     return;
                 }
             }
@@ -253,6 +272,7 @@ fn stream_game_process(
         _ => account,
     };
 
+    send_phase("Detecting Java…".to_string());
     let java_installations = java::detect_java_with_data_dir(&config.data_dir);
     let meta_path = config
         .versions_dir()
@@ -260,19 +280,17 @@ fn stream_game_process(
         .join(format!("{}.json", instance.minecraft_version));
 
     if !meta_path.exists() {
-        let _ = tx.send(AppEvent::Error(format!(
+        fail(format!(
             "Version meta not found for {}.",
             instance.minecraft_version
-        )));
-        ctx.request_repaint();
+        ));
         return;
     }
 
     let meta_content = match std::fs::read_to_string(&meta_path) {
         Ok(c) => c,
         Err(e) => {
-            let _ = tx.send(AppEvent::Error(format!("Error: {}", e)));
-            ctx.request_repaint();
+            fail(format!("Error: {}", e));
             return;
         }
     };
@@ -280,8 +298,7 @@ fn stream_game_process(
     let meta: miao_core::version::meta::VersionMeta = match serde_json::from_str(&meta_content) {
         Ok(m) => m,
         Err(e) => {
-            let _ = tx.send(AppEvent::Error(format!("Parse error: {}", e)));
-            ctx.request_repaint();
+            fail(format!("Parse error: {}", e));
             return;
         }
     };
@@ -292,20 +309,21 @@ fn stream_game_process(
     });
 
     let Some(java_path) = java_path else {
-        let _ = tx.send(AppEvent::Error(format!(
+        fail(format!(
             "Java {} not found — trigger download dialog",
             required_java
-        )));
-        ctx.request_repaint();
+        ));
         return;
     };
 
     let instance_dir = Instance::instance_dir(&config.instances_dir(), &instance.name);
 
+    send_phase("Verifying game files…".to_string());
     match miao_core::integrity::verify_instance_files(&instance.minecraft_version, &config) {
         Ok(report) if !report.is_healthy() => {
             let repair_tasks = report.repair_tasks();
             let count = repair_tasks.len();
+            send_phase(format!("Repairing {} missing/corrupted file(s)…", count));
             let _ = tx.send(AppEvent::GameLogLine(format!(
                 "[INFO] Repairing {} missing/corrupted file(s)...",
                 count
@@ -321,11 +339,8 @@ fn stream_game_process(
                 config.max_concurrent_downloads,
             );
             if let Err(e) = rt.block_on(dm.download_all(repair_tasks)) {
-                let _ = tx.send(AppEvent::Error(format!(
-                    "File repair failed: {}. Launch may fail.",
-                    e
-                )));
-                ctx.request_repaint();
+                fail(format!("File repair failed: {}. Launch aborted.", e));
+                return;
             }
         }
         Err(e) => {
@@ -338,6 +353,7 @@ fn stream_game_process(
         _ => {}
     }
 
+    send_phase("Extracting natives…".to_string());
     if let Err(e) = miao_core::version::install::extract_natives(&meta, &config) {
         let _ = tx.send(AppEvent::GameLogLine(format!(
             "[WARN] Failed to extract natives: {}",
@@ -346,6 +362,7 @@ fn stream_game_process(
         ctx.request_repaint();
     }
 
+    send_phase("Starting JVM…".to_string());
     let options = LaunchOptions {
         game_dir: instance_dir,
         java_path,
@@ -361,6 +378,9 @@ fn stream_game_process(
             cmd.stderr(std::process::Stdio::piped());
             match cmd.spawn() {
                 Ok(mut child) => {
+                    let _ = tx.send(AppEvent::LaunchSpawned {
+                        task_id: task_id.clone(),
+                    });
                     let _ = tx.send(AppEvent::InstallStatus(format!(
                         "Launched {}",
                         instance.name
@@ -409,14 +429,12 @@ fn stream_game_process(
                     ctx.request_repaint();
                 }
                 Err(e) => {
-                    let _ = tx.send(AppEvent::Error(format!("Launch failed: {}", e)));
-                    ctx.request_repaint();
+                    fail(format!("Launch failed: {}", e));
                 }
             }
         }
         Err(e) => {
-            let _ = tx.send(AppEvent::Error(format!("Command error: {}", e)));
-            ctx.request_repaint();
+            fail(format!("Command error: {}", e));
         }
     }
 }
