@@ -722,61 +722,150 @@ Phase 1 不预先实现 Phase 2/3 的功能，但**以上接口字段必须在 P
 
 ---
 
-## 12. 实施进度（last updated 2026-05-31，phase1-work@b4916e8）
+## 12. 实施进度（last updated 2026-05-31，main@505ee65）
 
 ### 已完成
 
-实现层面 §3-§5 全部落地（schema / cache / RateLimitedClient / resolver / registry / installer / LiveResolverDataSource / LiveInstallExecutor / new-instance modpack tab / detail modpack-sync tab）。代码量：phase1-work 相对 main 领先 22 commits，413 个测试通过（core 388 + cli 12 + gui 13），clippy `-D warnings` 全绿。
+phase1-work 已 fast-forward 合并进 main，main 当前位于 `505ee65`，比上次 release tag `v0.2.0-beta.7` 领先 23 commits，413 个测试全绿（core 388 + cli 12 + gui 13），clippy `-D warnings` 全绿。
 
-QA session 1（2026-05-31）期间发现并修复了 4 个真 bug：
+实现层面 §3-§5 全部落地（schema / cache / RateLimitedClient / resolver / registry / installer / LiveResolverDataSource / LiveInstallExecutor / new-instance modpack tab / detail modpack-sync tab）。
 
-1. `fix(modpack-source): install vanilla Minecraft before mod loader` — 整合包安装 vanilla MC 顺序错误（已在 phase1-work 16d2b4 修）
-2. `fix(launch): fall back through download-mirror chain for vanilla MC manifest/meta` — `download_mirror = Official` 在不可达 piston-meta 的网络上整合包安装失败
-3. `feat(modpack-source): GUI Phase 1 QA polish` 一并修了三处：
-   - `<data-dir>/modpack-sources/user.toml` 没被 GUI 调用 `load_sources()`
-   - 同步 Tab 的 emoji 图标在缺 emoji 字体的系统上 tofu
-   - Pending / 非 Compatible mod 没有 explicit consent UI（resolve 后加 confirm modal）
+QA + 用户反馈 session 期间修复 / 优化（按时间顺序）：
 
-§9 DoD 已通过的项见 §9 上方更新过的清单；其余项要么有 core 层测试覆盖（行为正确性），要么是边界 case 故障注入（断网/限流/磁盘满 等），未在本轮人工跑。
+1. `916d2b4 fix(modpack-source): install vanilla Minecraft before mod loader` — 整合包安装顺序错误（先装 loader 后装 vanilla）
+2. `00180b0 fix(launch): fall back through download-mirror chain for vanilla MC manifest/meta` — `download_mirror = Official` 在不可达 piston-meta 的网络上整合包安装失败
+3. `b4916e8 feat(modpack-source): GUI Phase 1 QA polish` — `<data-dir>/modpack-sources/user.toml` 未被 GUI 加载 / 同步 Tab emoji tofu / Pending mod 缺 explicit consent UI（resolve 后加 confirm modal）
+4. `10c36a6 docs: sync CHANGELOG + Phase 1 spec progress with QA session 1`
+5. **`a530a99 fix(gui): show launch progress so users know the game is starting (#11)`** — 解决 issue #11：点击 Launch 后 10–60 秒沉默；现在加进度阶段（Detecting Java… → Verifying files… → Repairing N files… → Extracting natives… → Starting JVM…）+ Toast + 按钮置灰；新增 `AppEvent::LaunchSpawned` 无副作用清 spinner；删除 dead `AppEvent::Error` variant
+6. **`505ee65 feat(gui): explain modpack mod statuses via hover tooltips`** — 解决用户对 Pending/Deprecated/Abandoned 文案不理解：confirm modal 状态徽章加 hover tooltip 解释；同步 Tab 计数 chip 化（图标+数字+文字+tooltip）；tooltip delay 0.3s → 0.15s
 
-### 已知缺口（Phase 2 接管前应处理）
+issue #12（桌面快捷方式）调研已做（Windows 不发 CLI 是 gap，需要先给 `miao-gui` 加 `--launch` argv 解析，详见 session-2 中 explore agent bg_fedca1ff 的输出），但**用户决定推迟**，未实施。
 
-按重要性：
+外部 fixture（github.com/WangSimiao2000/miao-modpacks）也跟进了：
+- `df41565` — Indium 加 `deprecated_after: "1.21.1"`（演示 Deprecated 状态）+ 新增 Soft Imprints (`UhxJgB1o`) 作为真·Pending fixture（last_release 2026-05-30、不支持 1.21.4/5/7）
+- 端到端验证通过：选 1.21.4 解算结果是 5 Compatible（含 2 个自动依赖补全 Architectury / Cloth Config）+ 1 Pending（Soft Imprints）+ 1 Deprecated（Indium）
 
-1. **Cache 层未在 GUI 接通**：`core::modpack_source::cache::Cache` 类型已实现并测试，但 `controller::modpack_source::handle_fetch_manifest` 直接走 HTTP，没用 cache。后果：spec §9 第 6 项「断网兜底」、第 13 项「manifest 网络拉取超时 → 兜底用本地缓存」字面无法验证。修复点：在 fetch_manifest 调用前查 cache，network 成功后写 cache，network 失败 + cache 存在时返回 cache（带 stale 标记到 UI）。
+§9 DoD 已通过的项见 §9 清单；剩余项要么 core 层测试覆盖（行为正确性），要么是边界 case 故障注入（断网/限流/磁盘满），未在本轮人工跑。
+
+### 已知缺口（按重要性，0.3.0-rc 前应处理）
+
+1. **Cache 层未在 GUI 接通**：`core::modpack_source::cache::Cache` 已实现并测试，但 `controller::modpack_source::handle_fetch_manifest` 直接走 HTTP，没用 cache。后果：spec §9 第 6 项「断网兜底」、第 13 项「manifest 网络拉取超时 → 兜底用本地缓存」字面无法验证。修复点：在 fetch_manifest 调用前查 cache，network 成功后写 cache，network 失败 + cache 存在时返回 cache（带 stale 标记到 UI）。
 2. **「重新解算」按钮缺失**：modpack browse tab 没有显式的"重新解算"按钮（只有"刷新"刷的是 manifest 不是 resolution）。后果：§9 第 11 项「狂点重新解算 → 限流倒计时」物理上无法触发。
-3. **"无法取消" 提示文案**：spec §4.3 / §9 第 7 项明确要求 Phase 1 不实现取消并需告知用户。当前进度条 UI 没这文案。
-4. **NeoForge / incompatible / 循环依赖 GUI 行为未验证**：core 测试覆盖了后端语义（t_install_07 incompatible / t_resolve_* cycle / NeoForge game_versions 二次校验），但 GUI 端未人工跑。米奇喵源现仅含 Fabric pack，需另造 fixture。
+3. **"无法取消" 提示文案**：spec §4.3 / §9 第 7 项明确要求 Phase 1 不实现取消并需告知用户。当前进度条 UI 没这文案。Issue #11 修复时也保留了这个 gap（launch 也不可取消，spinner ✕ 已隐藏，但没文案说明）。
+4. **NeoForge / incompatible / 循环依赖 GUI 行为未验证**：core 测试覆盖了后端语义（t_install_07 incompatible / t_resolve_* cycle / NeoForge game_versions 二次校验），但 GUI 端未人工跑。米奇喵源现仅含 Fabric pack，需另造 NeoForge fixture。
 5. **故障注入抽样未跑**：hosts 重定向回滚 / 磁盘满 / Modrinth 503 等，core 测试覆盖回滚语义但 UI 错误展示未验证。
+6. **issue #12 桌面快捷方式未做**：用户向功能，需要 (a) `miao-gui --launch <name>` argv 解析，(b) `crates/gui/src/platform.rs` 加 `desktop_dir()` + `write_instance_shortcut()` 跨平台 helper，(c) sidebar instance card 加右键 context_menu。Linux 写 `.desktop` / macOS 写 `.command` / Windows shell-out PowerShell 写 `.lnk`。预估 ~1.5–2 天。
 
 ### 接下来要做什么（按优先级）
 
-**P0 — 0.3.0-beta.1 release 前必做**：
+**P0 — `v0.3.0-beta.1` release 前必做**（0–1 天）：
 
-1. 给 phase1-work 加 `release: v0.3.0-beta.1` commit：bump `Cargo.toml` workspace version 到 `0.3.0-beta.1`；CHANGELOG `[Unreleased]` 改为 `[0.3.0-beta.1] - YYYY-MM-DD`；release notes 草稿写 Phase 1 范围摘要 + 已知 Phase 2 缺口（参考上一节）。参考 v0.2.0-beta.7 的 release commit 格式。
-2. fast-forward merge phase1-work → main，push origin/main，打 tag `v0.3.0-beta.1`，让 release workflow 自动建 release。
+1. 给 main 加 `release: v0.3.0-beta.1` commit：bump `Cargo.toml` workspace version `0.2.0-beta.7` → `0.3.0-beta.1`；CHANGELOG `[Unreleased]` 改为 `[0.3.0-beta.1] - YYYY-MM-DD`；release notes 直接 lift `[Unreleased]` 现有内容（已写好，含 Phase 1 摘要 + Pending modal + 启动反馈 + tooltip 解释）。参考 v0.2.0-beta.7 的 release commit 格式（`d1b0e69`）。
+2. push main，打 tag `v0.3.0-beta.1`，让 release workflow 自动建 release。
 
-**P1 — 0.3.0-rc 前应做**：
+**P1 — 0.3.0-rc 前应做**（按 ROI 排，每项独立可做）：
 
-3. 接通 Cache 层到 GUI（`controller::modpack_source::handle_fetch_manifest` 走 cache → network → cache fallback 链路，UI 显示 stale 标记）；这同时解决 §9 #6 / #13。
-4. 加「重新解算」按钮到 modpack browse tab，让 §9 #11 限流场景人工可验证。
-5. 安装期进度条加 "无法取消" 文案（i18n 三语）。
-6. NeoForge fixture：在米奇喵源仓库加一个最小 NeoForge pack（同 fabric pack 类似）跑 §9 #3。
-7. 抽样跑 3-5 个故障注入项（断网、hosts 重定向、磁盘满任选）。
+3. **Cache 层接通 GUI**（半天）—— 解锁 §9 #6 / #13 两项 DoD，最高 ROI
+4. **「重新解算」按钮**（2 小时）—— 解锁 §9 #11
+5. **「无法取消」文案 i18n 三语**（1 小时）—— 解锁 §9 #7 + 同时覆盖 launch 流的"无法取消"
+6. **NeoForge fixture** + GUI 跑 §9 #3（半天，外部仓库 + 测试，需要找 NeoForge mod 候选）
+7. **抽样故障注入**（半天，hosts 重定向 / 磁盘满 / Modrinth 503 任选 3–5 项）
+8. **issue #12 桌面快捷方式**（1.5–2 天，独立功能）
 
 **P2 — Phase 2 设计阶段处理**：
 
-8. user.toml GUI 编辑入口（spec §10「Phase 2 仅加 GUI 编辑入口」）。
-9. 整合包升级流程（消费 `pack_content_hash` 双层防御，§10）。
-10. 配置文件 overlay 更新流程（消费 `preserve` / `original_size`，§10）。
+9. user.toml GUI 编辑入口（spec §10「Phase 2 仅加 GUI 编辑入口」）
+10. 整合包升级流程（消费 `pack_content_hash` 双层防御，§10）
+11. 配置文件 overlay 更新流程（消费 `preserve` / `original_size`，§10）
+12. CurseForge `ModStatus.Inactive/Abandoned` 自动检测（librarian 调研发现 CF 有此 API 字段，可作为 `deprecated_after` 之外的辅助信号；Modrinth 没有可靠的字段所以不做）
 
-### 下次启动 session 的最快路径
+---
+
+## 13. 文档规划
+
+`docs/` 目录里的现有文档（`architecture.md` / `modpack-source.md` / `modpack-source-phase1-spec.md` / `cross-platform.md` / `roadmap.md` / `testing.md` / `ui-design.md`）**面向开发者 / 维护者**，描述内部架构、设计决策、实现 spec。**不是**给玩家或整合包作者看的。
+
+### 13.1 用户向文档的位置
+
+不放在 `docs/`，按以下二阶段策略推进：
+
+**短期（0.3.0-beta.1 这个月，最小可用方案）**：用 [GitHub Wiki](https://github.com/WangSimiao2000/MiaoMinecraftLauncher/wiki)，零配置即开即用。
+
+**长期（用户量上来 / Phase 2 期间）**：迁移到仓库内 `website/` 子目录 + GitHub Pages（mkdocs / VitePress / Docusaurus 任选），跟代码一起 PR。
+
+### 13.2 0.3.0-beta.1 发布前必做
+
+- [ ] 在 `docs/` 加 `README.md`，明确说明 docs/ 是开发文档，并指向用户文档位置（Wiki 或 website/）。让贡献者一眼分清。
+- [ ] `README.md` Features 表加一行 「Modpack Sources」简介，链接到 Wiki / website。
+- [ ] 创建 GitHub Wiki 首页（`Home`），列出可用的用户向页面骨架（哪怕暂时是 stub）。
+
+### 13.3 0.3.0-beta.1 之后第一周应写的用户向文档
+
+外部整合包作者要开始照着写自己的 pack 了，需要这些：
+
+#### A. **整合包作者指南**（`Modpack-Author-Guide`）—— 最高优先级
+
+一篇正经文档，覆盖以下事实点（这些是 user session 期间被反复问到的）：
+
+1. **三层模型**：源 → 整合包 → mod 列表
+2. **核心范式转变**：mrpack 是静态快照（绑定 1 个 MC 版本），米奇喵源是声明式（一份 pack 跨多个 MC 版本智能适配）
+3. **作者 vs 启动器的职责划分**：作者声明意图 / 启动器解算事实
+4. **ResolvedStatus 六种状态对比表**（重点）：
+   - 每种状态：数据来源 / 触发条件 / 玩家可见行为 / 作者应如何响应
+   - **特别澄清** Deprecated vs Abandoned 的判定差异（决策树形式）：
+     ```
+     这个 mod 在某个 MC 版本上不再适用？
+     ├─ 整个 mod 完全死了，没救 → 直接从 pack.json 删
+     ├─ 只在新 MC 版本上不适用，旧版本还要用 → deprecated_after: "X"
+     └─ 全 MC 版本都还能用，只是作者最近没更新 → 啥都不做（让 resolver 推断为 Abandoned）
+     ```
+5. **pack.json 字段每一项的「使用场景」**：
+   - `policy: "auto"` vs `"lock"` —— 哪种场景下选哪个
+   - `criticality: "core"` vs `"optional"` —— 影响什么（Phase 1 仅 UI 颜色，Phase 2 用于安装中止判定）
+   - **`deprecated_after`** —— 详细说明 + 真实例子（Indium / Sodium FRAPI）。**重点澄清这个不是 API 接口、不是文本检索，是作者手写的字段**。
+   - `replacement` —— Phase 1 仅记录、Phase 2 才消费，但作者现在就该写
+   - `config_overlay.files[].preserve` —— first-install-only 含义
+   - `loader_versions` —— 何时手写、何时让 MMCL 自动选
+6. **跨 MC 版本支持的最佳实践**：
+   - "我想让 1.21.0–1.21.7 都用一份 pack" 的写法
+   - 已知 mod 在新版本被取代（FRAPI/Indium 案例）
+   - 已知 mod 还没出新版本（Pending 模式自然处理）
+7. **数据来源的明确说明**（澄清 user 反复问的疑问）：
+   - **明确写出**：`deprecated_after` 不是接口，是作者**手写**字段
+   - **MMCL 完全没用**：Modrinth `status: "archived"`、CurseForge `ModStatus.Inactive/Abandoned`（Phase 2 计划接 CF 那侧）
+   - **MMCL 完全没做**：description 关键词扫描（不靠谱、误报多）
+8. **完整可运行示例**：一份带详细注释的 pack.json（每行 // 这个字段表示...），多种场景：纯 fabric / 跨版本 / 有依赖 / 有 config overlay
+9. **测试与发布流程**：本地用 MMCL 测试 / 模拟玩家选择不同 MC 版本看 resolved.json / 解读 status 计数器 / 提交到 manifest.json 之前的 sanity checklist
+
+#### B. **玩家 FAQ**（`FAQ`）
+
+- 「我点了安装为什么有些 mod 没装上？」→ 解释 status 分类
+- 「为什么 launching 之后还要等很久才出现 MC 窗口？」→ 解释 JVM 冷启动 + classpath + mod loader bootstrap + LWJGL
+- 「整合包同步 Tab 的数字什么意思？」→ 解释 chip
+- 「兼容、待支持、已弃用、已弃坑、冲突、版本歧义都是什么意思？」→ link 到作者指南的状态表
+
+#### C. **`docs/modpack-source.md` 增补**（保持开发文档定位）
+
+- §4.3 Mod 状态分类的表格里**每行加一个 "数据来源" 列**（pack 声明 / Modrinth API / CF API / resolver 推断）
+- §5 升级流程要把 `deprecated_after` 在 Phase 2 升级中怎么消费写清楚
+
+### 13.4 文档间的交叉引用
+
+- 用户向文档（Wiki / website）→ link 回 spec 给好奇心强的作者读
+- 开发文档（docs/）→ 在 `docs/README.md` link 出去到用户文档位置
+- 双向 link 让两个受众都能从自己关心的入口出发
+
+---
+
+## 下次启动 session 的最快路径
 
 ```bash
 git checkout main
 git pull
-git log --oneline -5  # 应看到 commit B b4916e8 + commit A 00180b0 + 之前的 18 个 phase1 commits
-cargo test --workspace --no-fail-fast  # 确认 413 tests 仍全绿
+git log --oneline -10  # 应看到 505ee65 / a530a99 / 10c36a6 + 之前的 phase1 commits
+cargo test --workspace --no-fail-fast  # 确认 413 tests 全绿
 ```
 
-如果决定直接发 0.3.0-beta.1，找 v0.2.0-beta.7 那个 release commit 作模板（`d1b0e69`），照葫芦画瓢即可。如果决定先补 P1 几项再发，从「Cache 层接通到 GUI」开始最值，因为它解锁两个 §9 DoD 项。
+最直接的 next step：**发 `v0.3.0-beta.1`**。CHANGELOG `[Unreleased]` 已经写好（含 Phase 1 摘要、Pending modal、launch 反馈 #11、tooltip 解释、download-mirror fallback、emoji tofu fix、user.toml 加载 fix），release commit 直接照 v0.2.0-beta.7（`d1b0e69`）的格式 lift 即可。
+
+如果决定先补 P1 一两项再发，从「Cache 层接通到 GUI」开始最值（半天解锁两个 §9 DoD 项）。
