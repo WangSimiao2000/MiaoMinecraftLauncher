@@ -548,6 +548,7 @@ fn apply_layout(style: &mut egui::Style) {
     style.spacing.button_padding = Spacing::BUTTON_PADDING;
     style.spacing.window_margin = Spacing::WINDOW_MARGIN;
     style.animation_time = 0.2;
+    style.interaction.tooltip_delay = 0.15;
 }
 
 pub fn swatch_colors(preset: ThemePreset) -> (Color32, Color32) {

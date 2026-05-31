@@ -89,12 +89,23 @@ impl MiaoApp {
 
                                 for m in &pending.report.mods {
                                     ui.label(&m.display_name);
-                                    let (key, color) = status_style(&m.status);
-                                    ui.label(egui::RichText::new(I18n::t(&lang, key)).color(color));
+                                    let (label_key, color) = status_style(&m.status);
+                                    let desc_key = status_desc_key(&m.status);
+                                    ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(I18n::t(&lang, label_key))
+                                                .color(color),
+                                        )
+                                        .sense(egui::Sense::hover()),
+                                    )
+                                    .on_hover_text(I18n::t(&lang, desc_key));
                                     ui.end_row();
                                 }
                             });
                     });
+
+                ui.add_space(8.0);
+                ui.label(theme::muted(I18n::t(&lang, "modpack_confirm_legend_hint")));
 
                 ui.add_space(12.0);
                 ui.horizontal(|ui| {
@@ -152,5 +163,16 @@ fn status_style(s: &ResolvedStatus) -> (&'static str, egui::Color32) {
             ("modpack_status_deprecated", theme::Colors::text_muted())
         }
         ResolvedStatus::Ambiguous { .. } => ("modpack_status_ambiguous", theme::Colors::warning()),
+    }
+}
+
+fn status_desc_key(s: &ResolvedStatus) -> &'static str {
+    match s {
+        ResolvedStatus::Compatible => "modpack_status_compatible_desc",
+        ResolvedStatus::Pending { .. } => "modpack_status_pending_desc",
+        ResolvedStatus::Abandoned { .. } => "modpack_status_abandoned_desc",
+        ResolvedStatus::Conflict { .. } => "modpack_status_conflict_desc",
+        ResolvedStatus::Deprecated { .. } => "modpack_status_deprecated_desc",
+        ResolvedStatus::Ambiguous { .. } => "modpack_status_ambiguous_desc",
     }
 }

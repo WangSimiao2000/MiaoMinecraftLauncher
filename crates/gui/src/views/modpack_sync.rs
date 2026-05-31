@@ -80,30 +80,58 @@ impl MiaoApp {
             counts.tally(&m.status);
         }
         ui.horizontal(|ui| {
-            ui.label(
-                egui::RichText::new(format!("{} {}", ICON_CHECK_CIRCLE_FILL, counts.compatible))
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(format!(
+                        "{} {} {}",
+                        ICON_CHECK_CIRCLE_FILL,
+                        counts.compatible,
+                        I18n::t(lang, "modpack_status_compatible"),
+                    ))
                     .color(theme::Colors::success()),
-            );
-            ui.label(
-                egui::RichText::new(format!(
-                    "{} {}",
-                    ICON_EXCLAMATION_TRIANGLE_FILL,
-                    counts.pending + counts.ambiguous
-                ))
-                .color(theme::Colors::warning()),
-            );
-            ui.label(
-                egui::RichText::new(format!("{} {}", ICON_PAUSE_CIRCLE_FILL, counts.deprecated))
+                )
+                .sense(egui::Sense::hover()),
+            )
+            .on_hover_text(I18n::t(lang, "modpack_sync_counts_compatible_tip"));
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(format!(
+                        "{} {} {}",
+                        ICON_EXCLAMATION_TRIANGLE_FILL,
+                        counts.pending + counts.ambiguous,
+                        I18n::t(lang, "modpack_status_pending"),
+                    ))
+                    .color(theme::Colors::warning()),
+                )
+                .sense(egui::Sense::hover()),
+            )
+            .on_hover_text(I18n::t(lang, "modpack_sync_counts_warn_tip"));
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(format!(
+                        "{} {} {}",
+                        ICON_PAUSE_CIRCLE_FILL,
+                        counts.deprecated,
+                        I18n::t(lang, "modpack_status_deprecated"),
+                    ))
                     .color(theme::Colors::text_muted()),
-            );
-            ui.label(
-                egui::RichText::new(format!(
-                    "{} {}",
-                    ICON_X_CIRCLE_FILL,
-                    counts.abandoned + counts.conflict
-                ))
-                .color(theme::Colors::danger()),
-            );
+                )
+                .sense(egui::Sense::hover()),
+            )
+            .on_hover_text(I18n::t(lang, "modpack_sync_counts_deprecated_tip"));
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(format!(
+                        "{} {} {}",
+                        ICON_X_CIRCLE_FILL,
+                        counts.abandoned + counts.conflict,
+                        I18n::t(lang, "modpack_status_abandoned"),
+                    ))
+                    .color(theme::Colors::danger()),
+                )
+                .sense(egui::Sense::hover()),
+            )
+            .on_hover_text(I18n::t(lang, "modpack_sync_counts_blocked_tip"));
         });
         ui.add_space(theme::Spacing::SMALL_GAP);
 
