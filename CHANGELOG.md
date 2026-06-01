@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0-beta.1] - 2026-06-01
+
 ### Added
 
 - **Modpack source ecosystem (Phase 1)**: First end-to-end implementation of the design in [`docs/modpack-source.md`](docs/modpack-source.md) and [`docs/modpack-source-phase1-spec.md`](docs/modpack-source-phase1-spec.md). The launcher now ships a built-in 「米奇喵整合包源」 entry that fetches a remote `manifest.json`, resolves each declared mod against Modrinth / CurseForge for the chosen Minecraft version, downloads the matching artifacts under a per-instance `.staging/` directory with full rollback on any failure, and writes a `modpack_subscription` block plus a `.miao-modpack/{pack.json, resolved.json, source.json}` set onto the resulting instance so Phase 2 can later detect upstream changes via `(pack_version, pack_content_hash)`. The "+ New Instance" dialog grew a Modpack tab driving this flow, and instance detail gained a 「整合包同步」 tab that surfaces the resolved mod list with `Compatible / Pending / Abandoned / Conflict / Deprecated / Ambiguous` classification per mod. User-registered sources are read from `<data-dir>/modpack-sources/user.toml` at startup; Phase 1 has no GUI to add or edit them yet (Phase 2 surface).
@@ -50,6 +52,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **macOS: detect system-installed JDKs**. The Java scanner only looked for `<entry>/bin/java`, but macOS JDKs are packaged as `.jdk` bundles whose binary lives at `<entry>/Contents/Home/bin/java`. As a result, every JDK installed via Adoptium / Microsoft / Oracle / Apple `.pkg` (i.e. the standard macOS install path) was invisible and the GUI offered to download Java even when one was already installed. `java_bin_under` now checks both layouts.
 - **macOS: extend Java search paths** to cover Homebrew (`/opt/homebrew/opt`, `/opt/homebrew/Cellar`, `/usr/local/opt`, `/usr/local/Cellar`), the legacy Internet Plug-Ins Java location, the user's `~/Library/Java/JavaVirtualMachines`, and SDKMAN (`~/.sdkman/candidates/java`). The directory walker is now bounded by `max_depth=4` to handle Homebrew Cellar's nested layout (`<formula>/<version>/libexec/openjdk.jdk`) without runaway scans into unrelated trees.
 
+[0.3.0-beta.1]: https://github.com/WangSimiao2000/MiaoMinecraftLauncher/compare/v0.2.0-beta.7...v0.3.0-beta.1
 [0.2.0-beta.7]: https://github.com/WangSimiao2000/MiaoMinecraftLauncher/compare/v0.2.0-beta.6...v0.2.0-beta.7
 [0.2.0-beta.6]: https://github.com/WangSimiao2000/MiaoMinecraftLauncher/compare/v0.2.0-beta.5...v0.2.0-beta.6
 
