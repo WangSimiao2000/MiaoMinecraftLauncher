@@ -511,6 +511,28 @@ mod tests {
     }
 
     #[test]
+    fn t_schema_12b_neoforge_fixture_parses() {
+        let manifest_raw = include_bytes!("fixtures/miao_neoforge_manifest.json");
+        let pack_raw = include_bytes!("fixtures/miao_neoforge_pack.json");
+
+        let url =
+            "https://raw.githubusercontent.com/WangSimiao2000/miao-modpacks/main/manifest.json";
+        let m = parse_manifest(manifest_raw, url).expect("neoforge fixture manifest parses");
+        assert_eq!(m.source_id, "miao");
+        assert_eq!(m.packs.len(), 1);
+        assert_eq!(m.packs[0].id, "miao-1.21.1-neoforge-test");
+        assert_eq!(m.packs[0].loader, Loader::Neoforge);
+        assert_eq!(m.packs[0].mc_versions, vec!["1.21.1"]);
+
+        let p = parse_pack(pack_raw).expect("neoforge fixture pack parses");
+        assert_eq!(p.id, "miao-1.21.1-neoforge-test");
+        assert_eq!(p.loader, Loader::Neoforge);
+        assert_eq!(p.mods.len(), 3);
+        let ids: Vec<&str> = p.mods.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(ids, vec!["u6dRKJwZ", "lhGA9TYQ", "EsAfCjCV"]);
+    }
+
+    #[test]
     fn t_schema_13_lock_policy_without_locked_version_rejected() {
         let pack_json = r#"{
             "pack_format": "miao:1.0.0",

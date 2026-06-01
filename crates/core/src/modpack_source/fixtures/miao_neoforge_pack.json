@@ -1,0 +1,47 @@
+{
+  "pack_format": "miao:1.0.0",
+  "id": "miao-1.21.1-neoforge-test",
+  "display_name": "米奇喵 1.21.1 NeoForge 测试整合包",
+  "version": "0.1.0",
+  "summary": "MMCL Phase 1 fixture: NeoForge JEI + Architectury + AppleSkin",
+  "description": "Phase 1 NeoForge fixture exercising the resolver's NeoForge-specific second-pass check (loader_dep_version_id -> game_versions). All three Modrinth project IDs are real and have NeoForge 1.21.1 support as of 2026-06. To use this in the live miao-modpacks repo, copy this file to packs/miao-1.21.1-neoforge-test/pack.json and add the matching entry to manifest.json. See docs/modpack-source-phase1-spec.md §9 #3.",
+  "loader": "neoforge",
+  "mc_versions": ["1.21.1"],
+  "loader_versions": {},
+  "mods": [
+    {
+      "source": "modrinth",
+      "id": "u6dRKJwZ",
+      "name": "Just Enough Items (JEI)",
+      "policy": "auto",
+      "locked_version": null,
+      "criticality": "core",
+      "deprecated_after": null,
+      "replacement": null
+    },
+    {
+      "source": "modrinth",
+      "id": "lhGA9TYQ",
+      "name": "Architectury API",
+      "policy": "auto",
+      "locked_version": null,
+      "criticality": "core",
+      "deprecated_after": null,
+      "replacement": null
+    },
+    {
+      "source": "modrinth",
+      "id": "EsAfCjCV",
+      "name": "AppleSkin",
+      "policy": "auto",
+      "locked_version": null,
+      "criticality": "optional",
+      "deprecated_after": null,
+      "replacement": null
+    }
+  ],
+  "config_overlay": {
+    "base_url": "https://raw.githubusercontent.com/WangSimiao2000/miao-modpacks/main/packs/miao-1.21.1-neoforge-test/config",
+    "files": []
+  }
+}
