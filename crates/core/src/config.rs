@@ -225,6 +225,13 @@ impl LauncherConfig {
         self.data_dir.join("logs")
     }
 
+    /// HTTP cache root for the modpack-source ecosystem (Phase 1: manifest +
+    /// pack.json). Symmetric with `themes_dir()` / `locales_dir()`. Lazily
+    /// populated by `core::modpack_source::cache::Cache` on first write.
+    pub fn modpack_cache_dir(&self) -> PathBuf {
+        self.data_dir.join("modpack-cache")
+    }
+
     pub fn ensure_data_dirs(&self) {
         let dirs = [self.instances_dir(), self.themes_dir(), self.locales_dir()];
         for dir in &dirs {

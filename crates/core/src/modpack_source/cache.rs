@@ -23,6 +23,16 @@ pub struct CacheMeta {
     pub url: String,
 }
 
+impl CacheMeta {
+    pub fn fresh_now(url: impl Into<String>, etag: Option<String>) -> Self {
+        Self {
+            fetched_at: chrono::Utc::now(),
+            etag,
+            url: url.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CacheEntry {
     pub raw: Vec<u8>,

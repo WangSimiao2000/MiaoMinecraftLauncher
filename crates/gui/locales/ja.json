@@ -48,6 +48,7 @@
   "modpack_browse_loading": "マニフェストを読み込み中……",
   "modpack_browse_error": "失敗",
   "modpack_browse_no_manifest": "マニフェスト未読み込み。更新をクリックしてください。",
+  "modpack_browse_offline_stale": "オフライン — キャッシュされたマニフェストを表示しています。一部のパックは古い可能性があります。",
   "modpack_browse_select_pack": "モッドパックを選択",
   "modpack_browse_pack_summary": "概要",
   "modpack_browse_mc_version": "Minecraft バージョン",

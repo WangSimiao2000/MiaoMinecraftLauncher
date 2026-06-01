@@ -97,10 +97,12 @@ async fn controller_loop(
             AppCommand::FetchModpackManifest {
                 source_id,
                 manifest_url,
+                cache_dir,
             } => {
                 modpack_source::handle_fetch_manifest(
                     source_id,
                     manifest_url,
+                    cache_dir,
                     event_tx.clone(),
                     ctx.clone(),
                 );

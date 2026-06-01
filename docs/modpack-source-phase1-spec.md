@@ -722,7 +722,7 @@ Phase 1 不预先实现 Phase 2/3 的功能，但**以上接口字段必须在 P
 
 ---
 
-## 12. 实施进度（last updated 2026-05-31，main@505ee65）
+## 12. 实施进度（last updated 2026-06-01，main@v0.3.0-beta.1+1）
 
 ### 已完成
 
@@ -738,6 +738,8 @@ QA + 用户反馈 session 期间修复 / 优化（按时间顺序）：
 4. `10c36a6 docs: sync CHANGELOG + Phase 1 spec progress with QA session 1`
 5. **`a530a99 fix(gui): show launch progress so users know the game is starting (#11)`** — 解决 issue #11：点击 Launch 后 10–60 秒沉默；现在加进度阶段（Detecting Java… → Verifying files… → Repairing N files… → Extracting natives… → Starting JVM…）+ Toast + 按钮置灰；新增 `AppEvent::LaunchSpawned` 无副作用清 spinner；删除 dead `AppEvent::Error` variant
 6. **`505ee65 feat(gui): explain modpack mod statuses via hover tooltips`** — 解决用户对 Pending/Deprecated/Abandoned 文案不理解：confirm modal 状态徽章加 hover tooltip 解释；同步 Tab 计数 chip 化（图标+数字+文字+tooltip）；tooltip delay 0.3s → 0.15s
+7. **`0233a40 release: v0.3.0-beta.1`** — bump workspace 版本 + CHANGELOG 定稿，release workflow 自动构建并发布 Linux/Windows/macOS 五个 artifact
+8. **post-beta.1：Cache 层接通 GUI** — `controller::modpack_source::handle_fetch_manifest` 接通 `core::modpack_source::cache::Cache`；fresh cache (≤6h TTL) 短路 HTTP；网络成功写回 cache；网络失败回退到 stale cache 并在 browse tab 顶部显示「网络不可达 — 显示本地缓存」橙色横幅；新增 `LauncherConfig::modpack_cache_dir()`、`CacheMeta::fresh_now()`；4 个新 GUI 测试覆盖 4 条路径（fresh hit / 网络成功写 cache / 网络失败 stale fallback / 无 cache 网络失败报错）；3 语 i18n 220 keys。**解锁 §9 DoD #6 + #13**。
 
 issue #12（桌面快捷方式）调研已做（Windows 不发 CLI 是 gap，需要先给 `miao-gui` 加 `--launch` argv 解析，详见 session-2 中 explore agent bg_fedca1ff 的输出），但**用户决定推迟**，未实施。
 
@@ -749,7 +751,7 @@ issue #12（桌面快捷方式）调研已做（Windows 不发 CLI 是 gap，需
 
 ### 已知缺口（按重要性，0.3.0-rc 前应处理）
 
-1. **Cache 层未在 GUI 接通**：`core::modpack_source::cache::Cache` 已实现并测试，但 `controller::modpack_source::handle_fetch_manifest` 直接走 HTTP，没用 cache。后果：spec §9 第 6 项「断网兜底」、第 13 项「manifest 网络拉取超时 → 兜底用本地缓存」字面无法验证。修复点：在 fetch_manifest 调用前查 cache，network 成功后写 cache，network 失败 + cache 存在时返回 cache（带 stale 标记到 UI）。
+1. ~~**Cache 层未在 GUI 接通**~~ —— 已完成（见上方第 8 项）。fresh-hit 短路 HTTP；offline 回退 stale cache + UI banner；4 个回归测试。
 2. **「重新解算」按钮缺失**：modpack browse tab 没有显式的"重新解算"按钮（只有"刷新"刷的是 manifest 不是 resolution）。后果：§9 第 11 项「狂点重新解算 → 限流倒计时」物理上无法触发。
 3. **"无法取消" 提示文案**：spec §4.3 / §9 第 7 项明确要求 Phase 1 不实现取消并需告知用户。当前进度条 UI 没这文案。Issue #11 修复时也保留了这个 gap（launch 也不可取消，spinner ✕ 已隐藏，但没文案说明）。
 4. **NeoForge / incompatible / 循环依赖 GUI 行为未验证**：core 测试覆盖了后端语义（t_install_07 incompatible / t_resolve_* cycle / NeoForge game_versions 二次校验），但 GUI 端未人工跑。米奇喵源现仅含 Fabric pack，需另造 NeoForge fixture。
@@ -765,7 +767,7 @@ issue #12（桌面快捷方式）调研已做（Windows 不发 CLI 是 gap，需
 
 **P1 — 0.3.0-rc 前应做**（按 ROI 排，每项独立可做）：
 
-3. **Cache 层接通 GUI**（半天）—— 解锁 §9 #6 / #13 两项 DoD，最高 ROI
+3. ~~**Cache 层接通 GUI**~~（半天）—— ✅ 已完成
 4. **「重新解算」按钮**（2 小时）—— 解锁 §9 #11
 5. **「无法取消」文案 i18n 三语**（1 小时）—— 解锁 §9 #7 + 同时覆盖 launch 流的"无法取消"
 6. **NeoForge fixture** + GUI 跑 §9 #3（半天，外部仓库 + 测试，需要找 NeoForge mod 候选）

@@ -29,6 +29,7 @@
   "modpack_browse_loading": "Loading manifest…",
   "modpack_browse_error": "Failed",
   "modpack_browse_no_manifest": "No manifest loaded yet. Click Refresh.",
+  "modpack_browse_offline_stale": "Offline — showing cached manifest. Some packs may be out of date.",
   "modpack_browse_select_pack": "Select a modpack",
   "modpack_browse_pack_summary": "About",
   "modpack_browse_mc_version": "Minecraft Version",

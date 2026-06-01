@@ -375,9 +375,11 @@ impl MiaoApp {
                 AppEvent::ModpackManifestFetched {
                     source_id,
                     manifest,
+                    stale,
                 } => {
                     self.modpack_source.manifest_loading = false;
                     self.modpack_source.manifest_error = None;
+                    self.modpack_source.manifest_stale = stale;
                     self.modpack_source.current_source_id = Some(source_id);
                     self.modpack_source.manifest = Some(manifest);
                     self.modpack_source.selected_pack_idx = None;
@@ -385,6 +387,7 @@ impl MiaoApp {
                 }
                 AppEvent::ModpackManifestFailed { source_id, error } => {
                     self.modpack_source.manifest_loading = false;
+                    self.modpack_source.manifest_stale = false;
                     self.modpack_source.current_source_id = Some(source_id);
                     self.modpack_source.manifest_error = Some(error.clone());
                     self.toasts.error(format!("Modpack manifest: {error}"));

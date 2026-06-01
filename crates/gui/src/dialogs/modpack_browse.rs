@@ -3,6 +3,7 @@ use eframe::egui;
 use miao_core::modpack_source::Loader;
 
 use crate::app::{I18n, MiaoApp};
+use crate::icons::ICON_EXCLAMATION_TRIANGLE_FILL;
 use crate::messages::AppCommand;
 use crate::theme;
 
@@ -61,6 +62,17 @@ impl MiaoApp {
             ui.label(theme::muted(I18n::t(lang, "modpack_browse_no_manifest")));
             return;
         };
+
+        if self.modpack_source.manifest_stale {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(ICON_EXCLAMATION_TRIANGLE_FILL)
+                        .color(theme::Colors::warning()),
+                );
+                ui.label(theme::small(I18n::t(lang, "modpack_browse_offline_stale")));
+            });
+            ui.add_space(4.0);
+        }
 
         ui.label(theme::subheading(&manifest.source_name));
         ui.label(theme::small(&format!(
@@ -170,6 +182,7 @@ impl MiaoApp {
         self.controller.send(AppCommand::FetchModpackManifest {
             source_id: source_id.to_string(),
             manifest_url: url,
+            cache_dir: self.config.modpack_cache_dir(),
         });
     }
 

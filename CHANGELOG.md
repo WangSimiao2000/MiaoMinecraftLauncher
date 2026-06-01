@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Modpack manifest fetches now go through the on-disk cache layer**. The Phase 1 `core::modpack_source::cache::Cache` was already implemented + tested but never wired into the GUI, so the modpack browse tab made an unconditional HTTP request on every open and would hard-fail on transient network drops. The fetch path now reads the cache first; a fresh entry (≤6h, matching the existing TTL) short-circuits the network call entirely, a successful network fetch writes back into the cache, and a network failure falls back to whatever stale cache is on disk and surfaces a 「网络不可达 — 当前显示的是本地缓存」 banner above the manifest header so the user knows the listing may be out of date. The cache lives under `<data-dir>/modpack-cache/<source-id>/` (new `LauncherConfig::modpack_cache_dir()`); each entry is the raw manifest body plus a sibling `.meta.json` with `fetched_at` / `etag` / `url`. Three i18n keys (`modpack_browse_offline_stale`) ship across en/zh/ja, putting all locales at 220 keys. Closes the spec §9 #6 「断网兜底」 and #13 「manifest 拉取超时 → 本地缓存」 DoD items.
+
 ## [0.3.0-beta.1] - 2026-06-01
 
 ### Added

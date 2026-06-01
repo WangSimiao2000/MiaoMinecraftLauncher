@@ -147,6 +147,7 @@ pub struct ModpackSourceState {
     pub manifest: Option<miao_core::modpack_source::Manifest>,
     pub manifest_loading: bool,
     pub manifest_error: Option<String>,
+    pub manifest_stale: bool,
     pub selected_pack_idx: Option<usize>,
     pub selected_mc_version: Option<String>,
     pub current_subscription_report: Option<miao_core::modpack_source::ResolutionReport>,

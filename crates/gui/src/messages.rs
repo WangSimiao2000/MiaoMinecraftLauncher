@@ -48,6 +48,7 @@ pub enum AppCommand {
     FetchModpackManifest {
         source_id: String,
         manifest_url: String,
+        cache_dir: std::path::PathBuf,
     },
     ResolveModpack {
         source_id: String,
@@ -211,6 +212,7 @@ pub enum AppEvent {
     ModpackManifestFetched {
         source_id: String,
         manifest: miao_core::modpack_source::Manifest,
+        stale: bool,
     },
     ModpackManifestFailed {
         source_id: String,

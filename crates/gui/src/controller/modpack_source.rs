@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -5,8 +6,8 @@ use egui::Context;
 use miao_core::config::LauncherConfig;
 use miao_core::http::ReqwestClient;
 use miao_core::modpack_source::{
-    InstallPhase, InstallPlan, InstallProgressSink, LiveInstallExecutor, LiveResolverDataSource,
-    install, parse_manifest, parse_pack, resolve,
+    Cache, CacheMeta, Freshness, InstallPhase, InstallPlan, InstallProgressSink,
+    LiveInstallExecutor, LiveResolverDataSource, install, parse_manifest, parse_pack, resolve,
 };
 use tokio::sync::mpsc;
 
@@ -149,26 +150,106 @@ fn classify_reqwest_error(e: &reqwest::Error) -> String {
 pub fn handle_fetch_manifest(
     source_id: String,
     manifest_url: String,
+    cache_dir: PathBuf,
     event_tx: mpsc::UnboundedSender<AppEvent>,
     ctx: Context,
 ) {
     tokio::spawn(async move {
-        let result = async {
-            let raw = fetch_with_github_fallback(&manifest_url).await?;
-            parse_manifest(&raw, &manifest_url).map_err(|e| format!("parse: {e}"))
-        }
-        .await;
+        let cache = Cache::new(cache_dir);
+        let outcome = fetch_manifest_with_cache(&cache, &source_id, &manifest_url).await;
 
-        let event = match result {
-            Ok(manifest) => AppEvent::ModpackManifestFetched {
+        let event = match outcome {
+            FetchOutcome::Ok { manifest, stale } => AppEvent::ModpackManifestFetched {
                 source_id,
                 manifest,
+                stale,
             },
-            Err(error) => AppEvent::ModpackManifestFailed { source_id, error },
+            FetchOutcome::Err(error) => AppEvent::ModpackManifestFailed { source_id, error },
         };
         let _ = event_tx.send(event);
         ctx.request_repaint();
     });
+}
+
+enum FetchOutcome {
+    Ok {
+        manifest: miao_core::modpack_source::Manifest,
+        stale: bool,
+    },
+    Err(String),
+}
+
+async fn fetch_manifest_with_cache(
+    cache: &Cache,
+    source_id: &str,
+    manifest_url: &str,
+) -> FetchOutcome {
+    fetch_manifest_with_cache_inner(cache, source_id, manifest_url, |url| {
+        Box::pin(fetch_with_github_fallback(url))
+    })
+    .await
+}
+
+type BoxFetchFut<'a> =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send + 'a>>;
+
+async fn fetch_manifest_with_cache_inner<F>(
+    cache: &Cache,
+    source_id: &str,
+    manifest_url: &str,
+    fetcher: F,
+) -> FetchOutcome
+where
+    F: for<'a> Fn(&'a str) -> BoxFetchFut<'a>,
+{
+    let cached = cache.read_manifest(source_id).ok().flatten();
+
+    if let Some(entry) = cached.as_ref()
+        && cache.freshness_of(&entry.meta) == Freshness::Fresh
+    {
+        match parse_manifest(&entry.raw, manifest_url) {
+            Ok(manifest) => {
+                return FetchOutcome::Ok {
+                    manifest,
+                    stale: false,
+                };
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "fresh modpack manifest cache failed to parse, refetching");
+            }
+        }
+    }
+
+    match fetcher(manifest_url).await {
+        Ok(raw) => match parse_manifest(&raw, manifest_url) {
+            Ok(manifest) => {
+                let meta = CacheMeta::fresh_now(manifest_url, None);
+                if let Err(e) = cache.write_manifest(source_id, &raw, &meta) {
+                    tracing::warn!(error = %e, "failed to write modpack manifest cache");
+                }
+                FetchOutcome::Ok {
+                    manifest,
+                    stale: false,
+                }
+            }
+            Err(e) => FetchOutcome::Err(format!("parse: {e}")),
+        },
+        Err(network_err) => match cached {
+            Some(entry) => match parse_manifest(&entry.raw, manifest_url) {
+                Ok(manifest) => {
+                    tracing::info!(error = %network_err, "modpack manifest network fetch failed, falling back to stale cache");
+                    FetchOutcome::Ok {
+                        manifest,
+                        stale: true,
+                    }
+                }
+                Err(e) => FetchOutcome::Err(format!(
+                    "network failed and stale cache unparsable.\n  network: {network_err}\n  cache: {e}"
+                )),
+            },
+            None => FetchOutcome::Err(network_err),
+        },
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -327,5 +408,113 @@ mod tests {
     #[test]
     fn t_jsdelivr_mirror_malformed_path_returns_none() {
         assert!(jsdelivr_mirror("https://raw.githubusercontent.com/onlyuser").is_none());
+    }
+
+    const MANIFEST_FIXTURE: &str =
+        include_str!("../../../core/src/modpack_source/fixtures/miao_manifest.json");
+
+    fn ok_fetcher(body: Vec<u8>) -> impl for<'a> Fn(&'a str) -> BoxFetchFut<'a> {
+        move |_url: &str| {
+            let body = body.clone();
+            Box::pin(async move { Ok(body) })
+        }
+    }
+
+    fn err_fetcher() -> impl for<'a> Fn(&'a str) -> BoxFetchFut<'a> {
+        |_url: &str| Box::pin(async { Err::<Vec<u8>, _>("simulated network failure".to_string()) })
+    }
+
+    #[tokio::test]
+    async fn t_fetch_manifest_writes_cache_on_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = Cache::new(dir.path());
+        let url = "https://example.test/manifest.json";
+
+        let result = fetch_manifest_with_cache_inner(
+            &cache,
+            "miao",
+            url,
+            ok_fetcher(MANIFEST_FIXTURE.as_bytes().to_vec()),
+        )
+        .await;
+
+        match result {
+            FetchOutcome::Ok { stale, .. } => assert!(!stale, "fresh fetch should not be stale"),
+            FetchOutcome::Err(e) => panic!("expected Ok, got Err: {e}"),
+        }
+        assert!(
+            cache.read_manifest("miao").unwrap().is_some(),
+            "successful fetch should populate cache"
+        );
+    }
+
+    #[tokio::test]
+    async fn t_fetch_manifest_short_circuits_on_fresh_cache() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = Cache::new(dir.path());
+        let url = "https://example.test/manifest.json";
+
+        cache
+            .write_manifest(
+                "miao",
+                MANIFEST_FIXTURE.as_bytes(),
+                &CacheMeta::fresh_now(url, None),
+            )
+            .unwrap();
+
+        let result = fetch_manifest_with_cache_inner(&cache, "miao", url, err_fetcher()).await;
+
+        match result {
+            FetchOutcome::Ok { stale, .. } => assert!(
+                !stale,
+                "fresh cache hit should not be marked stale even though the fetcher would fail"
+            ),
+            FetchOutcome::Err(e) => panic!("fresh cache should short-circuit network: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn t_fetch_manifest_falls_back_to_stale_when_offline() {
+        let dir = tempfile::tempdir().unwrap();
+        let url = "https://example.test/manifest.json";
+        let cache = Cache::new(dir.path());
+
+        let (body_path, meta_path) = cache.manifest_paths("miao");
+        std::fs::create_dir_all(body_path.parent().unwrap()).unwrap();
+        std::fs::write(&body_path, MANIFEST_FIXTURE.as_bytes()).unwrap();
+        std::fs::write(
+            &meta_path,
+            format!(r#"{{"fetched_at":"2020-01-01T00:00:00Z","etag":null,"url":"{url}"}}"#),
+        )
+        .unwrap();
+
+        let result = fetch_manifest_with_cache_inner(&cache, "miao", url, err_fetcher()).await;
+
+        match result {
+            FetchOutcome::Ok { stale, .. } => assert!(stale, "offline fallback must mark stale"),
+            FetchOutcome::Err(e) => panic!("expected stale-cache fallback, got Err: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn t_fetch_manifest_errors_when_no_cache_and_offline() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = Cache::new(dir.path());
+
+        let result = fetch_manifest_with_cache_inner(
+            &cache,
+            "miao",
+            "https://example.test/manifest.json",
+            err_fetcher(),
+        )
+        .await;
+
+        match result {
+            FetchOutcome::Ok { .. } => panic!("no cache + network failure must error"),
+            FetchOutcome::Err(e) => assert!(
+                e.contains("simulated network failure"),
+                "error must surface the network message: {e}"
+            ),
+        }
     }
 }
