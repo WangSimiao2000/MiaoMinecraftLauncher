@@ -9,6 +9,7 @@
   "launch": "▶ 起動",
   "install": "インストール",
   "cancel": "キャンセル",
+  "task_not_cancellable": "キャンセル不可",
   "save": "保存",
   "search_mods": "Mod検索",
   "no_mods": "Modがインストールされていません",

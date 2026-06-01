@@ -745,6 +745,10 @@ impl eframe::App for MiaoApp {
         egui::TopBottomPanel::bottom("status_bar")
             .frame(theme::bottom_bar_frame())
             .show(ctx, |ui| {
+                let lang = self.language.clone();
+                let cancellable = self.has_cancellable_active_task();
+                let not_cancellable_hint = || theme::muted(I18n::t(&lang, "task_not_cancellable"));
+
                 let active_progress = self.install_progress.values().next();
                 if let Some(progress) = active_progress {
                     if progress.total > 0 {
@@ -777,8 +781,12 @@ impl eframe::App for MiaoApp {
                                     .text(text)
                                     .fill(theme::Colors::accent()),
                             );
-                            if ui.small_button(crate::icons::ICON_X).clicked() {
-                                self.cancel_all_tasks();
+                            if cancellable {
+                                if ui.small_button(crate::icons::ICON_X).clicked() {
+                                    self.cancel_all_tasks();
+                                }
+                            } else {
+                                ui.label(not_cancellable_hint());
                             }
                         });
                     } else {
@@ -787,15 +795,15 @@ impl eframe::App for MiaoApp {
                         } else {
                             progress.label.clone()
                         };
-                        let cancellable = self
-                            .active_installs
-                            .iter()
-                            .any(|id| !id.starts_with("launch:"));
                         ui.horizontal(|ui| {
                             ui.spinner();
                             ui.label(theme::status_text(&label_text));
-                            if cancellable && ui.small_button(crate::icons::ICON_X).clicked() {
-                                self.cancel_all_tasks();
+                            if cancellable {
+                                if ui.small_button(crate::icons::ICON_X).clicked() {
+                                    self.cancel_all_tasks();
+                                }
+                            } else {
+                                ui.label(not_cancellable_hint());
                             }
                         });
                     }
@@ -803,8 +811,12 @@ impl eframe::App for MiaoApp {
                     ui.horizontal(|ui| {
                         ui.spinner();
                         ui.label(theme::status_text(&self.status));
-                        if ui.small_button(crate::icons::ICON_X).clicked() {
-                            self.cancel_all_tasks();
+                        if cancellable {
+                            if ui.small_button(crate::icons::ICON_X).clicked() {
+                                self.cancel_all_tasks();
+                            }
+                        } else {
+                            ui.label(not_cancellable_hint());
                         }
                     });
                 } else {
@@ -1325,6 +1337,12 @@ impl MiaoApp {
         for task_id in task_ids {
             self.controller.send(AppCommand::CancelTask { task_id });
         }
+    }
+
+    fn has_cancellable_active_task(&self) -> bool {
+        self.active_installs
+            .iter()
+            .any(|id| !id.starts_with("launch:") && !id.starts_with("modpack-install:"))
     }
 
     pub fn fetch_loader_versions(&mut self, mc_version: &str) {

@@ -11,6 +11,7 @@
   "open": "打开",
   "delete": "删除",
   "cancel": "取消",
+  "task_not_cancellable": "无法取消",
   "confirm": "确认？",
   "yes": "是",
   "no": "否",

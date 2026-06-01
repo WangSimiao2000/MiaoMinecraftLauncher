@@ -11,6 +11,7 @@
   "open": "Open",
   "delete": "Delete",
   "cancel": "Cancel",
+  "task_not_cancellable": "Cannot be cancelled",
   "confirm": "Confirm?",
   "yes": "Yes",
   "no": "No",
