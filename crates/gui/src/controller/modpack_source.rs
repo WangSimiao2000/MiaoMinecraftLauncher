@@ -274,7 +274,7 @@ pub fn handle_resolve_modpack(
             let resolver_src = LiveResolverDataSource::new(http, None);
             let report = resolve(&pack, &pack_raw, &mc_version, &resolver_src)
                 .await
-                .map_err(|e| format!("resolve: {e}"))?;
+                .map_err(|e| format_resolve_error(&e.to_string()))?;
             Ok::<_, String>((pack, pack_raw, report))
         }
         .await;
@@ -352,7 +352,7 @@ pub fn handle_apply_install(
         let instances_root = config.instances_dir().clone();
         let result = install(plan, &instances_root, &executor)
             .await
-            .map_err(|e| format!("install: {e}"));
+            .map_err(|e| format_install_error(&e.to_string()));
 
         let event = match result {
             Ok(_) => AppEvent::ModpackInstallFinished {
@@ -373,6 +373,20 @@ pub fn handle_apply_install(
         let _ = event_tx.send(event);
         ctx.request_repaint();
     });
+}
+
+fn format_install_error(core_error: &str) -> String {
+    if core_error.is_empty() {
+        return "install: unknown error".to_string();
+    }
+    format!("install: {core_error}")
+}
+
+fn format_resolve_error(core_error: &str) -> String {
+    if core_error.is_empty() {
+        return "resolve: unknown error".to_string();
+    }
+    format!("resolve: {core_error}")
 }
 
 #[cfg(test)]
@@ -494,6 +508,67 @@ mod tests {
             FetchOutcome::Ok { stale, .. } => assert!(stale, "offline fallback must mark stale"),
             FetchOutcome::Err(e) => panic!("expected stale-cache fallback, got Err: {e}"),
         }
+    }
+
+    #[test]
+    fn t_format_install_error_preserves_404_message() {
+        let core_msg = "download mod foo failed: 404 for https://cdn.modrinth.com/data/x.jar";
+        let formatted = format_install_error(core_msg);
+        assert!(formatted.starts_with("install: "));
+        assert!(formatted.contains("404"));
+        assert!(formatted.contains("foo"));
+    }
+
+    #[test]
+    fn t_format_install_error_preserves_sha512_mismatch() {
+        let core_msg = "sha512 mismatch on mod sodium: expected abc..., got def...";
+        let formatted = format_install_error(core_msg);
+        assert!(formatted.contains("sha512"));
+        assert!(formatted.contains("sodium"));
+    }
+
+    #[test]
+    fn t_format_install_error_preserves_loader_failure() {
+        let formatted = format_install_error("install_loader: simulated loader failure");
+        assert!(formatted.contains("loader"));
+        assert!(formatted.contains("simulated"));
+    }
+
+    #[test]
+    fn t_format_install_error_preserves_disk_full() {
+        let formatted = format_install_error("io error: No space left on device (os error 28)");
+        assert!(formatted.contains("No space left"));
+        assert!(formatted.contains("os error 28"));
+    }
+
+    #[test]
+    fn t_format_install_error_handles_empty_core_error() {
+        let formatted = format_install_error("");
+        assert!(!formatted.is_empty());
+        assert!(formatted.contains("install"));
+    }
+
+    #[test]
+    fn t_format_resolve_error_preserves_rate_limit_message() {
+        let core_msg = "rate-limited; retry after 42s";
+        let formatted = format_resolve_error(core_msg);
+        assert!(formatted.starts_with("resolve: "));
+        assert!(formatted.contains("rate-limited"));
+        assert!(formatted.contains("42"));
+    }
+
+    #[test]
+    fn t_format_resolve_error_preserves_connection_refused() {
+        let core_msg = "connection refused or unreachable";
+        let formatted = format_resolve_error(core_msg);
+        assert!(formatted.contains("connection refused"));
+    }
+
+    #[test]
+    fn t_format_resolve_error_handles_empty_core_error() {
+        let formatted = format_resolve_error("");
+        assert!(!formatted.is_empty());
+        assert!(formatted.contains("resolve"));
     }
 
     #[tokio::test]

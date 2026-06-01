@@ -742,6 +742,55 @@ QA + 用户反馈 session 期间修复 / 优化（按时间顺序）：
 8. **post-beta.1：Cache 层接通 GUI** — `controller::modpack_source::handle_fetch_manifest` 接通 `core::modpack_source::cache::Cache`；fresh cache (≤6h TTL) 短路 HTTP；网络成功写回 cache；网络失败回退到 stale cache 并在 browse tab 顶部显示「网络不可达 — 显示本地缓存」橙色横幅；新增 `LauncherConfig::modpack_cache_dir()`、`CacheMeta::fresh_now()`；4 个新 GUI 测试覆盖 4 条路径（fresh hit / 网络成功写 cache / 网络失败 stale fallback / 无 cache 网络失败报错）；3 语 i18n 220 keys。**解锁 §9 DoD #6 + #13**。
 9. **post-beta.1：「无法取消」i18n + 「重新解算」按钮** — bottom-bar spinner 在所有 launch / modpack-install 任务期间显示「Cannot be cancelled / 无法取消 / キャンセル不可」muted 提示替代消失的取消 ✕（之前 `cancellable` 谓词只排除 `launch:` 前缀，对 `modpack-install:*` 错误地保留 ✕，而 controller 的 active_tasks 又只跟踪 CreateInstance/DownloadJava，所以 ✕ 实际上是哑按钮）；install-confirm modal 加「Re-resolve / 重新解算 / 再解決」按钮，复用 pending_confirm 状态从 ResolutionReport 读 mc_version、从 pack 读 loader、重发 ResolveModpack；3 语 i18n 总 223 keys。**解锁 §9 DoD #7 + #11**。
 10. **post-beta.1：NeoForge fixture（schema 验证 + 集成测试 + GUI 手测准备）** — 在 `crates/core/src/modpack_source/fixtures/` 加 `miao_neoforge_pack.json` + `miao_neoforge_manifest.json`，包含 3 个真实 NeoForge mod（JEI `u6dRKJwZ` / Architectury API `lhGA9TYQ` / AppleSkin `EsAfCjCV`）针对 1.21.1。`t_schema_12b_neoforge_fixture_parses` 验证 schema、loader、mc_versions、mod IDs 全部正确解析。**core 测试覆盖到此为止；§9 DoD #3 的 GUI 端到端验证（resolve → confirm modal → install → 启动游戏看到 mod 加载）需要由用户手动跑**：(a) 复制 fixture 内容到 `WangSimiao2000/miao-modpacks` 仓库的 `packs/miao-1.21.1-neoforge-test/pack.json`；(b) 把 fixture manifest 的 packs 数组项追加到 miao-modpacks 主 `manifest.json`；(c) 在 GUI 选「米奇喵整合包源」→ 选 NeoForge pack → 1.21.1 → 装好确认能启动并看到 JEI 界面。`neoforge_recheck` core 行为已被 `t_resolve_13_neoforge_game_versions_ambiguous_detected` 覆盖，所以这次手测主要看的是 happy path。
+11. **post-beta.1：故障注入抽样手测准备 + 错误信息 round-trip 单测** — §9 DoD #5 的 sampling 本质是手测任务（hosts 重定向 / 磁盘满 / Modrinth 503），下方 §12.x「故障注入抽样手测清单」给出结构化 checklist。core 已有完整的回滚语义覆盖：`t_install_03_mod_download_404_rolls_back_full_instance`、`t_install_04_mod_sha512_mismatch_rolls_back`、`t_install_05_overlay_sha256_mismatch_rolls_back`、`t_install_06_loader_failure_rolls_back`，加上 11 个 http-layer 测试（`t_http_06_modrinth_429_with_xratelimit_reset_retried`、`t_http_07_5xx_then_200_succeeds_after_retry_count`、`t_http_08_xratelimit_remaining_below_30_throttles`、`t_http_09_progress_sink_notified_on_429` 等）。新加 controller-layer error-formatting 单测（`t_install_error_format_*` / `t_resolve_error_format_*`）验证 `format!("install: {e}")` / `format!("Modpack install: {message}")` 等字符串拼接对常见 core 错误样本（404、SHA512 mismatch、loader failure、rate-limit、disk-full IO error）能产生非空、保留原始信息的用户可读消息——保护 GUI 错误展示通道不在未来 refactor 中悄悄丢失信息。
+
+### 12.x 故障注入抽样手测清单（§9 DoD #5 引用）
+
+下面每一项手测前先在 `<data-dir>/instances/` 备份现有 instance，避免污染，必要时清空 `<data-dir>/modpack-cache/` 排除缓存影响：
+
+#### A. Modrinth / CurseForge 503 / 5xx
+1. 启动 GUI，打开「+ New Instance → Modpack」tab
+2. 选米奇喵源 → 选 fabric pack → 1.21.5 → 起个 instance 名 → 点 Install
+3. 在 resolve 进行时，临时 block hosts：
+   ```bash
+   sudo sh -c 'echo "127.0.0.1 api.modrinth.com" >> /etc/hosts'
+   sudo sh -c 'echo "127.0.0.1 api.curseforge.com" >> /etc/hosts'
+   ```
+4. **预期**：resolve 失败，spinner 关闭，bottom-right 出现红色 toast 内容包含 connection refused / 时间外
+5. **回滚**：`sudo sed -i '/api.modrinth.com\|api.curseforge.com/d' /etc/hosts`
+
+#### B. Modrinth 429（rate-limited）
+1. 打开 modpack browse → 选 pack → install confirm modal 出现
+2. 连点「Re-resolve」按钮 ~10 次/秒持续 30 秒（用 keyboard hold 或 xdotool）
+3. **预期**：某次 resolve 失败，错误 toast 包含 `rate-limited; retry after Ns`（来自 `core::modpack_source::http::HttpError::RateLimited`）
+4. **回滚**：等 60 秒，rate limit 自动恢复
+
+#### C. mod 下载 404（hosts 重定向到死端点）
+1. 修改 hosts：
+   ```bash
+   sudo sh -c 'echo "127.0.0.1 cdn.modrinth.com" >> /etc/hosts'
+   ```
+2. 选 pack 装一个 instance（confirm 时 continue）
+3. **预期**：进度卡在「Downloading mods」阶段，所有下载 404，install 失败，toast 包含 `Modpack install: install: download mod ...`，新建的 staging dir `<data-dir>/instances/<name>/.staging/` 被 rollback 删除（用 `ls` 验证）
+4. **回滚**：`sudo sed -i '/cdn.modrinth.com/d' /etc/hosts`
+
+#### D. 磁盘满
+1. 创建 1MB 大小的 `tmpfs` 挂载到临时目录：
+   ```bash
+   mkdir /tmp/mmcl-tiny && sudo mount -t tmpfs -o size=1M tmpfs /tmp/mmcl-tiny
+   ```
+2. 临时把 MMCL data_dir 指向它（设置 `XDG_DATA_HOME=/tmp/mmcl-tiny` 启动 GUI）
+3. 装 pack（任意 mod ≥1MB 即可触发）
+4. **预期**：install 失败，错误 toast 包含 OS-level disk-full 信息（Linux `No space left on device` / Windows `disk full` / macOS `28 ENOSPC`），instance 被回滚
+5. **回滚**：`sudo umount /tmp/mmcl-tiny && rmdir /tmp/mmcl-tiny`
+
+#### E. SHA512 mismatch（用 manifest 篡改模拟）
+1. fork miao-modpacks 仓库，把某个 mod 的 `pack.json` 里 file_sha512 字段改一位
+2. 临时把米奇喵源切到自己的 fork（在 `<data-dir>/modpack-sources/user.toml` 加自定义 source）
+3. 装这个 fork pack
+4. **预期**：进度走到 hash 校验失败，instance 回滚，toast 包含 `sha512 mismatch`
+
+跑完所有 5 项后在本 spec §12「已知缺口」表 #5 边注 `已抽样验证 {date}`，并 **必须** 在 PR 描述里贴每项的截图（toast 错误内容 + 验证 instance dir 已被 rollback 删除）。如果某项 UI 行为不符合预期（比如 toast 文案不可读 / instance 没回滚 / spinner 卡住），开 issue 并标 `phase1-followup`。
 
 issue #12（桌面快捷方式）调研已做（Windows 不发 CLI 是 gap，需要先给 `miao-gui` 加 `--launch` argv 解析，详见 session-2 中 explore agent bg_fedca1ff 的输出），但**用户决定推迟**，未实施。
 
