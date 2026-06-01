@@ -71,6 +71,8 @@
   "modpack_confirm_summary": "部分 mod 未被标记为兼容。请确认后继续安装。",
   "modpack_confirm_continue": "继续安装",
   "modpack_confirm_cancel": "取消",
+  "modpack_confirm_reresolve": "重新解算",
+  "modpack_confirm_reresolve_tip": "重新跑一次解算 —— 适用于待支持的 mod 刚发新版本，或上次解算被瞬时 API 错误干扰的情况。短时间内连续点击可能会触发 Modrinth / CurseForge 的限流。",
   "account": "账号",
   "appearance": "外观",
   "theme": "主题",

@@ -71,6 +71,8 @@
   "modpack_confirm_summary": "Some mods could not be marked Compatible. Review and continue if you accept.",
   "modpack_confirm_continue": "Continue install",
   "modpack_confirm_cancel": "Cancel",
+  "modpack_confirm_reresolve": "Re-resolve",
+  "modpack_confirm_reresolve_tip": "Run the resolver again — useful when a Pending mod just released or a transient API error tainted the previous result. Repeated rapid clicks may hit Modrinth / CurseForge rate limits.",
   "account": "Account",
   "appearance": "Appearance",
   "theme": "Theme",

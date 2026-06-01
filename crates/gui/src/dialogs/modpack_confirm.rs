@@ -59,6 +59,7 @@ impl MiaoApp {
 
         let mut continue_clicked = false;
         let mut cancel_clicked = false;
+        let mut reresolve_clicked = false;
 
         egui::Window::new(I18n::t(&lang, "modpack_confirm_title"))
             .title_bar(false)
@@ -129,6 +130,14 @@ impl MiaoApp {
                         {
                             cancel_clicked = true;
                         }
+                        ui.add_space(8.0);
+                        if ui
+                            .button(I18n::t(&lang, "modpack_confirm_reresolve"))
+                            .on_hover_text(I18n::t(&lang, "modpack_confirm_reresolve_tip"))
+                            .clicked()
+                        {
+                            reresolve_clicked = true;
+                        }
                     });
                 });
             });
@@ -149,6 +158,23 @@ impl MiaoApp {
         } else if cancel_clicked {
             self.modpack_source.pending_confirm = None;
             self.status = "Cancelled.".to_string();
+        } else if reresolve_clicked && let Some(p) = self.modpack_source.pending_confirm.take() {
+            let loader = match p.pack.loader {
+                miao_core::modpack_source::Loader::Fabric => "fabric",
+                miao_core::modpack_source::Loader::Forge => "forge",
+                miao_core::modpack_source::Loader::Neoforge => "neoforge",
+                miao_core::modpack_source::Loader::Quilt => "quilt",
+            };
+            self.modpack_source.resolving = Some(p.instance_name.clone());
+            self.controller.send(AppCommand::ResolveModpack {
+                source_id: p.source_id,
+                pack_id: p.pack_id,
+                pack_url: p.pack_url,
+                mc_version: p.report.mc_version.clone(),
+                loader: loader.to_string(),
+                instance_name: p.instance_name,
+                config: *p.config,
+            });
         }
     }
 }

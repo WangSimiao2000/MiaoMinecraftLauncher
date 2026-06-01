@@ -90,6 +90,8 @@
   "modpack_confirm_summary": "一部の Mod は互換とマークされていません。確認のうえ続行してください。",
   "modpack_confirm_continue": "続行してインストール",
   "modpack_confirm_cancel": "キャンセル",
+  "modpack_confirm_reresolve": "再解決",
+  "modpack_confirm_reresolve_tip": "リゾルバを再実行 — Pending 状態の MOD が新バージョンを公開した直後、または前回の解決が一時的な API エラーで汚染された場合に有用。短時間に連続でクリックすると Modrinth / CurseForge のレート制限に達する可能性があります。",
   "account": "アカウント",
   "appearance": "外観",
   "theme": "テーマ",
