@@ -803,10 +803,10 @@ issue #12（桌面快捷方式）调研已做（Windows 不发 CLI 是 gap，需
 ### 已知缺口（按重要性，0.3.0-rc 前应处理）
 
 1. ~~**Cache 层未在 GUI 接通**~~ —— 已完成（见上方第 8 项）。fresh-hit 短路 HTTP；offline 回退 stale cache + UI banner；4 个回归测试。
-2. **「重新解算」按钮缺失**：modpack browse tab 没有显式的"重新解算"按钮（只有"刷新"刷的是 manifest 不是 resolution）。后果：§9 第 11 项「狂点重新解算 → 限流倒计时」物理上无法触发。
-3. **"无法取消" 提示文案**：spec §4.3 / §9 第 7 项明确要求 Phase 1 不实现取消并需告知用户。当前进度条 UI 没这文案。Issue #11 修复时也保留了这个 gap（launch 也不可取消，spinner ✕ 已隐藏，但没文案说明）。
-4. **NeoForge / incompatible / 循环依赖 GUI 行为未验证**：core 测试覆盖了后端语义（t_install_07 incompatible / t_resolve_* cycle / NeoForge game_versions 二次校验），但 GUI 端未人工跑。米奇喵源现仅含 Fabric pack，需另造 NeoForge fixture。
-5. **故障注入抽样未跑**：hosts 重定向回滚 / 磁盘满 / Modrinth 503 等，core 测试覆盖回滚语义但 UI 错误展示未验证。
+2. ~~**「重新解算」按钮缺失**~~ —— 已完成（见第 9 项）。confirm modal 加 Re-resolve / 重新解算 / 再解決，复用 pending_confirm 状态。
+3. ~~**"无法取消" 提示文案**~~ —— 已完成（见第 9 项）。bottom-bar spinner 在 launch / modpack-install 期间显示「Cannot be cancelled / 无法取消 / キャンセル不可」replacing 哑取消按钮。
+4. **NeoForge / incompatible / 循环依赖 GUI 行为部分验证** —— core 测试已全覆盖（t_install_07 incompatible / t_resolve_* cycle / NeoForge game_versions 二次校验 / `t_resolve_13` ambiguous case）。**fixture 已就绪（第 10 项）**，待用户手动跑 GUI 端到端验证 NeoForge happy path。
+5. **故障注入抽样自动覆盖完成、手测待跑** —— core 已有 4 个 install rollback 测试（404 / SHA512 / overlay sha / loader）+ 11 个 http rate-limit 测试；controller 加了 8 个 error-format 单测保护 GUI 错误展示通道；§12.x 给出 5 项手测 checklist 待用户跑（见第 11 项）。
 6. **issue #12 桌面快捷方式未做**：用户向功能，需要 (a) `miao-gui --launch <name>` argv 解析，(b) `crates/gui/src/platform.rs` 加 `desktop_dir()` + `write_instance_shortcut()` 跨平台 helper，(c) sidebar instance card 加右键 context_menu。Linux 写 `.desktop` / macOS 写 `.command` / Windows shell-out PowerShell 写 `.lnk`。预估 ~1.5–2 天。
 
 ### 接下来要做什么（按优先级）
@@ -819,10 +819,10 @@ issue #12（桌面快捷方式）调研已做（Windows 不发 CLI 是 gap，需
 **P1 — 0.3.0-rc 前应做**（按 ROI 排，每项独立可做）：
 
 3. ~~**Cache 层接通 GUI**~~（半天）—— ✅ 已完成
-4. **「重新解算」按钮**（2 小时）—— 解锁 §9 #11
-5. **「无法取消」文案 i18n 三语**（1 小时）—— 解锁 §9 #7 + 同时覆盖 launch 流的"无法取消"
-6. **NeoForge fixture** + GUI 跑 §9 #3（半天，外部仓库 + 测试，需要找 NeoForge mod 候选）
-7. **抽样故障注入**（半天，hosts 重定向 / 磁盘满 / Modrinth 503 任选 3–5 项）
+4. ~~**「重新解算」按钮**~~（2 小时）—— ✅ 已完成
+5. ~~**「无法取消」文案 i18n 三语**~~（1 小时）—— ✅ 已完成
+6. ~~**NeoForge fixture（自动覆盖）**~~（半天）—— ✅ fixture + schema test 已就绪；GUI 手测 §9 #3 待用户跑
+7. ~~**抽样故障注入（自动覆盖 + 手测准备）**~~（半天）—— ✅ controller error-format 单测 + §12.x 手测清单已就绪；5 项手测 §9 #5 待用户跑
 8. **issue #12 桌面快捷方式**（1.5–2 天，独立功能）
 
 **P2 — Phase 2 设计阶段处理**：
