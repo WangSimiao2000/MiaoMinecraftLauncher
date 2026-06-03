@@ -34,7 +34,7 @@ dirs = "6"
 tokio-util = { version = "0.7", features = ["io"] }
 # SHA/Hash verification
 sha1 = "0.10"
-sha2 = "0.10"
+sha2 = "0.11"
 # UUID for player profiles
 uuid = { version = "1", features = ["v3", "v4", "serde"] }
 # Date time
