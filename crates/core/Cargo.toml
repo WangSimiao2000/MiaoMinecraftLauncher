@@ -33,7 +33,7 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = "0.22"
 regex = { workspace = true }
 async-trait = { workspace = true }
-winreg = { version = "0.52", optional = true }
+winreg = { version = "0.56", optional = true }
 
 [features]
 default = []
