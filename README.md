@@ -8,7 +8,7 @@ A feature-rich Minecraft launcher built in Rust — fast, native, and open sourc
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-nightly-orange.svg)](rust-toolchain.toml)
-[![Tests](https://img.shields.io/badge/Tests-314%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/Tests-438%20passing-brightgreen.svg)](#development)
 
 </div>
 
