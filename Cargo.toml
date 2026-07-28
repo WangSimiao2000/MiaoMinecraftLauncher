@@ -56,7 +56,7 @@ indicatif = "0.17"
 
 
 # GUI
-eframe = { version = "0.34", default-features = false, features = ["glow", "default_fonts", "wayland", "x11"] }
+eframe = { version = "0.35", default-features = false, features = ["glow", "default_fonts", "wayland", "x11"] }
 egui = "0.34"
 
 # OAuth2
