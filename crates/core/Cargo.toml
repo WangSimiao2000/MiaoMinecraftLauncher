@@ -30,7 +30,7 @@ url.workspace = true
 oauth2.workspace = true
 tokio-util.workspace = true
 image = { version = "0.25", default-features = false, features = ["png"] }
-base64 = "0.22"
+base64 = "0.23"
 regex = { workspace = true }
 async-trait = { workspace = true }
 winreg = { version = "0.56", optional = true }
